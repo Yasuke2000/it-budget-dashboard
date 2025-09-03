@@ -1,0 +1,1495 @@
+[
+  {
+    "id": "inv-001",
+    "number": "PI-2025-0001",
+    "invoiceDate": "2025-01-03",
+    "postingDate": "2025-01-05",
+    "dueDate": "2025-02-04",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3480.00,
+    "totalAmountIncludingTax": 4210.80,
+    "totalTaxAmount": 730.80,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - January 2025", "quantity": 1, "unitPrice": 3480.00, "amount": 3480.00 }
+    ]
+  },
+  {
+    "id": "inv-002",
+    "number": "PI-2025-0002",
+    "invoiceDate": "2025-01-05",
+    "postingDate": "2025-01-07",
+    "dueDate": "2025-02-06",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2756.00,
+    "totalAmountIncludingTax": 3334.76,
+    "totalTaxAmount": 578.76,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - January 2025", "quantity": 1, "unitPrice": 1005.00, "amount": 1005.00 }
+    ]
+  },
+  {
+    "id": "inv-003",
+    "number": "PI-2025-0003",
+    "invoiceDate": "2025-01-06",
+    "postingDate": "2025-01-08",
+    "dueDate": "2025-02-07",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 448.00,
+    "totalAmountIncludingTax": 542.08,
+    "totalTaxAmount": 94.08,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - January 2025", "quantity": 1, "unitPrice": 448.00, "amount": 448.00 }
+    ]
+  },
+  {
+    "id": "inv-004",
+    "number": "PI-2025-0004",
+    "invoiceDate": "2025-01-08",
+    "postingDate": "2025-01-10",
+    "dueDate": "2025-02-09",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1190.00,
+    "totalAmountIncludingTax": 1439.90,
+    "totalTaxAmount": 249.90,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - January 2025", "quantity": 1, "unitPrice": 1190.00, "amount": 1190.00 }
+    ]
+  },
+  {
+    "id": "inv-005",
+    "number": "PI-2025-0005",
+    "invoiceDate": "2025-01-10",
+    "postingDate": "2025-01-12",
+    "dueDate": "2025-02-11",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 812.00,
+    "totalAmountIncludingTax": 982.52,
+    "totalTaxAmount": 170.52,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - January 2025", "quantity": 1, "unitPrice": 812.00, "amount": 812.00 }
+    ]
+  },
+  {
+    "id": "inv-006",
+    "number": "PI-2025-0006",
+    "invoiceDate": "2025-01-15",
+    "postingDate": "2025-01-17",
+    "dueDate": "2025-02-16",
+    "vendorNumber": "VEN-006",
+    "vendorName": "iDocta",
+    "totalAmountExcludingTax": 298.00,
+    "totalAmountIncludingTax": 360.58,
+    "totalTaxAmount": 62.58,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-whs",
+    "companyName": "WHS",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Print Management - Q1 2025 (Jan portion)", "quantity": 1, "unitPrice": 298.00, "amount": 298.00 }
+    ]
+  },
+  {
+    "id": "inv-007",
+    "number": "PI-2025-0007",
+    "invoiceDate": "2025-01-20",
+    "postingDate": "2025-01-22",
+    "dueDate": "2025-02-21",
+    "vendorNumber": "VEN-007",
+    "vendorName": "Barracuda Networks",
+    "totalAmountExcludingTax": 198.00,
+    "totalAmountIncludingTax": 239.58,
+    "totalTaxAmount": 41.58,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Security",
+    "lines": [
+      { "lineNumber": 1, "description": "Barracuda Email Security - Q1 2025", "quantity": 1, "unitPrice": 198.00, "amount": 198.00 }
+    ]
+  },
+  {
+    "id": "inv-008",
+    "number": "PI-2025-0008",
+    "invoiceDate": "2025-02-03",
+    "postingDate": "2025-02-05",
+    "dueDate": "2025-03-07",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3520.00,
+    "totalAmountIncludingTax": 4259.20,
+    "totalTaxAmount": 739.20,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - February 2025", "quantity": 1, "unitPrice": 3520.00, "amount": 3520.00 }
+    ]
+  },
+  {
+    "id": "inv-009",
+    "number": "PI-2025-0009",
+    "invoiceDate": "2025-02-05",
+    "postingDate": "2025-02-07",
+    "dueDate": "2025-03-09",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2810.00,
+    "totalAmountIncludingTax": 3400.10,
+    "totalTaxAmount": 590.10,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - February 2025", "quantity": 1, "unitPrice": 1059.00, "amount": 1059.00 }
+    ]
+  },
+  {
+    "id": "inv-010",
+    "number": "PI-2025-0010",
+    "invoiceDate": "2025-02-06",
+    "postingDate": "2025-02-08",
+    "dueDate": "2025-03-10",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 452.00,
+    "totalAmountIncludingTax": 546.92,
+    "totalTaxAmount": 94.92,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - February 2025", "quantity": 1, "unitPrice": 452.00, "amount": 452.00 }
+    ]
+  },
+  {
+    "id": "inv-011",
+    "number": "PI-2025-0011",
+    "invoiceDate": "2025-02-08",
+    "postingDate": "2025-02-10",
+    "dueDate": "2025-03-12",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1210.00,
+    "totalAmountIncludingTax": 1464.10,
+    "totalTaxAmount": 254.10,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-whs",
+    "companyName": "WHS",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - February 2025", "quantity": 1, "unitPrice": 1210.00, "amount": 1210.00 }
+    ]
+  },
+  {
+    "id": "inv-012",
+    "number": "PI-2025-0012",
+    "invoiceDate": "2025-02-10",
+    "postingDate": "2025-02-12",
+    "dueDate": "2025-03-14",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 795.00,
+    "totalAmountIncludingTax": 961.95,
+    "totalTaxAmount": 166.95,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - February 2025", "quantity": 1, "unitPrice": 795.00, "amount": 795.00 }
+    ]
+  },
+  {
+    "id": "inv-013",
+    "number": "PI-2025-0013",
+    "invoiceDate": "2025-02-18",
+    "postingDate": "2025-02-20",
+    "dueDate": "2025-03-22",
+    "vendorNumber": "VEN-008",
+    "vendorName": "Dell Technologies",
+    "totalAmountExcludingTax": 2450.00,
+    "totalAmountIncludingTax": 2964.50,
+    "totalTaxAmount": 514.50,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Hardware (Purchases)",
+    "lines": [
+      { "lineNumber": 1, "description": "Dell Latitude 5540 Laptop x2", "quantity": 2, "unitPrice": 1225.00, "amount": 2450.00 }
+    ]
+  },
+  {
+    "id": "inv-014",
+    "number": "PI-2025-0014",
+    "invoiceDate": "2025-03-03",
+    "postingDate": "2025-03-05",
+    "dueDate": "2025-04-04",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3465.00,
+    "totalAmountIncludingTax": 4192.65,
+    "totalTaxAmount": 727.65,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - March 2025", "quantity": 1, "unitPrice": 3465.00, "amount": 3465.00 }
+    ]
+  },
+  {
+    "id": "inv-015",
+    "number": "PI-2025-0015",
+    "invoiceDate": "2025-03-05",
+    "postingDate": "2025-03-07",
+    "dueDate": "2025-04-06",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2840.00,
+    "totalAmountIncludingTax": 3436.40,
+    "totalTaxAmount": 596.40,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - March 2025", "quantity": 1, "unitPrice": 1089.00, "amount": 1089.00 }
+    ]
+  },
+  {
+    "id": "inv-016",
+    "number": "PI-2025-0016",
+    "invoiceDate": "2025-03-06",
+    "postingDate": "2025-03-08",
+    "dueDate": "2025-04-07",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 445.00,
+    "totalAmountIncludingTax": 538.45,
+    "totalTaxAmount": 93.45,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - March 2025", "quantity": 1, "unitPrice": 445.00, "amount": 445.00 }
+    ]
+  },
+  {
+    "id": "inv-017",
+    "number": "PI-2025-0017",
+    "invoiceDate": "2025-03-08",
+    "postingDate": "2025-03-10",
+    "dueDate": "2025-04-09",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1180.00,
+    "totalAmountIncludingTax": 1427.80,
+    "totalTaxAmount": 247.80,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - March 2025", "quantity": 1, "unitPrice": 1180.00, "amount": 1180.00 }
+    ]
+  },
+  {
+    "id": "inv-018",
+    "number": "PI-2025-0018",
+    "invoiceDate": "2025-03-10",
+    "postingDate": "2025-03-12",
+    "dueDate": "2025-04-11",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 825.00,
+    "totalAmountIncludingTax": 998.25,
+    "totalTaxAmount": 173.25,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - March 2025", "quantity": 1, "unitPrice": 825.00, "amount": 825.00 }
+    ]
+  },
+  {
+    "id": "inv-019",
+    "number": "PI-2025-0019",
+    "invoiceDate": "2025-03-15",
+    "postingDate": "2025-03-17",
+    "dueDate": "2025-04-16",
+    "vendorNumber": "VEN-006",
+    "vendorName": "iDocta",
+    "totalAmountExcludingTax": 304.00,
+    "totalAmountIncludingTax": 367.84,
+    "totalTaxAmount": 63.84,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-whs",
+    "companyName": "WHS",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Print Management - Q1 2025 (Mar portion)", "quantity": 1, "unitPrice": 304.00, "amount": 304.00 }
+    ]
+  },
+  {
+    "id": "inv-020",
+    "number": "PI-2025-0020",
+    "invoiceDate": "2025-03-20",
+    "postingDate": "2025-03-22",
+    "dueDate": "2025-04-21",
+    "vendorNumber": "VEN-007",
+    "vendorName": "Barracuda Networks",
+    "totalAmountExcludingTax": 204.00,
+    "totalAmountIncludingTax": 246.84,
+    "totalTaxAmount": 42.84,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Security",
+    "lines": [
+      { "lineNumber": 1, "description": "Barracuda Email Security - Q2 2025", "quantity": 1, "unitPrice": 204.00, "amount": 204.00 }
+    ]
+  },
+  {
+    "id": "inv-021",
+    "number": "PI-2025-0021",
+    "invoiceDate": "2025-04-03",
+    "postingDate": "2025-04-05",
+    "dueDate": "2025-05-05",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3550.00,
+    "totalAmountIncludingTax": 4295.50,
+    "totalTaxAmount": 745.50,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - April 2025", "quantity": 1, "unitPrice": 3550.00, "amount": 3550.00 }
+    ]
+  },
+  {
+    "id": "inv-022",
+    "number": "PI-2025-0022",
+    "invoiceDate": "2025-04-05",
+    "postingDate": "2025-04-07",
+    "dueDate": "2025-05-07",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2778.00,
+    "totalAmountIncludingTax": 3361.38,
+    "totalTaxAmount": 583.38,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - April 2025", "quantity": 1, "unitPrice": 1027.00, "amount": 1027.00 }
+    ]
+  },
+  {
+    "id": "inv-023",
+    "number": "PI-2025-0023",
+    "invoiceDate": "2025-04-07",
+    "postingDate": "2025-04-09",
+    "dueDate": "2025-05-09",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 455.00,
+    "totalAmountIncludingTax": 550.55,
+    "totalTaxAmount": 95.55,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - April 2025", "quantity": 1, "unitPrice": 455.00, "amount": 455.00 }
+    ]
+  },
+  {
+    "id": "inv-024",
+    "number": "PI-2025-0024",
+    "invoiceDate": "2025-04-08",
+    "postingDate": "2025-04-10",
+    "dueDate": "2025-05-10",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1220.00,
+    "totalAmountIncludingTax": 1476.20,
+    "totalTaxAmount": 256.20,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - April 2025", "quantity": 1, "unitPrice": 1220.00, "amount": 1220.00 }
+    ]
+  },
+  {
+    "id": "inv-025",
+    "number": "PI-2025-0025",
+    "invoiceDate": "2025-04-10",
+    "postingDate": "2025-04-12",
+    "dueDate": "2025-05-12",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 788.00,
+    "totalAmountIncludingTax": 953.48,
+    "totalTaxAmount": 165.48,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - April 2025", "quantity": 1, "unitPrice": 788.00, "amount": 788.00 }
+    ]
+  },
+  {
+    "id": "inv-026",
+    "number": "PI-2025-0026",
+    "invoiceDate": "2025-04-22",
+    "postingDate": "2025-04-24",
+    "dueDate": "2025-05-24",
+    "vendorNumber": "VEN-009",
+    "vendorName": "HP Belgium",
+    "totalAmountExcludingTax": 1850.00,
+    "totalAmountIncludingTax": 2238.50,
+    "totalTaxAmount": 388.50,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-whs",
+    "companyName": "WHS",
+    "costCategory": "Hardware (Purchases)",
+    "lines": [
+      { "lineNumber": 1, "description": "HP EliteBook 840 G10 Laptop", "quantity": 1, "unitPrice": 1350.00, "amount": 1350.00 },
+      { "lineNumber": 2, "description": "HP ProDesk 400 G9 Desktop", "quantity": 1, "unitPrice": 500.00, "amount": 500.00 }
+    ]
+  },
+  {
+    "id": "inv-027",
+    "number": "PI-2025-0027",
+    "invoiceDate": "2025-05-05",
+    "postingDate": "2025-05-07",
+    "dueDate": "2025-06-06",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3490.00,
+    "totalAmountIncludingTax": 4222.90,
+    "totalTaxAmount": 732.90,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - May 2025", "quantity": 1, "unitPrice": 3490.00, "amount": 3490.00 }
+    ]
+  },
+  {
+    "id": "inv-028",
+    "number": "PI-2025-0028",
+    "invoiceDate": "2025-05-06",
+    "postingDate": "2025-05-08",
+    "dueDate": "2025-06-07",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2820.00,
+    "totalAmountIncludingTax": 3412.20,
+    "totalTaxAmount": 592.20,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - May 2025", "quantity": 1, "unitPrice": 1069.00, "amount": 1069.00 }
+    ]
+  },
+  {
+    "id": "inv-029",
+    "number": "PI-2025-0029",
+    "invoiceDate": "2025-05-07",
+    "postingDate": "2025-05-09",
+    "dueDate": "2025-06-08",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 450.00,
+    "totalAmountIncludingTax": 544.50,
+    "totalTaxAmount": 94.50,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - May 2025", "quantity": 1, "unitPrice": 450.00, "amount": 450.00 }
+    ]
+  },
+  {
+    "id": "inv-030",
+    "number": "PI-2025-0030",
+    "invoiceDate": "2025-05-08",
+    "postingDate": "2025-05-10",
+    "dueDate": "2025-06-09",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1195.00,
+    "totalAmountIncludingTax": 1445.95,
+    "totalTaxAmount": 250.95,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-whs",
+    "companyName": "WHS",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - May 2025", "quantity": 1, "unitPrice": 1195.00, "amount": 1195.00 }
+    ]
+  },
+  {
+    "id": "inv-031",
+    "number": "PI-2025-0031",
+    "invoiceDate": "2025-05-12",
+    "postingDate": "2025-05-14",
+    "dueDate": "2025-06-13",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 808.00,
+    "totalAmountIncludingTax": 977.68,
+    "totalTaxAmount": 169.68,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - May 2025", "quantity": 1, "unitPrice": 808.00, "amount": 808.00 }
+    ]
+  },
+  {
+    "id": "inv-032",
+    "number": "PI-2025-0032",
+    "invoiceDate": "2025-05-15",
+    "postingDate": "2025-05-17",
+    "dueDate": "2025-06-16",
+    "vendorNumber": "VEN-006",
+    "vendorName": "iDocta",
+    "totalAmountExcludingTax": 295.00,
+    "totalAmountIncludingTax": 356.95,
+    "totalTaxAmount": 61.95,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gre",
+    "companyName": "GRE",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Print Management - Q2 2025 (May portion)", "quantity": 1, "unitPrice": 295.00, "amount": 295.00 }
+    ]
+  },
+  {
+    "id": "inv-033",
+    "number": "PI-2025-0033",
+    "invoiceDate": "2025-06-04",
+    "postingDate": "2025-06-06",
+    "dueDate": "2025-07-06",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3610.00,
+    "totalAmountIncludingTax": 4368.10,
+    "totalTaxAmount": 758.10,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - June 2025", "quantity": 1, "unitPrice": 3610.00, "amount": 3610.00 }
+    ]
+  },
+  {
+    "id": "inv-034",
+    "number": "PI-2025-0034",
+    "invoiceDate": "2025-06-06",
+    "postingDate": "2025-06-08",
+    "dueDate": "2025-07-08",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2795.00,
+    "totalAmountIncludingTax": 3381.95,
+    "totalTaxAmount": 586.95,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - June 2025", "quantity": 1, "unitPrice": 1044.00, "amount": 1044.00 }
+    ]
+  },
+  {
+    "id": "inv-035",
+    "number": "PI-2025-0035",
+    "invoiceDate": "2025-06-07",
+    "postingDate": "2025-06-09",
+    "dueDate": "2025-07-09",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 447.00,
+    "totalAmountIncludingTax": 540.87,
+    "totalTaxAmount": 93.87,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - June 2025", "quantity": 1, "unitPrice": 447.00, "amount": 447.00 }
+    ]
+  },
+  {
+    "id": "inv-036",
+    "number": "PI-2025-0036",
+    "invoiceDate": "2025-06-09",
+    "postingDate": "2025-06-11",
+    "dueDate": "2025-07-11",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1205.00,
+    "totalAmountIncludingTax": 1458.05,
+    "totalTaxAmount": 253.05,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - June 2025", "quantity": 1, "unitPrice": 1205.00, "amount": 1205.00 }
+    ]
+  },
+  {
+    "id": "inv-037",
+    "number": "PI-2025-0037",
+    "invoiceDate": "2025-06-11",
+    "postingDate": "2025-06-13",
+    "dueDate": "2025-07-13",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 820.00,
+    "totalAmountIncludingTax": 992.20,
+    "totalTaxAmount": 172.20,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - June 2025", "quantity": 1, "unitPrice": 820.00, "amount": 820.00 }
+    ]
+  },
+  {
+    "id": "inv-038",
+    "number": "PI-2025-0038",
+    "invoiceDate": "2025-06-20",
+    "postingDate": "2025-06-22",
+    "dueDate": "2025-07-22",
+    "vendorNumber": "VEN-007",
+    "vendorName": "Barracuda Networks",
+    "totalAmountExcludingTax": 201.00,
+    "totalAmountIncludingTax": 243.21,
+    "totalTaxAmount": 42.21,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Security",
+    "lines": [
+      { "lineNumber": 1, "description": "Barracuda Email Security - Q3 2025", "quantity": 1, "unitPrice": 201.00, "amount": 201.00 }
+    ]
+  },
+  {
+    "id": "inv-039",
+    "number": "PI-2025-0039",
+    "invoiceDate": "2025-07-03",
+    "postingDate": "2025-07-05",
+    "dueDate": "2025-08-04",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3475.00,
+    "totalAmountIncludingTax": 4204.75,
+    "totalTaxAmount": 729.75,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - July 2025", "quantity": 1, "unitPrice": 3475.00, "amount": 3475.00 }
+    ]
+  },
+  {
+    "id": "inv-040",
+    "number": "PI-2025-0040",
+    "invoiceDate": "2025-07-07",
+    "postingDate": "2025-07-09",
+    "dueDate": "2025-08-08",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2830.00,
+    "totalAmountIncludingTax": 3424.30,
+    "totalTaxAmount": 594.30,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - July 2025", "quantity": 1, "unitPrice": 1079.00, "amount": 1079.00 }
+    ]
+  },
+  {
+    "id": "inv-041",
+    "number": "PI-2025-0041",
+    "invoiceDate": "2025-07-08",
+    "postingDate": "2025-07-10",
+    "dueDate": "2025-08-09",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 453.00,
+    "totalAmountIncludingTax": 548.13,
+    "totalTaxAmount": 95.13,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - July 2025", "quantity": 1, "unitPrice": 453.00, "amount": 453.00 }
+    ]
+  },
+  {
+    "id": "inv-042",
+    "number": "PI-2025-0042",
+    "invoiceDate": "2025-07-09",
+    "postingDate": "2025-07-11",
+    "dueDate": "2025-08-10",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1200.00,
+    "totalAmountIncludingTax": 1452.00,
+    "totalTaxAmount": 252.00,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-whs",
+    "companyName": "WHS",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - July 2025", "quantity": 1, "unitPrice": 1200.00, "amount": 1200.00 }
+    ]
+  },
+  {
+    "id": "inv-043",
+    "number": "PI-2025-0043",
+    "invoiceDate": "2025-07-11",
+    "postingDate": "2025-07-13",
+    "dueDate": "2025-08-12",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 798.00,
+    "totalAmountIncludingTax": 965.58,
+    "totalTaxAmount": 167.58,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - July 2025", "quantity": 1, "unitPrice": 798.00, "amount": 798.00 }
+    ]
+  },
+  {
+    "id": "inv-044",
+    "number": "PI-2025-0044",
+    "invoiceDate": "2025-07-15",
+    "postingDate": "2025-07-17",
+    "dueDate": "2025-08-16",
+    "vendorNumber": "VEN-006",
+    "vendorName": "iDocta",
+    "totalAmountExcludingTax": 310.00,
+    "totalAmountIncludingTax": 375.10,
+    "totalTaxAmount": 65.10,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-whs",
+    "companyName": "WHS",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Print Management - Q3 2025 (Jul portion)", "quantity": 1, "unitPrice": 310.00, "amount": 310.00 }
+    ]
+  },
+  {
+    "id": "inv-045",
+    "number": "PI-2025-0045",
+    "invoiceDate": "2025-07-24",
+    "postingDate": "2025-07-26",
+    "dueDate": "2025-08-25",
+    "vendorNumber": "VEN-010",
+    "vendorName": "Lenovo Belgium",
+    "totalAmountExcludingTax": 2980.00,
+    "totalAmountIncludingTax": 3605.80,
+    "totalTaxAmount": 625.80,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Hardware (Purchases)",
+    "lines": [
+      { "lineNumber": 1, "description": "Lenovo ThinkPad T14 Gen 4 x2", "quantity": 2, "unitPrice": 1490.00, "amount": 2980.00 }
+    ]
+  },
+  {
+    "id": "inv-046",
+    "number": "PI-2025-0046",
+    "invoiceDate": "2025-08-04",
+    "postingDate": "2025-08-06",
+    "dueDate": "2025-09-05",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3530.00,
+    "totalAmountIncludingTax": 4271.30,
+    "totalTaxAmount": 741.30,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - August 2025", "quantity": 1, "unitPrice": 3530.00, "amount": 3530.00 }
+    ]
+  },
+  {
+    "id": "inv-047",
+    "number": "PI-2025-0047",
+    "invoiceDate": "2025-08-06",
+    "postingDate": "2025-08-08",
+    "dueDate": "2025-09-07",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2765.00,
+    "totalAmountIncludingTax": 3345.65,
+    "totalTaxAmount": 580.65,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - August 2025", "quantity": 1, "unitPrice": 1014.00, "amount": 1014.00 }
+    ]
+  },
+  {
+    "id": "inv-048",
+    "number": "PI-2025-0048",
+    "invoiceDate": "2025-08-07",
+    "postingDate": "2025-08-09",
+    "dueDate": "2025-09-08",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 448.00,
+    "totalAmountIncludingTax": 542.08,
+    "totalTaxAmount": 94.08,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - August 2025", "quantity": 1, "unitPrice": 448.00, "amount": 448.00 }
+    ]
+  },
+  {
+    "id": "inv-049",
+    "number": "PI-2025-0049",
+    "invoiceDate": "2025-08-09",
+    "postingDate": "2025-08-11",
+    "dueDate": "2025-09-10",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1215.00,
+    "totalAmountIncludingTax": 1470.15,
+    "totalTaxAmount": 255.15,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - August 2025", "quantity": 1, "unitPrice": 1215.00, "amount": 1215.00 }
+    ]
+  },
+  {
+    "id": "inv-050",
+    "number": "PI-2025-0050",
+    "invoiceDate": "2025-08-12",
+    "postingDate": "2025-08-14",
+    "dueDate": "2025-09-13",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 815.00,
+    "totalAmountIncludingTax": 986.15,
+    "totalTaxAmount": 171.15,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - August 2025", "quantity": 1, "unitPrice": 815.00, "amount": 815.00 }
+    ]
+  },
+  {
+    "id": "inv-051",
+    "number": "PI-2025-0051",
+    "invoiceDate": "2025-09-03",
+    "postingDate": "2025-09-05",
+    "dueDate": "2025-10-05",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3580.00,
+    "totalAmountIncludingTax": 4331.80,
+    "totalTaxAmount": 751.80,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - September 2025", "quantity": 1, "unitPrice": 3580.00, "amount": 3580.00 }
+    ]
+  },
+  {
+    "id": "inv-052",
+    "number": "PI-2025-0052",
+    "invoiceDate": "2025-09-05",
+    "postingDate": "2025-09-07",
+    "dueDate": "2025-10-07",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2850.00,
+    "totalAmountIncludingTax": 3448.50,
+    "totalTaxAmount": 598.50,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - September 2025", "quantity": 1, "unitPrice": 1099.00, "amount": 1099.00 }
+    ]
+  },
+  {
+    "id": "inv-053",
+    "number": "PI-2025-0053",
+    "invoiceDate": "2025-09-06",
+    "postingDate": "2025-09-08",
+    "dueDate": "2025-10-08",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 451.00,
+    "totalAmountIncludingTax": 545.71,
+    "totalTaxAmount": 94.71,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - September 2025", "quantity": 1, "unitPrice": 451.00, "amount": 451.00 }
+    ]
+  },
+  {
+    "id": "inv-054",
+    "number": "PI-2025-0054",
+    "invoiceDate": "2025-09-08",
+    "postingDate": "2025-09-10",
+    "dueDate": "2025-10-10",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1190.00,
+    "totalAmountIncludingTax": 1439.90,
+    "totalTaxAmount": 249.90,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - September 2025", "quantity": 1, "unitPrice": 1190.00, "amount": 1190.00 }
+    ]
+  },
+  {
+    "id": "inv-055",
+    "number": "PI-2025-0055",
+    "invoiceDate": "2025-09-10",
+    "postingDate": "2025-09-12",
+    "dueDate": "2025-10-12",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 802.00,
+    "totalAmountIncludingTax": 970.42,
+    "totalTaxAmount": 168.42,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - September 2025", "quantity": 1, "unitPrice": 802.00, "amount": 802.00 }
+    ]
+  },
+  {
+    "id": "inv-056",
+    "number": "PI-2025-0056",
+    "invoiceDate": "2025-09-15",
+    "postingDate": "2025-09-17",
+    "dueDate": "2025-10-17",
+    "vendorNumber": "VEN-006",
+    "vendorName": "iDocta",
+    "totalAmountExcludingTax": 302.00,
+    "totalAmountIncludingTax": 365.42,
+    "totalTaxAmount": 63.42,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gre",
+    "companyName": "GRE",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Print Management - Q3 2025 (Sep portion)", "quantity": 1, "unitPrice": 302.00, "amount": 302.00 }
+    ]
+  },
+  {
+    "id": "inv-057",
+    "number": "PI-2025-0057",
+    "invoiceDate": "2025-09-19",
+    "postingDate": "2025-09-21",
+    "dueDate": "2025-10-21",
+    "vendorNumber": "VEN-007",
+    "vendorName": "Barracuda Networks",
+    "totalAmountExcludingTax": 206.00,
+    "totalAmountIncludingTax": 249.26,
+    "totalTaxAmount": 43.26,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Security",
+    "lines": [
+      { "lineNumber": 1, "description": "Barracuda Email Security - Q4 2025", "quantity": 1, "unitPrice": 206.00, "amount": 206.00 }
+    ]
+  },
+  {
+    "id": "inv-058",
+    "number": "PI-2025-0058",
+    "invoiceDate": "2025-10-03",
+    "postingDate": "2025-10-05",
+    "dueDate": "2025-11-04",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3620.00,
+    "totalAmountIncludingTax": 4380.20,
+    "totalTaxAmount": 760.20,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - October 2025", "quantity": 1, "unitPrice": 3620.00, "amount": 3620.00 }
+    ]
+  },
+  {
+    "id": "inv-059",
+    "number": "PI-2025-0059",
+    "invoiceDate": "2025-10-05",
+    "postingDate": "2025-10-07",
+    "dueDate": "2025-11-06",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2890.00,
+    "totalAmountIncludingTax": 3496.90,
+    "totalTaxAmount": 606.90,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - October 2025", "quantity": 1, "unitPrice": 1139.00, "amount": 1139.00 }
+    ]
+  },
+  {
+    "id": "inv-060",
+    "number": "PI-2025-0060",
+    "invoiceDate": "2025-10-07",
+    "postingDate": "2025-10-09",
+    "dueDate": "2025-11-08",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 456.00,
+    "totalAmountIncludingTax": 551.76,
+    "totalTaxAmount": 95.76,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - October 2025", "quantity": 1, "unitPrice": 456.00, "amount": 456.00 }
+    ]
+  },
+  {
+    "id": "inv-061",
+    "number": "PI-2025-0061",
+    "invoiceDate": "2025-10-08",
+    "postingDate": "2025-10-10",
+    "dueDate": "2025-11-09",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1225.00,
+    "totalAmountIncludingTax": 1482.25,
+    "totalTaxAmount": 257.25,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-whs",
+    "companyName": "WHS",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - October 2025", "quantity": 1, "unitPrice": 1225.00, "amount": 1225.00 }
+    ]
+  },
+  {
+    "id": "inv-062",
+    "number": "PI-2025-0062",
+    "invoiceDate": "2025-10-10",
+    "postingDate": "2025-10-12",
+    "dueDate": "2025-11-11",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 830.00,
+    "totalAmountIncludingTax": 1004.30,
+    "totalTaxAmount": 174.30,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - October 2025", "quantity": 1, "unitPrice": 830.00, "amount": 830.00 }
+    ]
+  },
+  {
+    "id": "inv-063",
+    "number": "PI-2025-0063",
+    "invoiceDate": "2025-10-20",
+    "postingDate": "2025-10-22",
+    "dueDate": "2025-11-21",
+    "vendorNumber": "VEN-008",
+    "vendorName": "Dell Technologies",
+    "totalAmountExcludingTax": 1620.00,
+    "totalAmountIncludingTax": 1960.20,
+    "totalTaxAmount": 340.20,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gre",
+    "companyName": "GRE",
+    "costCategory": "Hardware (Purchases)",
+    "lines": [
+      { "lineNumber": 1, "description": "Dell OptiPlex 7010 Desktop", "quantity": 2, "unitPrice": 810.00, "amount": 1620.00 }
+    ]
+  },
+  {
+    "id": "inv-064",
+    "number": "PI-2025-0064",
+    "invoiceDate": "2025-11-04",
+    "postingDate": "2025-11-06",
+    "dueDate": "2025-12-06",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3545.00,
+    "totalAmountIncludingTax": 4289.45,
+    "totalTaxAmount": 744.45,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - November 2025", "quantity": 1, "unitPrice": 3545.00, "amount": 3545.00 }
+    ]
+  },
+  {
+    "id": "inv-065",
+    "number": "PI-2025-0065",
+    "invoiceDate": "2025-11-06",
+    "postingDate": "2025-11-08",
+    "dueDate": "2025-12-08",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2875.00,
+    "totalAmountIncludingTax": 3478.75,
+    "totalTaxAmount": 603.75,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - November 2025", "quantity": 1, "unitPrice": 1124.00, "amount": 1124.00 }
+    ]
+  },
+  {
+    "id": "inv-066",
+    "number": "PI-2025-0066",
+    "invoiceDate": "2025-11-07",
+    "postingDate": "2025-11-09",
+    "dueDate": "2025-12-09",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 449.00,
+    "totalAmountIncludingTax": 543.29,
+    "totalTaxAmount": 94.29,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - November 2025", "quantity": 1, "unitPrice": 449.00, "amount": 449.00 }
+    ]
+  },
+  {
+    "id": "inv-067",
+    "number": "PI-2025-0067",
+    "invoiceDate": "2025-11-08",
+    "postingDate": "2025-11-10",
+    "dueDate": "2025-12-10",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1210.00,
+    "totalAmountIncludingTax": 1464.10,
+    "totalTaxAmount": 254.10,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - November 2025", "quantity": 1, "unitPrice": 1210.00, "amount": 1210.00 }
+    ]
+  },
+  {
+    "id": "inv-068",
+    "number": "PI-2025-0068",
+    "invoiceDate": "2025-11-10",
+    "postingDate": "2025-11-12",
+    "dueDate": "2025-12-12",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 818.00,
+    "totalAmountIncludingTax": 989.78,
+    "totalTaxAmount": 171.78,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - November 2025", "quantity": 1, "unitPrice": 818.00, "amount": 818.00 }
+    ]
+  },
+  {
+    "id": "inv-069",
+    "number": "PI-2025-0069",
+    "invoiceDate": "2025-11-15",
+    "postingDate": "2025-11-17",
+    "dueDate": "2025-12-17",
+    "vendorNumber": "VEN-006",
+    "vendorName": "iDocta",
+    "totalAmountExcludingTax": 308.00,
+    "totalAmountIncludingTax": 372.68,
+    "totalTaxAmount": 64.68,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-whs",
+    "companyName": "WHS",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Print Management - Q4 2025 (Nov portion)", "quantity": 1, "unitPrice": 308.00, "amount": 308.00 }
+    ]
+  },
+  {
+    "id": "inv-070",
+    "number": "PI-2025-0070",
+    "invoiceDate": "2025-12-03",
+    "postingDate": "2025-12-05",
+    "dueDate": "2026-01-04",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3500.00,
+    "totalAmountIncludingTax": 4235.00,
+    "totalTaxAmount": 735.00,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - December 2025", "quantity": 1, "unitPrice": 3500.00, "amount": 3500.00 }
+    ]
+  },
+  {
+    "id": "inv-071",
+    "number": "PI-2025-0071",
+    "invoiceDate": "2025-12-05",
+    "postingDate": "2025-12-07",
+    "dueDate": "2026-01-06",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2920.00,
+    "totalAmountIncludingTax": 3533.20,
+    "totalTaxAmount": 613.20,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - December 2025", "quantity": 1, "unitPrice": 1169.00, "amount": 1169.00 }
+    ]
+  },
+  {
+    "id": "inv-072",
+    "number": "PI-2025-0072",
+    "invoiceDate": "2025-12-06",
+    "postingDate": "2025-12-08",
+    "dueDate": "2026-01-07",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 450.00,
+    "totalAmountIncludingTax": 544.50,
+    "totalTaxAmount": 94.50,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - December 2025", "quantity": 1, "unitPrice": 450.00, "amount": 450.00 }
+    ]
+  },
+  {
+    "id": "inv-073",
+    "number": "PI-2025-0073",
+    "invoiceDate": "2025-12-08",
+    "postingDate": "2025-12-10",
+    "dueDate": "2026-01-09",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1200.00,
+    "totalAmountIncludingTax": 1452.00,
+    "totalTaxAmount": 252.00,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - December 2025", "quantity": 1, "unitPrice": 1200.00, "amount": 1200.00 }
+    ]
+  },
+  {
+    "id": "inv-074",
+    "number": "PI-2025-0074",
+    "invoiceDate": "2025-12-10",
+    "postingDate": "2025-12-12",
+    "dueDate": "2026-01-11",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 810.00,
+    "totalAmountIncludingTax": 980.10,
+    "totalTaxAmount": 170.10,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - December 2025", "quantity": 1, "unitPrice": 810.00, "amount": 810.00 }
+    ]
+  }
+]

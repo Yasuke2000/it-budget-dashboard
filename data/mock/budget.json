@@ -1,0 +1,1082 @@
+[
+  {
+    "id": "bud-2025-01-swl",
+    "category": "Software & Licenses",
+    "month": "2025-01",
+    "budgetAmount": 3200,
+    "actualAmount": 2946,
+    "variance": -254,
+    "variancePercent": -7.94,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-01-cld",
+    "category": "Cloud & Hosting",
+    "month": "2025-01",
+    "budgetAmount": 600,
+    "actualAmount": 1005,
+    "variance": 405,
+    "variancePercent": 67.5,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-01-eit",
+    "category": "External IT Services",
+    "month": "2025-01",
+    "budgetAmount": 3800,
+    "actualAmount": 3778,
+    "variance": -22,
+    "variancePercent": -0.58,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-01-tel",
+    "category": "Telecom",
+    "month": "2025-01",
+    "budgetAmount": 1300,
+    "actualAmount": 1260,
+    "variance": -40,
+    "variancePercent": -3.08,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-01-hwp",
+    "category": "Hardware (Purchases)",
+    "month": "2025-01",
+    "budgetAmount": 400,
+    "actualAmount": 0,
+    "variance": -400,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-01-hwd",
+    "category": "Hardware (Depreciation)",
+    "month": "2025-01",
+    "budgetAmount": 500,
+    "actualAmount": 500,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-01-sec",
+    "category": "Security",
+    "month": "2025-01",
+    "budgetAmount": 250,
+    "actualAmount": 198,
+    "variance": -52,
+    "variancePercent": -20.8,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-01-itp",
+    "category": "IT Personnel",
+    "month": "2025-01",
+    "budgetAmount": 0,
+    "actualAmount": 0,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-01-oth",
+    "category": "Other IT",
+    "month": "2025-01",
+    "budgetAmount": 100,
+    "actualAmount": 85,
+    "variance": -15,
+    "variancePercent": -15,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-02-swl",
+    "category": "Software & Licenses",
+    "month": "2025-02",
+    "budgetAmount": 3200,
+    "actualAmount": 2961,
+    "variance": -239,
+    "variancePercent": -7.47,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-02-cld",
+    "category": "Cloud & Hosting",
+    "month": "2025-02",
+    "budgetAmount": 600,
+    "actualAmount": 1059,
+    "variance": 459,
+    "variancePercent": 76.5,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-02-eit",
+    "category": "External IT Services",
+    "month": "2025-02",
+    "budgetAmount": 3800,
+    "actualAmount": 3520,
+    "variance": -280,
+    "variancePercent": -7.37,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-02-tel",
+    "category": "Telecom",
+    "month": "2025-02",
+    "budgetAmount": 1300,
+    "actualAmount": 1247,
+    "variance": -53,
+    "variancePercent": -4.08,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-02-hwp",
+    "category": "Hardware (Purchases)",
+    "month": "2025-02",
+    "budgetAmount": 400,
+    "actualAmount": 2450,
+    "variance": 2050,
+    "variancePercent": 512.5,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-02-hwd",
+    "category": "Hardware (Depreciation)",
+    "month": "2025-02",
+    "budgetAmount": 500,
+    "actualAmount": 500,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-02-sec",
+    "category": "Security",
+    "month": "2025-02",
+    "budgetAmount": 250,
+    "actualAmount": 0,
+    "variance": -250,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-02-itp",
+    "category": "IT Personnel",
+    "month": "2025-02",
+    "budgetAmount": 0,
+    "actualAmount": 0,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-02-oth",
+    "category": "Other IT",
+    "month": "2025-02",
+    "budgetAmount": 100,
+    "actualAmount": 92,
+    "variance": -8,
+    "variancePercent": -8,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-03-swl",
+    "category": "Software & Licenses",
+    "month": "2025-03",
+    "budgetAmount": 3200,
+    "actualAmount": 2931,
+    "variance": -269,
+    "variancePercent": -8.41,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-03-cld",
+    "category": "Cloud & Hosting",
+    "month": "2025-03",
+    "budgetAmount": 600,
+    "actualAmount": 1089,
+    "variance": 489,
+    "variancePercent": 81.5,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-03-eit",
+    "category": "External IT Services",
+    "month": "2025-03",
+    "budgetAmount": 3800,
+    "actualAmount": 3769,
+    "variance": -31,
+    "variancePercent": -0.82,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-03-tel",
+    "category": "Telecom",
+    "month": "2025-03",
+    "budgetAmount": 1300,
+    "actualAmount": 1270,
+    "variance": -30,
+    "variancePercent": -2.31,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-03-hwp",
+    "category": "Hardware (Purchases)",
+    "month": "2025-03",
+    "budgetAmount": 400,
+    "actualAmount": 0,
+    "variance": -400,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-03-hwd",
+    "category": "Hardware (Depreciation)",
+    "month": "2025-03",
+    "budgetAmount": 500,
+    "actualAmount": 500,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-03-sec",
+    "category": "Security",
+    "month": "2025-03",
+    "budgetAmount": 250,
+    "actualAmount": 204,
+    "variance": -46,
+    "variancePercent": -18.4,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-03-itp",
+    "category": "IT Personnel",
+    "month": "2025-03",
+    "budgetAmount": 0,
+    "actualAmount": 0,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-03-oth",
+    "category": "Other IT",
+    "month": "2025-03",
+    "budgetAmount": 100,
+    "actualAmount": 78,
+    "variance": -22,
+    "variancePercent": -22,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-04-swl",
+    "category": "Software & Licenses",
+    "month": "2025-04",
+    "budgetAmount": 3200,
+    "actualAmount": 2971,
+    "variance": -229,
+    "variancePercent": -7.16,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-04-cld",
+    "category": "Cloud & Hosting",
+    "month": "2025-04",
+    "budgetAmount": 600,
+    "actualAmount": 1027,
+    "variance": 427,
+    "variancePercent": 71.17,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-04-eit",
+    "category": "External IT Services",
+    "month": "2025-04",
+    "budgetAmount": 3800,
+    "actualAmount": 3550,
+    "variance": -250,
+    "variancePercent": -6.58,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-04-tel",
+    "category": "Telecom",
+    "month": "2025-04",
+    "budgetAmount": 1300,
+    "actualAmount": 1243,
+    "variance": -57,
+    "variancePercent": -4.38,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-04-hwp",
+    "category": "Hardware (Purchases)",
+    "month": "2025-04",
+    "budgetAmount": 400,
+    "actualAmount": 1850,
+    "variance": 1450,
+    "variancePercent": 362.5,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-04-hwd",
+    "category": "Hardware (Depreciation)",
+    "month": "2025-04",
+    "budgetAmount": 500,
+    "actualAmount": 500,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-04-sec",
+    "category": "Security",
+    "month": "2025-04",
+    "budgetAmount": 250,
+    "actualAmount": 0,
+    "variance": -250,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-04-itp",
+    "category": "IT Personnel",
+    "month": "2025-04",
+    "budgetAmount": 0,
+    "actualAmount": 0,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-04-oth",
+    "category": "Other IT",
+    "month": "2025-04",
+    "budgetAmount": 100,
+    "actualAmount": 110,
+    "variance": 10,
+    "variancePercent": 10,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-05-swl",
+    "category": "Software & Licenses",
+    "month": "2025-05",
+    "budgetAmount": 3200,
+    "actualAmount": 2946,
+    "variance": -254,
+    "variancePercent": -7.94,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-05-cld",
+    "category": "Cloud & Hosting",
+    "month": "2025-05",
+    "budgetAmount": 600,
+    "actualAmount": 1069,
+    "variance": 469,
+    "variancePercent": 78.17,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-05-eit",
+    "category": "External IT Services",
+    "month": "2025-05",
+    "budgetAmount": 3800,
+    "actualAmount": 3785,
+    "variance": -15,
+    "variancePercent": -0.39,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-05-tel",
+    "category": "Telecom",
+    "month": "2025-05",
+    "budgetAmount": 1300,
+    "actualAmount": 1258,
+    "variance": -42,
+    "variancePercent": -3.23,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-05-hwp",
+    "category": "Hardware (Purchases)",
+    "month": "2025-05",
+    "budgetAmount": 400,
+    "actualAmount": 0,
+    "variance": -400,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-05-hwd",
+    "category": "Hardware (Depreciation)",
+    "month": "2025-05",
+    "budgetAmount": 500,
+    "actualAmount": 500,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-05-sec",
+    "category": "Security",
+    "month": "2025-05",
+    "budgetAmount": 250,
+    "actualAmount": 0,
+    "variance": -250,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-05-itp",
+    "category": "IT Personnel",
+    "month": "2025-05",
+    "budgetAmount": 0,
+    "actualAmount": 0,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-05-oth",
+    "category": "Other IT",
+    "month": "2025-05",
+    "budgetAmount": 100,
+    "actualAmount": 95,
+    "variance": -5,
+    "variancePercent": -5,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-06-swl",
+    "category": "Software & Licenses",
+    "month": "2025-06",
+    "budgetAmount": 3200,
+    "actualAmount": 2956,
+    "variance": -244,
+    "variancePercent": -7.63,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-06-cld",
+    "category": "Cloud & Hosting",
+    "month": "2025-06",
+    "budgetAmount": 600,
+    "actualAmount": 1044,
+    "variance": 444,
+    "variancePercent": 74,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-06-eit",
+    "category": "External IT Services",
+    "month": "2025-06",
+    "budgetAmount": 3800,
+    "actualAmount": 3610,
+    "variance": -190,
+    "variancePercent": -5,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-06-tel",
+    "category": "Telecom",
+    "month": "2025-06",
+    "budgetAmount": 1300,
+    "actualAmount": 1267,
+    "variance": -33,
+    "variancePercent": -2.54,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-06-hwp",
+    "category": "Hardware (Purchases)",
+    "month": "2025-06",
+    "budgetAmount": 400,
+    "actualAmount": 0,
+    "variance": -400,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-06-hwd",
+    "category": "Hardware (Depreciation)",
+    "month": "2025-06",
+    "budgetAmount": 500,
+    "actualAmount": 500,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-06-sec",
+    "category": "Security",
+    "month": "2025-06",
+    "budgetAmount": 250,
+    "actualAmount": 201,
+    "variance": -49,
+    "variancePercent": -19.6,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-06-itp",
+    "category": "IT Personnel",
+    "month": "2025-06",
+    "budgetAmount": 0,
+    "actualAmount": 0,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-06-oth",
+    "category": "Other IT",
+    "month": "2025-06",
+    "budgetAmount": 100,
+    "actualAmount": 118,
+    "variance": 18,
+    "variancePercent": 18,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-07-swl",
+    "category": "Software & Licenses",
+    "month": "2025-07",
+    "budgetAmount": 3200,
+    "actualAmount": 2951,
+    "variance": -249,
+    "variancePercent": -7.78,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-07-cld",
+    "category": "Cloud & Hosting",
+    "month": "2025-07",
+    "budgetAmount": 600,
+    "actualAmount": 1079,
+    "variance": 479,
+    "variancePercent": 79.83,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-07-eit",
+    "category": "External IT Services",
+    "month": "2025-07",
+    "budgetAmount": 3800,
+    "actualAmount": 3785,
+    "variance": -15,
+    "variancePercent": -0.39,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-07-tel",
+    "category": "Telecom",
+    "month": "2025-07",
+    "budgetAmount": 1300,
+    "actualAmount": 1251,
+    "variance": -49,
+    "variancePercent": -3.77,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-07-hwp",
+    "category": "Hardware (Purchases)",
+    "month": "2025-07",
+    "budgetAmount": 400,
+    "actualAmount": 2980,
+    "variance": 2580,
+    "variancePercent": 645,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-07-hwd",
+    "category": "Hardware (Depreciation)",
+    "month": "2025-07",
+    "budgetAmount": 500,
+    "actualAmount": 500,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-07-sec",
+    "category": "Security",
+    "month": "2025-07",
+    "budgetAmount": 250,
+    "actualAmount": 0,
+    "variance": -250,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-07-itp",
+    "category": "IT Personnel",
+    "month": "2025-07",
+    "budgetAmount": 0,
+    "actualAmount": 0,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-07-oth",
+    "category": "Other IT",
+    "month": "2025-07",
+    "budgetAmount": 100,
+    "actualAmount": 103,
+    "variance": 3,
+    "variancePercent": 3,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-08-swl",
+    "category": "Software & Licenses",
+    "month": "2025-08",
+    "budgetAmount": 3200,
+    "actualAmount": 2966,
+    "variance": -234,
+    "variancePercent": -7.31,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-08-cld",
+    "category": "Cloud & Hosting",
+    "month": "2025-08",
+    "budgetAmount": 600,
+    "actualAmount": 1014,
+    "variance": 414,
+    "variancePercent": 69,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-08-eit",
+    "category": "External IT Services",
+    "month": "2025-08",
+    "budgetAmount": 3800,
+    "actualAmount": 3530,
+    "variance": -270,
+    "variancePercent": -7.11,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-08-tel",
+    "category": "Telecom",
+    "month": "2025-08",
+    "budgetAmount": 1300,
+    "actualAmount": 1263,
+    "variance": -37,
+    "variancePercent": -2.85,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-08-hwp",
+    "category": "Hardware (Purchases)",
+    "month": "2025-08",
+    "budgetAmount": 400,
+    "actualAmount": 0,
+    "variance": -400,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-08-hwd",
+    "category": "Hardware (Depreciation)",
+    "month": "2025-08",
+    "budgetAmount": 500,
+    "actualAmount": 500,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-08-sec",
+    "category": "Security",
+    "month": "2025-08",
+    "budgetAmount": 250,
+    "actualAmount": 0,
+    "variance": -250,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-08-itp",
+    "category": "IT Personnel",
+    "month": "2025-08",
+    "budgetAmount": 0,
+    "actualAmount": 0,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-08-oth",
+    "category": "Other IT",
+    "month": "2025-08",
+    "budgetAmount": 100,
+    "actualAmount": 88,
+    "variance": -12,
+    "variancePercent": -12,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-09-swl",
+    "category": "Software & Licenses",
+    "month": "2025-09",
+    "budgetAmount": 3200,
+    "actualAmount": 2941,
+    "variance": -259,
+    "variancePercent": -8.09,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-09-cld",
+    "category": "Cloud & Hosting",
+    "month": "2025-09",
+    "budgetAmount": 600,
+    "actualAmount": 1099,
+    "variance": 499,
+    "variancePercent": 83.17,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-09-eit",
+    "category": "External IT Services",
+    "month": "2025-09",
+    "budgetAmount": 3800,
+    "actualAmount": 3882,
+    "variance": 82,
+    "variancePercent": 2.16,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-09-tel",
+    "category": "Telecom",
+    "month": "2025-09",
+    "budgetAmount": 1300,
+    "actualAmount": 1253,
+    "variance": -47,
+    "variancePercent": -3.62,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-09-hwp",
+    "category": "Hardware (Purchases)",
+    "month": "2025-09",
+    "budgetAmount": 400,
+    "actualAmount": 0,
+    "variance": -400,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-09-hwd",
+    "category": "Hardware (Depreciation)",
+    "month": "2025-09",
+    "budgetAmount": 500,
+    "actualAmount": 500,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-09-sec",
+    "category": "Security",
+    "month": "2025-09",
+    "budgetAmount": 250,
+    "actualAmount": 206,
+    "variance": -44,
+    "variancePercent": -17.6,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-09-itp",
+    "category": "IT Personnel",
+    "month": "2025-09",
+    "budgetAmount": 0,
+    "actualAmount": 0,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-09-oth",
+    "category": "Other IT",
+    "month": "2025-09",
+    "budgetAmount": 100,
+    "actualAmount": 107,
+    "variance": 7,
+    "variancePercent": 7,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-10-swl",
+    "category": "Software & Licenses",
+    "month": "2025-10",
+    "budgetAmount": 3200,
+    "actualAmount": 2976,
+    "variance": -224,
+    "variancePercent": -7,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-10-cld",
+    "category": "Cloud & Hosting",
+    "month": "2025-10",
+    "budgetAmount": 600,
+    "actualAmount": 1139,
+    "variance": 539,
+    "variancePercent": 89.83,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-10-eit",
+    "category": "External IT Services",
+    "month": "2025-10",
+    "budgetAmount": 3800,
+    "actualAmount": 3620,
+    "variance": -180,
+    "variancePercent": -4.74,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-10-tel",
+    "category": "Telecom",
+    "month": "2025-10",
+    "budgetAmount": 1300,
+    "actualAmount": 1286,
+    "variance": -14,
+    "variancePercent": -1.08,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-10-hwp",
+    "category": "Hardware (Purchases)",
+    "month": "2025-10",
+    "budgetAmount": 400,
+    "actualAmount": 1620,
+    "variance": 1220,
+    "variancePercent": 305,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-10-hwd",
+    "category": "Hardware (Depreciation)",
+    "month": "2025-10",
+    "budgetAmount": 500,
+    "actualAmount": 500,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-10-sec",
+    "category": "Security",
+    "month": "2025-10",
+    "budgetAmount": 250,
+    "actualAmount": 0,
+    "variance": -250,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-10-itp",
+    "category": "IT Personnel",
+    "month": "2025-10",
+    "budgetAmount": 0,
+    "actualAmount": 0,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-10-oth",
+    "category": "Other IT",
+    "month": "2025-10",
+    "budgetAmount": 100,
+    "actualAmount": 125,
+    "variance": 25,
+    "variancePercent": 25,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-11-swl",
+    "category": "Software & Licenses",
+    "month": "2025-11",
+    "budgetAmount": 3200,
+    "actualAmount": 2961,
+    "variance": -239,
+    "variancePercent": -7.47,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-11-cld",
+    "category": "Cloud & Hosting",
+    "month": "2025-11",
+    "budgetAmount": 600,
+    "actualAmount": 1124,
+    "variance": 524,
+    "variancePercent": 87.33,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-11-eit",
+    "category": "External IT Services",
+    "month": "2025-11",
+    "budgetAmount": 3800,
+    "actualAmount": 3853,
+    "variance": 53,
+    "variancePercent": 1.39,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-11-tel",
+    "category": "Telecom",
+    "month": "2025-11",
+    "budgetAmount": 1300,
+    "actualAmount": 1267,
+    "variance": -33,
+    "variancePercent": -2.54,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-11-hwp",
+    "category": "Hardware (Purchases)",
+    "month": "2025-11",
+    "budgetAmount": 400,
+    "actualAmount": 0,
+    "variance": -400,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-11-hwd",
+    "category": "Hardware (Depreciation)",
+    "month": "2025-11",
+    "budgetAmount": 500,
+    "actualAmount": 500,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-11-sec",
+    "category": "Security",
+    "month": "2025-11",
+    "budgetAmount": 250,
+    "actualAmount": 0,
+    "variance": -250,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-11-itp",
+    "category": "IT Personnel",
+    "month": "2025-11",
+    "budgetAmount": 0,
+    "actualAmount": 0,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-11-oth",
+    "category": "Other IT",
+    "month": "2025-11",
+    "budgetAmount": 100,
+    "actualAmount": 96,
+    "variance": -4,
+    "variancePercent": -4,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-12-swl",
+    "category": "Software & Licenses",
+    "month": "2025-12",
+    "budgetAmount": 3200,
+    "actualAmount": 2951,
+    "variance": -249,
+    "variancePercent": -7.78,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-12-cld",
+    "category": "Cloud & Hosting",
+    "month": "2025-12",
+    "budgetAmount": 600,
+    "actualAmount": 1169,
+    "variance": 569,
+    "variancePercent": 94.83,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-12-eit",
+    "category": "External IT Services",
+    "month": "2025-12",
+    "budgetAmount": 3800,
+    "actualAmount": 3500,
+    "variance": -300,
+    "variancePercent": -7.89,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-12-tel",
+    "category": "Telecom",
+    "month": "2025-12",
+    "budgetAmount": 1300,
+    "actualAmount": 1260,
+    "variance": -40,
+    "variancePercent": -3.08,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-12-hwp",
+    "category": "Hardware (Purchases)",
+    "month": "2025-12",
+    "budgetAmount": 400,
+    "actualAmount": 0,
+    "variance": -400,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-12-hwd",
+    "category": "Hardware (Depreciation)",
+    "month": "2025-12",
+    "budgetAmount": 500,
+    "actualAmount": 500,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-12-sec",
+    "category": "Security",
+    "month": "2025-12",
+    "budgetAmount": 250,
+    "actualAmount": 0,
+    "variance": -250,
+    "variancePercent": -100,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-12-itp",
+    "category": "IT Personnel",
+    "month": "2025-12",
+    "budgetAmount": 0,
+    "actualAmount": 0,
+    "variance": 0,
+    "variancePercent": 0,
+    "companyId": "all"
+  },
+  {
+    "id": "bud-2025-12-oth",
+    "category": "Other IT",
+    "month": "2025-12",
+    "budgetAmount": 100,
+    "actualAmount": 112,
+    "variance": 12,
+    "variancePercent": 12,
+    "companyId": "all"
+  }
+]

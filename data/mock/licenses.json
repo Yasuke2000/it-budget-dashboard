@@ -1,0 +1,110 @@
+[
+  {
+    "skuId": "sku-spb-001",
+    "skuPartNumber": "SPB",
+    "displayName": "Microsoft 365 Business Premium",
+    "prepaidUnits": 120,
+    "consumedUnits": 102,
+    "utilizationRate": 85,
+    "pricePerUser": 20.60,
+    "monthlyCost": 2101.20,
+    "wastedUnits": 18,
+    "wastedCost": 370.80
+  },
+  {
+    "skuId": "sku-spe3-001",
+    "skuPartNumber": "SPE_E3",
+    "displayName": "Microsoft 365 E3",
+    "prepaidUnits": 15,
+    "consumedUnits": 14,
+    "utilizationRate": 93.3,
+    "pricePerUser": 36.00,
+    "monthlyCost": 504.00,
+    "wastedUnits": 1,
+    "wastedCost": 36.00
+  },
+  {
+    "skuId": "sku-spe5-001",
+    "skuPartNumber": "SPE_E5",
+    "displayName": "Microsoft 365 E5",
+    "prepaidUnits": 5,
+    "consumedUnits": 5,
+    "utilizationRate": 100,
+    "pricePerUser": 57.00,
+    "monthlyCost": 285.00,
+    "wastedUnits": 0,
+    "wastedCost": 0
+  },
+  {
+    "skuId": "sku-flow-001",
+    "skuPartNumber": "FLOW_FREE",
+    "displayName": "Power Automate Free",
+    "prepaidUnits": 10000,
+    "consumedUnits": 23,
+    "utilizationRate": 0.23,
+    "pricePerUser": 0,
+    "monthlyCost": 0,
+    "wastedUnits": 0,
+    "wastedCost": 0
+  },
+  {
+    "skuId": "sku-teams-001",
+    "skuPartNumber": "TEAMS_EXPLORATORY",
+    "displayName": "Teams Exploratory",
+    "prepaidUnits": 100,
+    "consumedUnits": 8,
+    "utilizationRate": 8,
+    "pricePerUser": 0,
+    "monthlyCost": 0,
+    "wastedUnits": 0,
+    "wastedCost": 0
+  },
+  {
+    "skuId": "sku-pbi-001",
+    "skuPartNumber": "POWER_BI_STANDARD",
+    "displayName": "Power BI Free",
+    "prepaidUnits": 10000,
+    "consumedUnits": 15,
+    "utilizationRate": 0.15,
+    "pricePerUser": 0,
+    "monthlyCost": 0,
+    "wastedUnits": 0,
+    "wastedCost": 0
+  },
+  {
+    "skuId": "sku-aadp1-001",
+    "skuPartNumber": "AAD_PREMIUM",
+    "displayName": "Entra ID P1",
+    "prepaidUnits": 140,
+    "consumedUnits": 121,
+    "utilizationRate": 86.4,
+    "pricePerUser": 6.00,
+    "monthlyCost": 726.00,
+    "wastedUnits": 19,
+    "wastedCost": 114.00
+  },
+  {
+    "skuId": "sku-ems-001",
+    "skuPartNumber": "EMS",
+    "displayName": "Enterprise Mobility + Security E3",
+    "prepaidUnits": 10,
+    "consumedUnits": 10,
+    "utilizationRate": 100,
+    "pricePerUser": 9.80,
+    "monthlyCost": 98.00,
+    "wastedUnits": 0,
+    "wastedCost": 0
+  },
+  {
+    "skuId": "sku-intune-001",
+    "skuPartNumber": "INTUNE_A",
+    "displayName": "Intune Plan 1",
+    "prepaidUnits": 140,
+    "consumedUnits": 132,
+    "utilizationRate": 94.3,
+    "pricePerUser": 8.60,
+    "monthlyCost": 1135.20,
+    "wastedUnits": 8,
+    "wastedCost": 68.80
+  }
+]
