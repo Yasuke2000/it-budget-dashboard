@@ -11,6 +11,7 @@ import {
   Building2,
   Monitor,
   Settings,
+  Upload,
   Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ const navItems = [
   { label: "Budget", icon: PiggyBank, href: "/budget" },
   { label: "Vendors", icon: Building2, href: "/vendors" },
   { label: "Devices", icon: Monitor, href: "/devices" },
+  { label: "Import", icon: Upload, href: "/import" },
   { label: "Settings", icon: Settings, href: "/settings" },
 ];
 
