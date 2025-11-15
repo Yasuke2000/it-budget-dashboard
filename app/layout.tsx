@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CompanyProvider } from "@/components/layout/company-context";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -30,6 +31,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="dark min-h-full bg-slate-950 text-slate-100">
+        <SessionProvider>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
@@ -57,6 +59,7 @@ export default function RootLayout({
             </TooltipProvider>
           </CompanyProvider>
         </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );
