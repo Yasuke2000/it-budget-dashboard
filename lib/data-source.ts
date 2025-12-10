@@ -19,6 +19,11 @@ import type {
   EntitySpend,
   VendorSummary,
   CompanyFilter,
+  Employee,
+  JiraWorklog,
+  JiraProjectCost,
+  PersonnelKPIs,
+  DepartmentSummary,
 } from "./types";
 import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD } from "./constants";
 
@@ -238,6 +243,126 @@ export async function getEntitySpend(): Promise<EntitySpend[]> {
       userCount: users,
     };
   });
+}
+
+// ---- Employees ----
+export async function getEmployees(): Promise<Employee[]> {
+  if (isDemoMode()) {
+    const mockData = await import("../data/mock/employees.json");
+    return (mockData.default as Employee[]);
+  }
+  // Live mode: fetch from Officient
+  const { fetchEmployees, fetchAssets } = await import("./officient-client");
+  const [officientEmployees, officientAssets] = await Promise.all([
+    fetchEmployees(),
+    fetchAssets(),
+  ]);
+
+  const assetsByPerson = new Map<number, { id: number; name: string; description: string; category: string }[]>();
+  officientAssets.forEach((a) => {
+    const list = assetsByPerson.get(a.person_id) || [];
+    list.push({ id: a.id, name: a.name, description: a.description, category: a.category });
+    assetsByPerson.set(a.person_id, list);
+  });
+
+  return officientEmployees.map((e) => ({
+    id: e.id,
+    name: e.name,
+    email: e.email,
+    department: e.department,
+    functionTitle: e.function_title,
+    startDate: e.start_date,
+    status: e.status,
+    assets: assetsByPerson.get(e.id) || [],
+  }));
+}
+
+// ---- Jira Worklogs ----
+export async function getJiraWorklogs(): Promise<JiraWorklog[]> {
+  if (isDemoMode()) {
+    const mockData = await import("../data/mock/jira-worklogs.json");
+    return mockData.default as JiraWorklog[];
+  }
+  // Live mode: placeholder — integrate Jira REST API here
+  const mockData = await import("../data/mock/jira-worklogs.json");
+  return mockData.default as JiraWorklog[];
+}
+
+// ---- Jira Project Costs (derived) ----
+export async function getJiraProjectCosts(): Promise<JiraProjectCost[]> {
+  const worklogs = await getJiraWorklogs();
+
+  const PROJECT_NAMES: Record<string, string> = {
+    ITSUP: "IT Support",
+    INFRA: "Infrastructure",
+    SEC: "Security",
+    PROJ: "Projects",
+  };
+
+  const projectMap = new Map<
+    string,
+    { totalHours: number; totalCost: number; contributors: Set<string> }
+  >();
+
+  worklogs.forEach((wl) => {
+    const existing = projectMap.get(wl.project) || {
+      totalHours: 0,
+      totalCost: 0,
+      contributors: new Set<string>(),
+    };
+    existing.totalHours += wl.timeSpentHours;
+    existing.totalCost += wl.totalCost || 0;
+    existing.contributors.add(wl.author);
+    projectMap.set(wl.project, existing);
+  });
+
+  return Array.from(projectMap.entries())
+    .map(([projectKey, data]) => ({
+      projectKey,
+      projectName: PROJECT_NAMES[projectKey] || projectKey,
+      totalHours: data.totalHours,
+      totalCost: data.totalCost,
+      contributors: data.contributors.size,
+    }))
+    .sort((a, b) => b.totalCost - a.totalCost);
+}
+
+// ---- Personnel KPIs ----
+export async function getPersonnelKPIs(): Promise<PersonnelKPIs> {
+  const employees = await getEmployees();
+  const active = employees.filter((e) => e.status === "active");
+  const itTeam = active.filter((e) => e.department === "IT");
+  const totalPersonnelCost = itTeam.reduce((sum, e) => sum + (e.monthlyCost || 0), 0);
+  const avgITCostPerEmployee = itTeam.length > 0 ? totalPersonnelCost / itTeam.length : 0;
+
+  const deptMap = new Map<string, { headcount: number; assets: number }>();
+  active.forEach((e) => {
+    const existing = deptMap.get(e.department) || { headcount: 0, assets: 0 };
+    existing.headcount += 1;
+    existing.assets += (e.assets || []).length;
+    deptMap.set(e.department, existing);
+  });
+
+  const departments: DepartmentSummary[] = Array.from(deptMap.entries()).map(
+    ([name, data]) => ({
+      name,
+      headcount: data.headcount,
+      itCostPerUser: data.headcount > 0 ? totalPersonnelCost / active.length : 0,
+      totalITCost: (totalPersonnelCost / active.length) * data.headcount,
+      assets: data.assets,
+    })
+  );
+
+  const totalAssets = active.reduce((sum, e) => sum + (e.assets || []).length, 0);
+
+  return {
+    totalHeadcount: active.length,
+    itHeadcount: itTeam.length,
+    avgITCostPerEmployee,
+    totalPersonnelCost,
+    assetCount: totalAssets,
+    departments,
+  };
 }
 
 // ---- Vendor Summary ----

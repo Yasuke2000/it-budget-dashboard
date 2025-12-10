@@ -13,6 +13,7 @@ import {
   Settings,
   Upload,
   Menu,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,7 @@ const navItems = [
   { label: "Budget", icon: PiggyBank, href: "/budget" },
   { label: "Vendors", icon: Building2, href: "/vendors" },
   { label: "Devices", icon: Monitor, href: "/devices" },
+  { label: "Personnel", icon: Users, href: "/personnel" },
   { label: "Import", icon: Upload, href: "/import" },
   { label: "Settings", icon: Settings, href: "/settings" },
 ];

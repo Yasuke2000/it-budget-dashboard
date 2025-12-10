@@ -183,3 +183,76 @@ export interface DateRange {
   from: string;
   to: string;
 }
+
+// === HR / Personnel ===
+
+export interface Employee {
+  id: number;
+  name: string;
+  email: string;
+  department: string;
+  functionTitle: string;
+  startDate: string;
+  status: "active" | "inactive";
+  monthlyCost?: number;
+  assets?: EmployeeAsset[];
+}
+
+export interface EmployeeAsset {
+  id: number;
+  name: string;
+  description: string;
+  category: string;
+}
+
+export interface DepartmentSummary {
+  name: string;
+  headcount: number;
+  itCostPerUser: number;
+  totalITCost: number;
+  assets: number;
+}
+
+export interface PersonnelKPIs {
+  totalHeadcount: number;
+  itHeadcount: number;
+  avgITCostPerEmployee: number;
+  totalPersonnelCost: number;
+  assetCount: number;
+  departments: DepartmentSummary[];
+}
+
+// === Jira / Time Tracking ===
+
+export interface JiraWorklog {
+  issueKey: string;
+  issueSummary: string;
+  author: string;
+  timeSpentSeconds: number;
+  timeSpentHours: number;
+  started: string;
+  project: string;
+  hourlyCost?: number;
+  totalCost?: number;
+}
+
+export interface JiraProjectCost {
+  projectKey: string;
+  projectName: string;
+  totalHours: number;
+  totalCost: number;
+  contributors: number;
+}
+
+// === Warranty ===
+
+export interface WarrantyInfo {
+  serialNumber: string;
+  manufacturer: string;
+  model: string;
+  warrantyType: string;
+  startDate: string;
+  endDate: string;
+  daysRemaining: number;
+  status: "active" | "expired" | "expiring_soon";
+}

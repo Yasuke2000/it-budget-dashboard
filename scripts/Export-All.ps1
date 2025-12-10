@@ -31,7 +31,12 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$ClientId,
 
-    [string]$OutputDir = "./exports"
+    [string]$OutputDir = "./exports",
+
+    # Optional: provide all three to also export Jira worklogs (step 4)
+    [string]$JiraBaseUrl,
+    [string]$JiraEmail,
+    [string]$JiraApiToken
 )
 
 # Create output directory if it does not exist
@@ -53,10 +58,11 @@ Write-Host "=== IT Finance Dashboard — Data Export ===" -ForegroundColor Cyan
 Write-Host "Tenant : $TenantId"
 Write-Host "App    : $ClientId"
 Write-Host "Output : $OutputDir"
+if ($JiraBaseUrl) { Write-Host "Jira   : $JiraBaseUrl" }
 Write-Host ""
 
-# --- Step 1/3: Business Central Invoices ---
-Write-Host "--- Step 1/3: Business Central Invoices ---" -ForegroundColor Cyan
+# --- Step 1/4: Business Central Invoices ---
+Write-Host "--- Step 1/4: Business Central Invoices ---" -ForegroundColor Cyan
 try {
     & "$scriptDir/Export-BCInvoices.ps1" `
         -TenantId     $TenantId `
@@ -70,8 +76,8 @@ catch {
     Write-Host ""
 }
 
-# --- Step 2/3: Microsoft 365 Licenses ---
-Write-Host "--- Step 2/3: Microsoft 365 Licenses ---" -ForegroundColor Cyan
+# --- Step 2/4: Microsoft 365 Licenses ---
+Write-Host "--- Step 2/4: Microsoft 365 Licenses ---" -ForegroundColor Cyan
 try {
     & "$scriptDir/Export-M365Licenses.ps1" `
         -TenantId     $TenantId `
@@ -85,8 +91,8 @@ catch {
     Write-Host ""
 }
 
-# --- Step 3/3: Intune Devices ---
-Write-Host "--- Step 3/3: Intune Devices ---" -ForegroundColor Cyan
+# --- Step 3/4: Intune Devices ---
+Write-Host "--- Step 3/4: Intune Devices ---" -ForegroundColor Cyan
 try {
     & "$scriptDir/Export-IntuneDevices.ps1" `
         -TenantId     $TenantId `
@@ -100,12 +106,36 @@ catch {
     Write-Host ""
 }
 
+# --- Step 4/4: Jira Worklogs (optional) ---
+if ($JiraBaseUrl -and $JiraEmail) {
+    Write-Host "--- Step 4/4: Jira Worklogs ---" -ForegroundColor Cyan
+    try {
+        $jiraParams = @{
+            JiraBaseUrl = $JiraBaseUrl
+            Email       = $JiraEmail
+            OutputPath  = "$OutputDir/jira-worklogs.csv"
+        }
+        if ($JiraApiToken) { $jiraParams.ApiToken = $JiraApiToken }
+
+        & "$scriptDir/Export-JiraWorklogs.ps1" @jiraParams
+        Write-Host ""
+    }
+    catch {
+        Write-Warning "Jira export failed: $_"
+        Write-Host ""
+    }
+} else {
+    Write-Host "--- Step 4/4: Jira Worklogs (skipped — JiraBaseUrl/JiraEmail not provided) ---" -ForegroundColor DarkGray
+    Write-Host ""
+}
+
 Write-Host "=== Export complete ===" -ForegroundColor Green
 Write-Host ""
 Write-Host "CSV files saved to: $OutputDir" -ForegroundColor Green
 Write-Host "  - invoices.csv"
 Write-Host "  - licenses.csv  (remember to fill in pricePerUser!)"
 Write-Host "  - devices.csv"
+if ($JiraBaseUrl -and $JiraEmail) { Write-Host "  - jira-worklogs.csv" }
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "  1. Open your dashboard at /import"
