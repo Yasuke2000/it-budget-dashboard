@@ -34,7 +34,7 @@ A comprehensive IT budget management and cost analysis dashboard built for IT ma
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/it-budget-dashboard.git
+git clone https://github.com/Yasuke2000/it-budget-dashboard.git
 cd it-budget-dashboard
 
 # Install dependencies
@@ -71,8 +71,20 @@ To connect to real Business Central and Microsoft Graph APIs:
    - Microsoft Graph → `Organization.Read.All`, `User.Read.All`, `DeviceManagementManagedDevices.Read.All`
 3. **Grant admin consent**
 4. **Create a client secret**
-5. **In BC**, go to Microsoft Entra Applications → add the Client ID → set State to Enabled → assign `D365 BUS FULL ACCESS`
-6. **Set environment variables** in `.env.local` with `NEXT_PUBLIC_DEMO_MODE=false`
+5. **In BC**, go to Microsoft Entra Applications → add the Client ID → set State to Enabled
+6. **Assign a custom read-only permission set** (see Security Note below)
+7. **Set environment variables** in `.env.local` with `NEXT_PUBLIC_DEMO_MODE=false`
+
+### Security Note: Principle of Least Privilege
+
+Microsoft does not offer a read-only `API.Read.All` permission for Business Central — only `API.ReadWrite.All` exists. This is a known limitation. To enforce least privilege:
+
+- **Do NOT assign `D365 BUS FULL ACCESS`** to the app registration
+- Instead, create a **custom permission set** in BC that grants only **Read** access to the tables this dashboard needs: G/L Entries, Purchase Invoices, Chart of Accounts, Dimensions
+- No Insert, Modify, or Delete rights — the app can effectively only read, even though the Azure AD permission is ReadWrite
+- Ask your BC partner (Alistar/Dynavision) to set this up
+
+This defense-in-depth approach ensures that even if the app token were compromised, it cannot modify any financial data in Business Central.
 
 ## Project Structure
 

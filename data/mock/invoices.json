@@ -1491,5 +1491,405 @@
     "lines": [
       { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - December 2025", "quantity": 1, "unitPrice": 810.00, "amount": 810.00 }
     ]
+  },
+  {
+    "id": "inv-075",
+    "number": "PI-2025-0200",
+    "invoiceDate": "2025-01-31",
+    "postingDate": "2025-02-02",
+    "dueDate": "2025-03-03",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 920.00,
+    "totalAmountIncludingTax": 1113.20,
+    "totalTaxAmount": 193.20,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - January 2025", "quantity": 1, "unitPrice": 920.00, "amount": 920.00 }
+    ]
+  },
+  {
+    "id": "inv-076",
+    "number": "PI-2025-0201",
+    "invoiceDate": "2025-02-28",
+    "postingDate": "2025-03-02",
+    "dueDate": "2025-04-01",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 875.00,
+    "totalAmountIncludingTax": 1058.75,
+    "totalTaxAmount": 183.75,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - February 2025", "quantity": 1, "unitPrice": 875.00, "amount": 875.00 }
+    ]
+  },
+  {
+    "id": "inv-077",
+    "number": "PI-2025-0202",
+    "invoiceDate": "2025-03-31",
+    "postingDate": "2025-04-02",
+    "dueDate": "2025-05-02",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 1050.00,
+    "totalAmountIncludingTax": 1270.50,
+    "totalTaxAmount": 220.50,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - March 2025", "quantity": 1, "unitPrice": 1050.00, "amount": 1050.00 }
+    ]
+  },
+  {
+    "id": "inv-078",
+    "number": "PI-2025-0203",
+    "invoiceDate": "2025-04-30",
+    "postingDate": "2025-05-02",
+    "dueDate": "2025-06-01",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 980.00,
+    "totalAmountIncludingTax": 1185.80,
+    "totalTaxAmount": 205.80,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - April 2025", "quantity": 1, "unitPrice": 980.00, "amount": 980.00 }
+    ]
+  },
+  {
+    "id": "inv-079",
+    "number": "PI-2025-0204",
+    "invoiceDate": "2025-05-31",
+    "postingDate": "2025-06-02",
+    "dueDate": "2025-07-02",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 860.00,
+    "totalAmountIncludingTax": 1040.60,
+    "totalTaxAmount": 180.60,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - May 2025", "quantity": 1, "unitPrice": 860.00, "amount": 860.00 }
+    ]
+  },
+  {
+    "id": "inv-080",
+    "number": "PI-2025-0205",
+    "invoiceDate": "2025-06-30",
+    "postingDate": "2025-07-02",
+    "dueDate": "2025-08-01",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 910.00,
+    "totalAmountIncludingTax": 1101.10,
+    "totalTaxAmount": 191.10,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - June 2025", "quantity": 1, "unitPrice": 910.00, "amount": 910.00 }
+    ]
+  },
+  {
+    "id": "inv-081",
+    "number": "PI-2025-0206",
+    "invoiceDate": "2025-07-31",
+    "postingDate": "2025-08-02",
+    "dueDate": "2025-09-01",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 1080.00,
+    "totalAmountIncludingTax": 1306.80,
+    "totalTaxAmount": 226.80,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - July 2025", "quantity": 1, "unitPrice": 1080.00, "amount": 1080.00 }
+    ]
+  },
+  {
+    "id": "inv-082",
+    "number": "PI-2025-0207",
+    "invoiceDate": "2025-08-31",
+    "postingDate": "2025-09-02",
+    "dueDate": "2025-10-02",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 950.00,
+    "totalAmountIncludingTax": 1149.50,
+    "totalTaxAmount": 199.50,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - August 2025", "quantity": 1, "unitPrice": 950.00, "amount": 950.00 }
+    ]
+  },
+  {
+    "id": "inv-083",
+    "number": "PI-2025-0208",
+    "invoiceDate": "2025-09-30",
+    "postingDate": "2025-10-02",
+    "dueDate": "2025-11-01",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 830.00,
+    "totalAmountIncludingTax": 1004.30,
+    "totalTaxAmount": 174.30,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - September 2025", "quantity": 1, "unitPrice": 830.00, "amount": 830.00 }
+    ]
+  },
+  {
+    "id": "inv-084",
+    "number": "PI-2025-0209",
+    "invoiceDate": "2025-10-31",
+    "postingDate": "2025-11-02",
+    "dueDate": "2025-12-02",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 1000.00,
+    "totalAmountIncludingTax": 1210.00,
+    "totalTaxAmount": 210.00,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - October 2025", "quantity": 1, "unitPrice": 1000.00, "amount": 1000.00 }
+    ]
+  },
+  {
+    "id": "inv-085",
+    "number": "PI-2025-0210",
+    "invoiceDate": "2025-11-30",
+    "postingDate": "2025-12-02",
+    "dueDate": "2026-01-01",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 890.00,
+    "totalAmountIncludingTax": 1076.90,
+    "totalTaxAmount": 186.90,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - November 2025", "quantity": 1, "unitPrice": 890.00, "amount": 890.00 }
+    ]
+  },
+  {
+    "id": "inv-086",
+    "number": "PI-2025-0211",
+    "invoiceDate": "2025-12-31",
+    "postingDate": "2026-01-02",
+    "dueDate": "2026-01-31",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 960.00,
+    "totalAmountIncludingTax": 1161.60,
+    "totalTaxAmount": 201.60,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - December 2025", "quantity": 1, "unitPrice": 960.00, "amount": 960.00 }
+    ]
+  },
+  {
+    "id": "inv-087",
+    "number": "PI-2025-0212",
+    "invoiceDate": "2025-03-31",
+    "postingDate": "2025-04-02",
+    "dueDate": "2025-05-02",
+    "vendorNumber": "40000",
+    "vendorName": "Experis IT",
+    "totalAmountExcludingTax": 4500.00,
+    "totalAmountIncludingTax": 5445.00,
+    "totalTaxAmount": 945.00,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "IT Personnel",
+    "lines": [
+      { "lineNumber": 1, "description": "IT Staff Augmentation - Q1 2025 (Jan-Mar)", "quantity": 1, "unitPrice": 4500.00, "amount": 4500.00 }
+    ]
+  },
+  {
+    "id": "inv-088",
+    "number": "PI-2025-0213",
+    "invoiceDate": "2025-06-30",
+    "postingDate": "2025-07-02",
+    "dueDate": "2025-08-01",
+    "vendorNumber": "40000",
+    "vendorName": "Experis IT",
+    "totalAmountExcludingTax": 4500.00,
+    "totalAmountIncludingTax": 5445.00,
+    "totalTaxAmount": 945.00,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "IT Personnel",
+    "lines": [
+      { "lineNumber": 1, "description": "IT Staff Augmentation - Q2 2025 (Apr-Jun)", "quantity": 1, "unitPrice": 4500.00, "amount": 4500.00 }
+    ]
+  },
+  {
+    "id": "inv-089",
+    "number": "PI-2025-0214",
+    "invoiceDate": "2025-09-30",
+    "postingDate": "2025-10-02",
+    "dueDate": "2025-11-01",
+    "vendorNumber": "40000",
+    "vendorName": "Experis IT",
+    "totalAmountExcludingTax": 4500.00,
+    "totalAmountIncludingTax": 5445.00,
+    "totalTaxAmount": 945.00,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "IT Personnel",
+    "lines": [
+      { "lineNumber": 1, "description": "IT Staff Augmentation - Q3 2025 (Jul-Sep)", "quantity": 1, "unitPrice": 4500.00, "amount": 4500.00 }
+    ]
+  },
+  {
+    "id": "inv-090",
+    "number": "PI-2025-0215",
+    "invoiceDate": "2025-12-31",
+    "postingDate": "2026-01-02",
+    "dueDate": "2026-01-31",
+    "vendorNumber": "40000",
+    "vendorName": "Experis IT",
+    "totalAmountExcludingTax": 4500.00,
+    "totalAmountIncludingTax": 5445.00,
+    "totalTaxAmount": 945.00,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "IT Personnel",
+    "lines": [
+      { "lineNumber": 1, "description": "IT Staff Augmentation - Q4 2025 (Oct-Dec)", "quantity": 1, "unitPrice": 4500.00, "amount": 4500.00 }
+    ]
+  },
+  {
+    "id": "inv-091",
+    "number": "PI-2025-0216",
+    "invoiceDate": "2025-03-31",
+    "postingDate": "2025-04-02",
+    "dueDate": "2025-05-02",
+    "vendorNumber": "99000",
+    "vendorName": "Internal Depreciation",
+    "totalAmountExcludingTax": 1500.00,
+    "totalAmountIncludingTax": 1500.00,
+    "totalTaxAmount": 0.00,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Hardware (Depreciation)",
+    "lines": [
+      { "lineNumber": 1, "description": "Laptop & Server Depreciation Charge - Q1 2025", "quantity": 1, "unitPrice": 1500.00, "amount": 1500.00 }
+    ]
+  },
+  {
+    "id": "inv-092",
+    "number": "PI-2025-0217",
+    "invoiceDate": "2025-06-30",
+    "postingDate": "2025-07-02",
+    "dueDate": "2025-08-01",
+    "vendorNumber": "99000",
+    "vendorName": "Internal Depreciation",
+    "totalAmountExcludingTax": 1500.00,
+    "totalAmountIncludingTax": 1500.00,
+    "totalTaxAmount": 0.00,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Hardware (Depreciation)",
+    "lines": [
+      { "lineNumber": 1, "description": "Laptop & Server Depreciation Charge - Q2 2025", "quantity": 1, "unitPrice": 1500.00, "amount": 1500.00 }
+    ]
+  },
+  {
+    "id": "inv-093",
+    "number": "PI-2025-0218",
+    "invoiceDate": "2025-09-30",
+    "postingDate": "2025-10-02",
+    "dueDate": "2025-11-01",
+    "vendorNumber": "99000",
+    "vendorName": "Internal Depreciation",
+    "totalAmountExcludingTax": 1500.00,
+    "totalAmountIncludingTax": 1500.00,
+    "totalTaxAmount": 0.00,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Hardware (Depreciation)",
+    "lines": [
+      { "lineNumber": 1, "description": "Laptop & Server Depreciation Charge - Q3 2025", "quantity": 1, "unitPrice": 1500.00, "amount": 1500.00 }
+    ]
+  },
+  {
+    "id": "inv-094",
+    "number": "PI-2025-0219",
+    "invoiceDate": "2025-12-31",
+    "postingDate": "2026-01-02",
+    "dueDate": "2026-01-31",
+    "vendorNumber": "99000",
+    "vendorName": "Internal Depreciation",
+    "totalAmountExcludingTax": 1500.00,
+    "totalAmountIncludingTax": 1500.00,
+    "totalTaxAmount": 0.00,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Hardware (Depreciation)",
+    "lines": [
+      { "lineNumber": 1, "description": "Laptop & Server Depreciation Charge - Q4 2025", "quantity": 1, "unitPrice": 1500.00, "amount": 1500.00 }
+    ]
   }
 ]
