@@ -446,7 +446,7 @@ For production deployment, add these controls:
 
 ---
 
-## 14. Known Issues & Technical Debt
+## 14. Known Issues & Technical Debt (updated to remove resolved items)
 
 1. **Recharts SSR warnings** — "width(-1) and height(-1)" warnings during `next build` static generation. Harmless — Recharts can't measure `ResponsiveContainer` during SSR. Charts render correctly in browser.
 
@@ -462,7 +462,7 @@ For production deployment, add these controls:
 
 ---
 
-## 12. Next Steps (Priority Order)
+## 15. Next Steps (Priority Order)
 
 ### Phase 1: Production-Ready Data Layer
 - [ ] Add PostgreSQL database (Neon free tier or Azure Belgium Central)
@@ -496,7 +496,7 @@ For production deployment, add these controls:
 
 ---
 
-## 13. How to Run Locally
+## 16. How to Run Locally
 
 ```bash
 git clone https://github.com/Yasuke2000/it-budget-dashboard.git
@@ -509,7 +509,7 @@ npm run dev
 
 No API keys needed — demo mode with mock data works immediately.
 
-## 14. How to Deploy
+## 17. How to Deploy
 
 ```bash
 # Vercel (current)

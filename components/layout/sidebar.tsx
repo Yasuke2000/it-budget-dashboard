@@ -14,6 +14,7 @@ import {
   Upload,
   Menu,
   Users,
+  FileCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ const navItems = [
   { label: "Devices", icon: Monitor, href: "/devices" },
   { label: "Personnel", icon: Users, href: "/personnel" },
   { label: "Import", icon: Upload, href: "/import" },
+  { label: "Peppol", icon: FileCheck, href: "/peppol" },
   { label: "Settings", icon: Settings, href: "/settings" },
 ];
 

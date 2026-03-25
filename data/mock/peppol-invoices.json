@@ -1,0 +1,105 @@
+[
+  {
+    "id": "pep-001",
+    "issueDate": "2026-01-15",
+    "dueDate": "2026-02-15",
+    "invoiceNumber": "EASI-2026-00142",
+    "supplierName": "EASI SA/NV",
+    "supplierVAT": "BE0456.567.890",
+    "buyerName": "Gheeraert Distribution International",
+    "buyerVAT": "BE0123.456.789",
+    "currency": "EUR",
+    "totalExclVAT": 3520.00,
+    "totalVAT": 739.20,
+    "totalInclVAT": 4259.20,
+    "lines": [
+      { "description": "Managed IT Services - January 2026", "quantity": 1, "unitPrice": 3520.00, "lineTotal": 3520.00, "vatPercent": 21 }
+    ],
+    "peppolId": "0208:0456567890",
+    "processId": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+    "status": "processed"
+  },
+  {
+    "id": "pep-002",
+    "issueDate": "2026-01-20",
+    "dueDate": "2026-02-20",
+    "invoiceNumber": "CONN-2026-0015",
+    "supplierName": "Connectify NV",
+    "supplierVAT": "BE0789.012.345",
+    "buyerName": "Gheeraert Distribution International",
+    "buyerVAT": "BE0123.456.789",
+    "currency": "EUR",
+    "totalExclVAT": 460.00,
+    "totalVAT": 96.60,
+    "totalInclVAT": 556.60,
+    "lines": [
+      { "description": "3CX Telephony Hosting - January 2026", "quantity": 1, "unitPrice": 460.00, "lineTotal": 460.00, "vatPercent": 21 }
+    ],
+    "peppolId": "0208:0789012345",
+    "processId": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+    "status": "processed"
+  },
+  {
+    "id": "pep-003",
+    "issueDate": "2026-02-01",
+    "dueDate": "2026-03-01",
+    "invoiceNumber": "PROX-2026-88412",
+    "supplierName": "Proximus SA/NV",
+    "supplierVAT": "BE0202.239.951",
+    "buyerName": "Gheeraert Distribution International",
+    "buyerVAT": "BE0123.456.789",
+    "currency": "EUR",
+    "totalExclVAT": 812.50,
+    "totalVAT": 170.63,
+    "totalInclVAT": 983.13,
+    "lines": [
+      { "description": "Internet Business Pro - February 2026", "quantity": 1, "unitPrice": 450.00, "lineTotal": 450.00, "vatPercent": 21 },
+      { "description": "Mobile Fleet 15 SIMs - February 2026", "quantity": 15, "unitPrice": 24.17, "lineTotal": 362.50, "vatPercent": 21 }
+    ],
+    "peppolId": "0208:0202239951",
+    "processId": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+    "status": "received"
+  },
+  {
+    "id": "pep-004",
+    "issueDate": "2026-02-10",
+    "dueDate": "2026-03-10",
+    "invoiceNumber": "ALI-2026-0034",
+    "supplierName": "Alistar BV (Dynavision)",
+    "supplierVAT": "BE0534.678.123",
+    "buyerName": "Gheeraert Distribution International",
+    "buyerVAT": "BE0123.456.789",
+    "currency": "EUR",
+    "totalExclVAT": 1250.00,
+    "totalVAT": 262.50,
+    "totalInclVAT": 1512.50,
+    "lines": [
+      { "description": "Business Central SaaS - February 2026", "quantity": 1, "unitPrice": 950.00, "lineTotal": 950.00, "vatPercent": 21 },
+      { "description": "BC Support Hours (3h)", "quantity": 3, "unitPrice": 100.00, "lineTotal": 300.00, "vatPercent": 21 }
+    ],
+    "peppolId": "0208:0534678123",
+    "processId": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+    "status": "matched"
+  },
+  {
+    "id": "pep-005",
+    "issueDate": "2026-03-05",
+    "dueDate": "2026-04-05",
+    "invoiceNumber": "BARR-2026-Q1-001",
+    "supplierName": "Barracuda Networks Inc.",
+    "supplierVAT": "US-94-3421124",
+    "buyerName": "Gheeraert Distribution International",
+    "buyerVAT": "BE0123.456.789",
+    "currency": "EUR",
+    "totalExclVAT": 580.00,
+    "totalVAT": 121.80,
+    "totalInclVAT": 701.80,
+    "lines": [
+      { "description": "Barracuda CloudGen Firewall License Q1 2026", "quantity": 1, "unitPrice": 380.00, "lineTotal": 380.00, "vatPercent": 21 },
+      { "description": "Barracuda Email Protection Q1 2026", "quantity": 1, "unitPrice": 200.00, "lineTotal": 200.00, "vatPercent": 21 }
+    ],
+    "peppolId": "",
+    "processId": "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+    "status": "received"
+  }
+]

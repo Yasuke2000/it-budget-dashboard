@@ -5,6 +5,7 @@ import {
   demoLicenses,
   demoDevices,
   demoBudgetEntries,
+  demoPeppolInvoices,
 } from "./demo-data";
 import type {
   Company,
@@ -25,6 +26,7 @@ import type {
   PersonnelKPIs,
   DepartmentSummary,
 } from "./types";
+import type { PeppolInvoice } from "./peppol-parser";
 import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD } from "./constants";
 
 function isDemoMode(): boolean {
@@ -363,6 +365,14 @@ export async function getPersonnelKPIs(): Promise<PersonnelKPIs> {
     assetCount: totalAssets,
     departments,
   };
+}
+
+// ---- Peppol Invoices ----
+export async function getPeppolInvoices(): Promise<PeppolInvoice[]> {
+  if (isDemoMode()) {
+    return demoPeppolInvoices;
+  }
+  return demoPeppolInvoices; // TODO: live Peppol Access Point integration
 }
 
 // ---- Vendor Summary ----
