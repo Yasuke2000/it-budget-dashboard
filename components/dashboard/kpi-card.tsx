@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Building2,
   Percent,
+  Lightbulb,
 } from "lucide-react";
 
 const ICON_MAP = {
@@ -30,6 +31,7 @@ const ICON_MAP = {
   AlertTriangle,
   Building2,
   Percent,
+  Lightbulb,
 } as const;
 
 export type KPIIconName = keyof typeof ICON_MAP;

@@ -28,6 +28,8 @@ import type {
 } from "./types";
 import type { PeppolInvoice } from "./peppol-parser";
 import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD } from "./constants";
+import { generateAllInsights } from "./cost-insights";
+import type { CostInsight } from "./cost-insights";
 
 function isDemoMode(): boolean {
   return process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
@@ -370,6 +372,18 @@ export async function getPeppolInvoices(): Promise<PeppolInvoice[]> {
     return demoPeppolInvoices;
   }
   return demoPeppolInvoices; // TODO: live Peppol Access Point integration
+}
+
+// ---- Cost Insights ----
+export async function getCostInsights(): Promise<CostInsight[]> {
+  const [licenses, vendors, devices, budget, employees] = await Promise.all([
+    getLicenses(),
+    getVendorSummary(),
+    getDevices(),
+    getBudgetEntries(),
+    getEmployees(),
+  ]);
+  return generateAllInsights({ licenses, vendors, devices, budget, employees });
 }
 
 // ---- Vendor Summary ----
