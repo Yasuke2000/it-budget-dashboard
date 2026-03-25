@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Globe,
   Smartphone,
+  Signal,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -303,6 +304,69 @@ const CSVSetupContent = (
   </div>
 );
 
+const CitymeshSetupContent = (
+  <div className="space-y-4 text-sm">
+    <p className="text-slate-300">
+      Citymesh is a Belgian mobile and IoT connectivity provider (Roeselare). They offer mobile data
+      plans, SIM management, and private 5G networks for businesses. There is no public billing API
+      — billing data is available via CSV export or monthly PDF invoices from the Citymesh portal.
+    </p>
+    <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-3">
+      <p className="text-xs text-indigo-300">
+        <strong>No public API.</strong> Belgian mobile provider — use CSV export or PDF invoice
+        parsing to import billing data.
+      </p>
+    </div>
+    <div className="bg-slate-800 rounded-lg p-4 space-y-2">
+      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">How to import</p>
+      <ol className="space-y-2 text-slate-400 text-xs list-none">
+        {[
+          "Sign in to the Citymesh portal at my.citymesh.com",
+          "Navigate to Billing → Usage Reports",
+          "Export your monthly usage report as CSV",
+          "Upload the CSV via the /import page of this dashboard",
+          'Costs will be categorised as "Telecom" automatically',
+        ].map((step, i) => (
+          <li key={i} className="flex items-start gap-2">
+            <span className="shrink-0 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-400 font-bold text-[10px] mt-0.5">
+              {i + 1}
+            </span>
+            <span>{step}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+    <div className="bg-slate-800/60 rounded-lg p-4 border border-slate-700 space-y-1">
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+        Dashboard category
+      </p>
+      <p className="text-xs text-slate-300">
+        Imported Citymesh costs are tagged as{" "}
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/20 text-indigo-300">
+          Telecom
+        </span>{" "}
+        and visible in the Budget and Invoices views.
+      </p>
+    </div>
+    <div className="flex flex-col gap-2">
+      <a
+        href="https://my.citymesh.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 text-teal-400 hover:text-teal-300 text-xs transition-colors"
+      >
+        <ExternalLink className="h-3 w-3" /> Open Citymesh portal (my.citymesh.com)
+      </a>
+      <a
+        href="/import"
+        className="inline-flex items-center gap-1.5 text-teal-400 hover:text-teal-300 text-xs transition-colors"
+      >
+        <Upload className="h-3 w-3" /> Go to Import page to upload CSV
+      </a>
+    </div>
+  </div>
+);
+
 const KnoxSetupContent = (
   <div className="space-y-4 text-sm">
     <p className="text-slate-300">
@@ -420,6 +484,16 @@ const CONNECTORS: ConnectorDef[] = [
     provides: ["Electronic Invoices (UBL XML)", "Peppol Network"],
     status: "not_connected",
     setupContent: PeppolSetupContent,
+  },
+  {
+    id: "citymesh",
+    name: "Citymesh",
+    icon: Signal,
+    iconColor: "text-indigo-400",
+    provides: ["Mobile data usage", "SIM management", "Monthly billing"],
+    status: "not_connected",
+    statusLabel: "Manual Import",
+    setupContent: CitymeshSetupContent,
   },
   {
     id: "samsung-knox",

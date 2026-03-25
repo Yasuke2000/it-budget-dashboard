@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   RefreshCw,
   CheckCircle2,
@@ -13,6 +13,9 @@ import {
   Code2,
   ExternalLink,
   Building2,
+  Wifi,
+  WifiOff,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Card,
@@ -139,16 +142,41 @@ function SaveButton({
   );
 }
 
+// ─── Connection status types ──────────────────────────────────────────────────
+
+interface ConnectionStatus {
+  demoMode: boolean;
+  connections: {
+    entraId: boolean;
+    businessCentral: boolean;
+    jira: boolean;
+    officient: boolean;
+    knox: boolean;
+    dell: boolean;
+    lenovo: boolean;
+  };
+}
+
 // ─── Tab 1: General ───────────────────────────────────────────────────────────
 
 function GeneralTab() {
-  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
   const [sync, setSync] = useState<SyncState>({
     status: "idle",
     lastSyncAt: "2025-03-23T08:14:32Z",
     message: "All data sources synced successfully.",
   });
   const [companies, setCompanies] = useState(DEMO_COMPANIES);
+  const [connStatus, setConnStatus] = useState<ConnectionStatus | null>(null);
+  const [connLoading, setConnLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/status")
+      .then((r) => r.json())
+      .then((data: ConnectionStatus) => setConnStatus(data))
+      .catch(() => setConnStatus(null))
+      .finally(() => setConnLoading(false));
+  }, []);
 
   const handleSync = useCallback(async () => {
     setSync((s) => ({ ...s, status: "syncing", message: "Syncing data…" }));
@@ -189,47 +217,210 @@ function GeneralTab() {
       ? XCircle
       : RefreshCw;
 
+  const goLiveSteps = [
+    {
+      label: "Create Azure AD app registration",
+      detail: "Register a new app in Microsoft Entra ID (Azure Active Directory).",
+      link: { text: "Open Entra admin center →", href: "https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" },
+    },
+    {
+      label: "Add API permissions (BC + Graph)",
+      detail: (
+        <span>
+          Grant:{" "}
+          {[
+            "Financials.ReadWrite.All",
+            "LicenseAssignment.Read.All",
+            "Directory.Read.All",
+            "DeviceManagementManagedDevices.Read.All",
+          ].map((p) => (
+            <code key={p} className="text-[10px] bg-slate-800 px-1 py-0.5 rounded text-teal-300 mx-0.5">{p}</code>
+          ))}
+        </span>
+      ),
+    },
+    {
+      label: "Create a client secret",
+      detail: "Under Certificates & secrets, generate a new client secret. Note it down immediately.",
+    },
+    {
+      label: "Configure BC (Entra Applications)",
+      detail: "In Business Central, go to Entra Applications and register the app with the matching Client ID. Assign the appropriate permission set (e.g. D365 BASIC).",
+    },
+    {
+      label: "Set environment variables in .env.local",
+      detail: (
+        <div className="mt-1 grid grid-cols-1 gap-y-0.5">
+          {[
+            "AUTH_MICROSOFT_ENTRA_ID_ID",
+            "AUTH_MICROSOFT_ENTRA_ID_SECRET",
+            "AUTH_MICROSOFT_ENTRA_ID_ISSUER",
+            "BC_TENANT_ID",
+            "BC_CLIENT_ID",
+            "BC_CLIENT_SECRET",
+            "BC_COMPANY_ID",
+            "BC_ENVIRONMENT",
+          ].map((v) => (
+            <code key={v} className="text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded text-teal-300 inline-block w-fit">
+              {v}
+            </code>
+          ))}
+        </div>
+      ),
+    },
+    {
+      label: 'Set NEXT_PUBLIC_DEMO_MODE=false',
+      detail: (
+        <span>
+          In{" "}
+          <code className="text-[10px] bg-slate-800 px-1 py-0.5 rounded text-teal-300">.env.local</code>
+          {" "}set{" "}
+          <code className="text-[10px] bg-slate-800 px-1 py-0.5 rounded text-teal-300">NEXT_PUBLIC_DEMO_MODE=false</code>
+          . This disables all mock data generators.
+        </span>
+      ),
+    },
+    {
+      label: "Restart dev server (or redeploy)",
+      detail: "Run npm run dev (or redeploy to production). All API routes will now use real credentials.",
+    },
+  ];
+
+  const integrationConnections: Array<{
+    label: string;
+    key: keyof ConnectionStatus["connections"];
+    description: string;
+  }> = [
+    { label: "Microsoft 365 / Entra ID", key: "entraId", description: "AUTH_MICROSOFT_ENTRA_ID_ID" },
+    { label: "Business Central", key: "businessCentral", description: "BC_CLIENT_ID" },
+    { label: "Jira Cloud", key: "jira", description: "JIRA_BASE_URL" },
+    { label: "Officient HR", key: "officient", description: "OFFICIENT_CLIENT_ID" },
+    { label: "Samsung Knox", key: "knox", description: "KNOX_CLIENT_ID" },
+    { label: "Dell TechDirect", key: "dell", description: "DELL_CLIENT_ID" },
+    { label: "Lenovo eSupport", key: "lenovo", description: "LENOVO_CLIENT_ID" },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Demo/Live indicator */}
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+
+      {/* ── BIG MODE BADGE ─────────────────────────────────────────── */}
+      <Card className={`border-2 ${isDemo ? "bg-amber-500/5 border-amber-500/40" : "bg-emerald-500/5 border-emerald-500/40"}`}>
+        <CardContent className="pt-5 pb-5">
+          <div className="flex items-start gap-4 flex-wrap">
+            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${isDemo ? "bg-amber-500/15" : "bg-emerald-500/15"}`}>
+              {isDemo
+                ? <AlertTriangle className="size-6 text-amber-400" />
+                : <Wifi className="size-6 text-emerald-400" />
+              }
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-bold tracking-widest uppercase mb-1.5 ${
+                isDemo
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                  : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+              }`}>
+                {isDemo ? "DEMO MODE — Using sample data" : "LIVE MODE — Connected to real APIs"}
+              </div>
+              <p className="text-sm text-slate-400 leading-relaxed mt-1">
+                {isDemo
+                  ? "No real API calls are being made. All numbers are generated from static seed data. Follow the steps below to switch to live mode."
+                  : "The dashboard is reading from real Business Central, Microsoft Graph, and other API integrations. All figures reflect actual data."}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── GO-LIVE CHECKLIST (only shown in demo mode) ─────────────── */}
+      {isDemo && (
+        <Card className="bg-slate-900 border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
+              <Info className="size-4 text-amber-400" />
+              How to go live — step-by-step
+            </CardTitle>
+            <CardDescription>
+              Complete these steps to switch from demo mode to real data.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {goLiveSteps.map((step, i) => (
+              <div
+                key={i}
+                className="flex items-start gap-3 rounded-lg bg-slate-800/60 border border-slate-700/60 px-4 py-3"
+              >
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-700 border border-slate-600 text-[11px] font-bold text-slate-300 mt-0.5">
+                  {i + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white leading-snug">{step.label}</p>
+                  <div className="text-xs text-slate-400 mt-0.5 leading-relaxed">{step.detail}</div>
+                  {"link" in step && step.link && (
+                    <a
+                      href={step.link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-teal-400 hover:text-teal-300 text-xs mt-1 transition-colors"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      {step.link.text}
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── CONNECTION STATUS ───────────────────────────────────────── */}
+      <Card className="bg-slate-900 border-slate-700">
         <CardHeader>
           <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
-            <Info className="size-4 text-slate-400" />
-            Environment Mode
+            <Wifi className="size-4 text-slate-400" />
+            Connection Status
           </CardTitle>
+          <CardDescription>
+            Shows which integrations have credentials configured in the environment.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-3">
-            <Badge
-              className={
-                isDemo
-                  ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
-                  : "bg-teal-500/20 text-teal-300 border-teal-500/30"
-              }
-            >
-              {isDemo ? "Demo Mode" : "Live Mode"}
-            </Badge>
-            <span className="text-slate-400 text-sm">
-              {isDemo
-                ? "Running with mock data. Set NEXT_PUBLIC_DEMO_MODE=false and configure API credentials to use real data."
-                : "Connected to live Business Central, Microsoft Graph, and Azure Cost Management APIs."}
-            </span>
-          </div>
-          {isDemo && (
-            <p className="text-xs text-slate-500 leading-relaxed">
-              In demo mode no real API calls are made. All figures are generated
-              from seed data. To switch to live mode, update your{" "}
-              <code className="bg-slate-800 px-1 py-0.5 rounded text-teal-300">
-                .env.local
-              </code>{" "}
-              file and restart the development server.
-            </p>
+        <CardContent className="space-y-2">
+          {connLoading ? (
+            <div className="flex items-center gap-2 text-slate-500 text-sm py-2">
+              <RefreshCw className="size-4 animate-spin" />
+              Checking connections…
+            </div>
+          ) : connStatus === null ? (
+            <p className="text-xs text-red-400">Could not reach /api/status.</p>
+          ) : (
+            integrationConnections.map(({ label, key, description }) => {
+              const connected = connStatus.connections[key];
+              return (
+                <div
+                  key={key}
+                  className="flex items-center justify-between rounded-lg bg-slate-800 px-4 py-2.5 gap-4"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {connected
+                      ? <Wifi className="size-4 text-emerald-400 shrink-0" />
+                      : <WifiOff className="size-4 text-slate-500 shrink-0" />
+                    }
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white leading-tight">{label}</p>
+                      <p className="text-[10px] font-mono text-slate-500 truncate">{description}</p>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-semibold shrink-0 ${connected ? "text-emerald-400" : "text-slate-500"}`}>
+                    {connected ? "Configured" : "Not set"}
+                  </span>
+                </div>
+              );
+            })
           )}
         </CardContent>
       </Card>
 
-      {/* Sync status */}
+      {/* ── SYNC STATUS ─────────────────────────────────────────────── */}
       <Card className="bg-slate-900 border-slate-700 ring-slate-700">
         <CardHeader>
           <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
@@ -283,7 +474,7 @@ function GeneralTab() {
         </CardContent>
       </Card>
 
-      {/* Company selector */}
+      {/* ── ACTIVE ENTITIES ─────────────────────────────────────────── */}
       <Card className="bg-slate-900 border-slate-700 ring-slate-700">
         <CardHeader>
           <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">

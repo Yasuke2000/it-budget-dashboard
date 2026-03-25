@@ -59,17 +59,28 @@ function SidebarContent() {
         </span>
       </div>
 
-      {/* Demo badge */}
-      {IS_DEMO && (
-        <div className="px-5 pt-3 pb-1">
-          <Badge
-            variant="outline"
-            className="border-amber-500/50 bg-amber-500/10 text-amber-400 text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5"
-          >
-            Demo Mode
-          </Badge>
-        </div>
-      )}
+      {/* Demo / Live badge */}
+      <div className="px-4 pt-3 pb-1">
+        {IS_DEMO ? (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+            <p className="text-[11px] font-bold tracking-widest uppercase text-amber-400 leading-tight">
+              DEMO MODE
+            </p>
+            <p className="text-[10px] text-amber-500/70 mt-0.5 leading-tight">
+              sample data only
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
+            <p className="text-[11px] font-bold tracking-widest uppercase text-emerald-400 leading-tight">
+              LIVE
+            </p>
+            <p className="text-[10px] text-emerald-500/70 mt-0.5 leading-tight">
+              connected
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
@@ -105,8 +116,8 @@ function SidebarContent() {
       <div className="border-t border-slate-800 px-5 py-4">
         <p className="text-[11px] text-slate-600 font-medium">
           {IS_DEMO
-            ? "Demo Mode · Sample Data"
-            : `v${process.env.NEXT_PUBLIC_APP_VERSION ?? "1.0.0"}`}
+            ? "Demo · No real API calls made"
+            : `v${process.env.NEXT_PUBLIC_APP_VERSION ?? "1.0.0"} · Live`}
         </p>
       </div>
     </div>
