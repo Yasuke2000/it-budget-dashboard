@@ -137,6 +137,11 @@ Write-Host "  - licenses.csv  (remember to fill in pricePerUser!)"
 Write-Host "  - devices.csv"
 if ($JiraBaseUrl -and $JiraEmail) { Write-Host "  - jira-worklogs.csv" }
 Write-Host ""
+Write-Host "Note: Samsung Knox data is available via the live API integration" -ForegroundColor DarkCyan
+Write-Host "      (no PowerShell export needed — Knox is API-native)." -ForegroundColor DarkCyan
+Write-Host "      Configure KNOX_CLIENT_ID and KNOX_CLIENT_SECRET in .env.local" -ForegroundColor DarkCyan
+Write-Host "      and the dashboard will sync Knox device and license data automatically." -ForegroundColor DarkCyan
+Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "  1. Open your dashboard at /import"
 Write-Host "  2. Upload each CSV file"

@@ -15,6 +15,7 @@ import {
   X,
   ChevronRight,
   Globe,
+  Smartphone,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -302,6 +303,56 @@ const CSVSetupContent = (
   </div>
 );
 
+const KnoxSetupContent = (
+  <div className="space-y-4 text-sm">
+    <p className="text-slate-300">
+      Connect to Samsung Knox to pull Samsung device inventory, battery health, compliance status,
+      MDM enrollment, and Knox license usage.
+    </p>
+    <div className="bg-slate-800 rounded-lg p-4 space-y-3">
+      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Required .env variables</p>
+      {[
+        { key: "KNOX_CLIENT_ID", example: "your-knox-client-id" },
+        { key: "KNOX_CLIENT_SECRET", example: "your-knox-client-secret" },
+      ].map(({ key, example }) => (
+        <div key={key}>
+          <code className="text-xs font-mono text-slate-200">{key}</code>
+          <p className="text-xs text-slate-500">e.g. {example}</p>
+        </div>
+      ))}
+    </div>
+    <div className="bg-slate-800/60 rounded-lg p-4 border border-teal-500/20">
+      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider mb-1">Setup steps</p>
+      <ol className="mt-1 space-y-1 text-slate-400 text-xs list-none">
+        {[
+          "Sign in to the Samsung Knox Admin Portal",
+          "Go to API credentials and create a new client application",
+          "Copy the Client ID and Client Secret into your .env.local",
+        ].map((step, i) => (
+          <li key={i} className="flex items-start gap-2">
+            <ChevronRight className="h-3 w-3 text-teal-500 shrink-0 mt-0.5" />
+            <span>{step}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+    <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+      <p className="text-xs text-blue-300">
+        <strong>EU data center:</strong> This integration uses{" "}
+        <code className="text-blue-200">eu-kcs-api.samsungknox.com</code> for GDPR compliance.
+      </p>
+    </div>
+    <a
+      href="https://www.samsungknox.com/en/knox-admin-portal"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 text-teal-400 hover:text-teal-300 text-xs transition-colors"
+    >
+      <ExternalLink className="h-3 w-3" /> Open Samsung Knox Admin Portal
+    </a>
+  </div>
+);
+
 // ---------------------------------------------------------------------------
 // Connector definitions
 // ---------------------------------------------------------------------------
@@ -369,6 +420,21 @@ const CONNECTORS: ConnectorDef[] = [
     provides: ["Electronic Invoices (UBL XML)", "Peppol Network"],
     status: "not_connected",
     setupContent: PeppolSetupContent,
+  },
+  {
+    id: "samsung-knox",
+    name: "Samsung Knox",
+    icon: Smartphone,
+    iconColor: "text-blue-400",
+    provides: [
+      "Samsung device inventory",
+      "Battery health",
+      "Compliance status",
+      "MDM enrollment",
+      "Knox licenses",
+    ],
+    status: "not_connected",
+    setupContent: KnoxSetupContent,
   },
   {
     id: "csv",
