@@ -1891,5 +1891,368 @@
     "lines": [
       { "lineNumber": 1, "description": "Laptop & Server Depreciation Charge - Q4 2025", "quantity": 1, "unitPrice": 1500.00, "amount": 1500.00 }
     ]
+  },
+  {
+    "id": "inv-100",
+    "number": "PI-2026-0001",
+    "invoiceDate": "2026-01-03",
+    "postingDate": "2026-01-05",
+    "dueDate": "2026-02-04",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3490.00,
+    "totalAmountIncludingTax": 4222.90,
+    "totalTaxAmount": 732.90,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - January 2026", "quantity": 1, "unitPrice": 3490.00, "amount": 3490.00 }
+    ]
+  },
+  {
+    "id": "inv-101",
+    "number": "PI-2026-0002",
+    "invoiceDate": "2026-01-05",
+    "postingDate": "2026-01-07",
+    "dueDate": "2026-02-06",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2790.00,
+    "totalAmountIncludingTax": 3375.90,
+    "totalTaxAmount": 585.90,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - January 2026", "quantity": 1, "unitPrice": 1039.00, "amount": 1039.00 }
+    ]
+  },
+  {
+    "id": "inv-102",
+    "number": "PI-2026-0003",
+    "invoiceDate": "2026-01-06",
+    "postingDate": "2026-01-08",
+    "dueDate": "2026-02-07",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 808.00,
+    "totalAmountIncludingTax": 977.68,
+    "totalTaxAmount": 169.68,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - January 2026", "quantity": 1, "unitPrice": 808.00, "amount": 808.00 }
+    ]
+  },
+  {
+    "id": "inv-103",
+    "number": "PI-2026-0004",
+    "invoiceDate": "2026-01-07",
+    "postingDate": "2026-01-09",
+    "dueDate": "2026-02-08",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 448.00,
+    "totalAmountIncludingTax": 542.08,
+    "totalTaxAmount": 94.08,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - January 2026", "quantity": 1, "unitPrice": 448.00, "amount": 448.00 }
+    ]
+  },
+  {
+    "id": "inv-104",
+    "number": "PI-2026-0005",
+    "invoiceDate": "2026-01-08",
+    "postingDate": "2026-01-10",
+    "dueDate": "2026-02-09",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1195.00,
+    "totalAmountIncludingTax": 1445.95,
+    "totalTaxAmount": 250.95,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - January 2026", "quantity": 1, "unitPrice": 1195.00, "amount": 1195.00 }
+    ]
+  },
+  {
+    "id": "inv-105",
+    "number": "PI-2026-0006",
+    "invoiceDate": "2026-02-03",
+    "postingDate": "2026-02-05",
+    "dueDate": "2026-03-07",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3510.00,
+    "totalAmountIncludingTax": 4247.10,
+    "totalTaxAmount": 737.10,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - February 2026", "quantity": 1, "unitPrice": 3510.00, "amount": 3510.00 }
+    ]
+  },
+  {
+    "id": "inv-106",
+    "number": "PI-2026-0007",
+    "invoiceDate": "2026-02-05",
+    "postingDate": "2026-02-07",
+    "dueDate": "2026-03-09",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2815.00,
+    "totalAmountIncludingTax": 3406.15,
+    "totalTaxAmount": 591.15,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - February 2026", "quantity": 1, "unitPrice": 1064.00, "amount": 1064.00 }
+    ]
+  },
+  {
+    "id": "inv-107",
+    "number": "PI-2026-0008",
+    "invoiceDate": "2026-02-06",
+    "postingDate": "2026-02-08",
+    "dueDate": "2026-03-10",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 795.00,
+    "totalAmountIncludingTax": 961.95,
+    "totalTaxAmount": 166.95,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - February 2026", "quantity": 1, "unitPrice": 795.00, "amount": 795.00 }
+    ]
+  },
+  {
+    "id": "inv-108",
+    "number": "PI-2026-0009",
+    "invoiceDate": "2026-02-07",
+    "postingDate": "2026-02-09",
+    "dueDate": "2026-03-11",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 452.00,
+    "totalAmountIncludingTax": 546.92,
+    "totalTaxAmount": 94.92,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-whs",
+    "companyName": "WHS",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - February 2026", "quantity": 1, "unitPrice": 452.00, "amount": 452.00 }
+    ]
+  },
+  {
+    "id": "inv-109",
+    "number": "PI-2026-0010",
+    "invoiceDate": "2026-02-08",
+    "postingDate": "2026-02-10",
+    "dueDate": "2026-03-12",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1205.00,
+    "totalAmountIncludingTax": 1458.05,
+    "totalTaxAmount": 253.05,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - February 2026", "quantity": 1, "unitPrice": 1205.00, "amount": 1205.00 }
+    ]
+  },
+  {
+    "id": "inv-110",
+    "number": "PI-2026-0011",
+    "invoiceDate": "2026-02-14",
+    "postingDate": "2026-02-16",
+    "dueDate": "2026-03-18",
+    "vendorNumber": "VEN-008",
+    "vendorName": "Dell Technologies",
+    "totalAmountExcludingTax": 1800.00,
+    "totalAmountIncludingTax": 2178.00,
+    "totalTaxAmount": 378.00,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Hardware (Purchases)",
+    "lines": [
+      { "lineNumber": 1, "description": "Dell Latitude 5540 Laptop x1", "quantity": 1, "unitPrice": 1800.00, "amount": 1800.00 }
+    ]
+  },
+  {
+    "id": "inv-111",
+    "number": "PI-2026-0012",
+    "invoiceDate": "2026-03-03",
+    "postingDate": "2026-03-05",
+    "dueDate": "2026-04-04",
+    "vendorNumber": "VEN-001",
+    "vendorName": "EASI",
+    "totalAmountExcludingTax": 3505.00,
+    "totalAmountIncludingTax": 4241.05,
+    "totalTaxAmount": 736.05,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "Managed IT Services - March 2026", "quantity": 1, "unitPrice": 3505.00, "amount": 3505.00 }
+    ]
+  },
+  {
+    "id": "inv-112",
+    "number": "PI-2026-0013",
+    "invoiceDate": "2026-03-05",
+    "postingDate": "2026-03-07",
+    "dueDate": "2026-04-06",
+    "vendorNumber": "VEN-002",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 2800.00,
+    "totalAmountIncludingTax": 3388.00,
+    "totalTaxAmount": 588.00,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Microsoft 365 Business Premium - 85 users", "quantity": 85, "unitPrice": 20.60, "amount": 1751.00 },
+      { "lineNumber": 2, "description": "Azure Services - March 2026", "quantity": 1, "unitPrice": 1049.00, "amount": 1049.00 }
+    ]
+  },
+  {
+    "id": "inv-113",
+    "number": "PI-2026-0014",
+    "invoiceDate": "2026-03-06",
+    "postingDate": "2026-03-08",
+    "dueDate": "2026-04-07",
+    "vendorNumber": "VEN-005",
+    "vendorName": "Proximus",
+    "totalAmountExcludingTax": 802.00,
+    "totalAmountIncludingTax": 970.42,
+    "totalTaxAmount": 168.42,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-tdr",
+    "companyName": "TDR",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "Proximus Business Internet & GSM Fleet - March 2026", "quantity": 1, "unitPrice": 802.00, "amount": 802.00 }
+    ]
+  },
+  {
+    "id": "inv-114",
+    "number": "PI-2026-0015",
+    "invoiceDate": "2026-03-07",
+    "postingDate": "2026-03-09",
+    "dueDate": "2026-04-08",
+    "vendorNumber": "VEN-003",
+    "vendorName": "Connectify NV",
+    "totalAmountExcludingTax": 450.00,
+    "totalAmountIncludingTax": 544.50,
+    "totalTaxAmount": 94.50,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Telecom",
+    "lines": [
+      { "lineNumber": 1, "description": "3CX Telephony License - March 2026", "quantity": 1, "unitPrice": 450.00, "amount": 450.00 }
+    ]
+  },
+  {
+    "id": "inv-115",
+    "number": "PI-2026-0016",
+    "invoiceDate": "2026-03-08",
+    "postingDate": "2026-03-10",
+    "dueDate": "2026-04-09",
+    "vendorNumber": "VEN-004",
+    "vendorName": "Alistar / Dynavision",
+    "totalAmountExcludingTax": 1200.00,
+    "totalAmountIncludingTax": 1452.00,
+    "totalTaxAmount": 252.00,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-whs",
+    "companyName": "WHS",
+    "costCategory": "Software & Licenses",
+    "lines": [
+      { "lineNumber": 1, "description": "Business Central - Monthly License & Support - March 2026", "quantity": 1, "unitPrice": 1200.00, "amount": 1200.00 }
+    ]
+  },
+  {
+    "id": "inv-116",
+    "number": "PI-2026-0017",
+    "invoiceDate": "2026-03-15",
+    "postingDate": "2026-03-17",
+    "dueDate": "2026-04-15",
+    "vendorNumber": "VEN-007",
+    "vendorName": "Barracuda Networks",
+    "totalAmountExcludingTax": 600.00,
+    "totalAmountIncludingTax": 726.00,
+    "totalTaxAmount": 126.00,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Security",
+    "lines": [
+      { "lineNumber": 1, "description": "Barracuda Email Security - Q1 2026", "quantity": 1, "unitPrice": 600.00, "amount": 600.00 }
+    ]
+  },
+  {
+    "id": "inv-117",
+    "number": "PI-2026-0018",
+    "invoiceDate": "2026-03-20",
+    "postingDate": "2026-03-22",
+    "dueDate": "2026-04-20",
+    "vendorNumber": "VEN-009",
+    "vendorName": "Experis IT",
+    "totalAmountExcludingTax": 4500.00,
+    "totalAmountIncludingTax": 5445.00,
+    "totalTaxAmount": 945.00,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "External IT Services",
+    "lines": [
+      { "lineNumber": 1, "description": "IT Staffing & Project Support - Q1 2026", "quantity": 1, "unitPrice": 4500.00, "amount": 4500.00 }
+    ]
   }
 ]
