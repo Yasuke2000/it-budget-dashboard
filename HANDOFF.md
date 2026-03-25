@@ -400,7 +400,53 @@ All scripts in `scripts/` follow the same pattern:
 
 ---
 
-## 11. Known Issues & Technical Debt
+## 11. GDPR & Privacy Controls
+
+The Personnel page contains sensitive personal data (names, emails, salary figures). A **privacy mode toggle** is implemented:
+
+- **Default: ON** — personal data is anonymized automatically
+- Names → "Employee #1", emails → "•••@gheeraert.be", individual costs → "•••"
+- Aggregate KPIs (headcount, department counts) remain visible
+- User must explicitly disable privacy mode to see personal data
+- Project cost summary cards are fully hidden in privacy mode
+
+For production deployment, add these controls:
+- [ ] Restrict Personnel page access to HR/Management roles via Entra ID group claims
+- [ ] Log privacy mode toggle events for audit trail
+- [ ] Add data processing documentation in a ROPA (Record of Processing Activities) as required by GDPR Art. 30
+
+---
+
+## 12. Risk Matrix
+
+| Risk | Impact | Likelihood | Mitigation |
+|------|--------|-----------|------------|
+| **BC API rate limits** (6,000 req/5min) | Sync fails | Medium | Use `Data-Access-Intent: ReadOnly` header, batch requests, implement exponential backoff. With 4 entities and daily sync, expected ~200 calls — well within limits |
+| **Token expiry during sync** | Partial data | Low | MSAL handles token refresh automatically. For sync jobs >1h, add explicit token refresh before each entity |
+| **Client secret expiry** (max 24 months) | Complete outage | Medium | Calendar reminder 30 days before expiry. Consider certificate-based auth for longer validity |
+| **Currency formatting** | Incorrect amounts | Medium | BC may return decimal points while Belgian format uses commas. The `formatCurrency()` function uses `Intl.NumberFormat("nl-BE")` which handles this correctly |
+| **GDPR: salary data exposure** | Legal/compliance | High | Privacy mode defaults to ON. Restrict Personnel page access by role. Document processing in ROPA |
+| **NextAuth v5 beta** | Breaking changes | Low | Pin exact version in package.json (`5.0.0-beta.30`). Test before any update |
+| **Peppol non-compliance** | €1,500/violation fine | High | Belgium mandated B2B e-invoicing via Peppol since Jan 1, 2026. Prioritize Nymus BC Connector integration — this is a legal requirement, not optional |
+| **Shadow IT spend** | 20-30% of IT budget invisible | Medium | Without SaaS discovery (Zylo/Torii), many subscriptions go untracked. CSV import is the interim solution |
+
+---
+
+## 13. Hosting Cost Comparison
+
+| Option | Monthly Cost | Region | SSR/API | SLA | NIS2 Ready |
+|--------|-------------|--------|---------|-----|------------|
+| **Vercel Free** (current) | €0 | US (iad1) | Yes | No | No |
+| **Azure Static Web Apps Standard** | ~€9 | Belgium Central | Yes (Preview) | Yes | Yes |
+| **Azure App Service B1** | ~€12-14 | Belgium Central | Yes (full) | Yes | Yes |
+| **Azure App Service B2** | ~€25 | Belgium Central | Yes + autoscale | Yes | Yes |
+| **Azure Container Apps** | ~€0-5 | Belgium Central | Yes (Docker) | Yes | Yes |
+
+**Recommendation:** Start on Vercel Free for demo/development. Migrate to Azure App Service B1 in Belgium Central when moving to production with real data. The €12/month cost is negligible compared to the IT budget being managed.
+
+---
+
+## 14. Known Issues & Technical Debt
 
 1. **Recharts SSR warnings** — "width(-1) and height(-1)" warnings during `next build` static generation. Harmless — Recharts can't measure `ResponsiveContainer` during SSR. Charts render correctly in browser.
 
