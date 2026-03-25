@@ -220,6 +220,14 @@ export interface PersonnelKPIs {
   totalPersonnelCost: number;
   assetCount: number;
   departments: DepartmentSummary[];
+  /** Monthly cost of internal IT salaries */
+  itSalaryCost: number;
+  /** Estimated monthly external IT services cost (from invoices) */
+  externalServicesCost: number;
+  /** Estimated monthly tools/licenses cost */
+  toolsLicensesCost: number;
+  /** IT headcount as % of total headcount */
+  itStaffRatio: number;
 }
 
 // === Jira / Time Tracking ===

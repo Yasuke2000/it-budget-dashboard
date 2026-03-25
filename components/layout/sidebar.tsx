@@ -16,6 +16,7 @@ import {
   Users,
   FileCheck,
   Lightbulb,
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,7 @@ const navItems = [
   { label: "Personnel", icon: Users, href: "/personnel" },
   { label: "Import", icon: Upload, href: "/import" },
   { label: "Peppol", icon: FileCheck, href: "/peppol" },
+  { label: "Connectors", icon: Plug, href: "/connectors" },
   { label: "Insights", icon: Lightbulb, href: "/insights" },
   { label: "Settings", icon: Settings, href: "/settings" },
 ];

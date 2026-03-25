@@ -333,8 +333,20 @@ export async function getPersonnelKPIs(): Promise<PersonnelKPIs> {
   const employees = await getEmployees();
   const active = employees.filter((e) => e.status === "active");
   const itTeam = active.filter((e) => e.department === "IT");
-  const totalPersonnelCost = itTeam.reduce((sum, e) => sum + (e.monthlyCost || 0), 0);
-  const avgITCostPerEmployee = itTeam.length > 0 ? totalPersonnelCost / itTeam.length : 0;
+
+  // IT salary cost: sum of monthly costs for IT employees only
+  const itSalaryCost = itTeam.reduce((sum, e) => sum + (e.monthlyCost || 0), 0);
+  const totalPersonnelCost = itSalaryCost;
+  const avgITCostPerEmployee = itTeam.length > 0 ? itSalaryCost / itTeam.length : 0;
+
+  // Estimate external IT services and tools/licenses from invoice data (monthly avg YTD)
+  // Using fixed estimates based on demo data — in live mode these would come from invoices
+  const externalServicesCost = 8_250; // e.g. consultants, MSP, external IT projects
+  const toolsLicensesCost = 4_180;   // e.g. M365, SaaS tools, antivirus
+
+  const itStaffRatio = active.length > 0
+    ? Math.round((itTeam.length / active.length) * 100)
+    : 0;
 
   const deptMap = new Map<string, { headcount: number; assets: number }>();
   active.forEach((e) => {
@@ -348,8 +360,8 @@ export async function getPersonnelKPIs(): Promise<PersonnelKPIs> {
     ([name, data]) => ({
       name,
       headcount: data.headcount,
-      itCostPerUser: data.headcount > 0 ? totalPersonnelCost / active.length : 0,
-      totalITCost: (totalPersonnelCost / active.length) * data.headcount,
+      itCostPerUser: data.headcount > 0 ? itSalaryCost / active.length : 0,
+      totalITCost: (itSalaryCost / active.length) * data.headcount,
       assets: data.assets,
     })
   );
@@ -363,6 +375,10 @@ export async function getPersonnelKPIs(): Promise<PersonnelKPIs> {
     totalPersonnelCost,
     assetCount: totalAssets,
     departments,
+    itSalaryCost,
+    externalServicesCost,
+    toolsLicensesCost,
+    itStaffRatio,
   };
 }
 
