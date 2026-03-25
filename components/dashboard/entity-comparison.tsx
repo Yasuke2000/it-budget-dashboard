@@ -25,7 +25,15 @@ function CustomTooltip({ active, payload }: any) {
 export function EntityComparison({ data }: EntityComparisonProps) {
   const chartData = data.map((d) => ({
     ...d,
-    name: d.companyName.split(" ")[0], // Shorter label
+    // Shorten long names for chart labels
+    name: d.companyName.length <= 15
+      ? d.companyName
+      : d.companyName
+          .replace("International", "Intl")
+          .replace("Solutions", "Sol.")
+          .split(" ")
+          .slice(0, 2)
+          .join(" "),
   }));
 
   return (

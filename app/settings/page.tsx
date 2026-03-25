@@ -73,9 +73,10 @@ interface SyncState {
 // ─── Static demo companies ─────────────────────────────────────────────────
 
 const DEMO_COMPANIES = [
-  { id: "company-1", name: "Contoso Belgium NV", active: true },
-  { id: "company-2", name: "Contoso Netherlands BV", active: true },
-  { id: "company-3", name: "Contoso Luxembourg SA", active: false },
+  { id: "comp-gdi", name: "Gheeraert Distribution International", active: true },
+  { id: "comp-whs", name: "Warehouse Solutions", active: true },
+  { id: "comp-gre", name: "Gheeraert Real Estate", active: true },
+  { id: "comp-tdr", name: "Transport De Rudder", active: true },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

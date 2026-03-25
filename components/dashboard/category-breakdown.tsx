@@ -39,8 +39,8 @@ export function CategoryBreakdown({ data }: CategoryBreakdownProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-start gap-4">
-          <div className="h-[200px] w-[200px] shrink-0">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+          <div className="h-[220px] w-[220px] shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -60,7 +60,7 @@ export function CategoryBreakdown({ data }: CategoryBreakdownProps) {
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex-1 space-y-1.5 pt-1">
+          <div className="flex-1 space-y-1.5 pt-1 w-full">
             {enriched.map((cat) => (
               <div key={cat.category} className="group">
                 <div className="flex items-center justify-between text-sm">

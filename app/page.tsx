@@ -63,10 +63,12 @@ export default async function OverviewPage() {
       {/* Spend Trend */}
       <SpendTrendChart data={monthlySpend} />
 
-      {/* Bottom row: Entity comparison + Category breakdown + Top vendors */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Category breakdown — full width */}
+      <CategoryBreakdown data={categories} />
+
+      {/* Entity comparison + Top vendors */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <EntityComparison data={entitySpend} />
-        <CategoryBreakdown data={categories} />
         <TopVendors vendors={vendors} />
       </div>
     </div>
