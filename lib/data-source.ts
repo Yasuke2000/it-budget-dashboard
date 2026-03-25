@@ -113,9 +113,13 @@ export async function getBudgetEntries(
 
 // ---- Dashboard KPIs ----
 export async function getDashboardKPIs(
-  companyFilter: CompanyFilter = "all"
+  companyFilter: CompanyFilter = "all",
+  dateFrom?: string,
+  dateTo?: string
 ): Promise<DashboardKPIs> {
-  const invoices = await getInvoices(companyFilter, "2025-01-01", "2025-12-31");
+  const from = dateFrom ?? "2025-01-01";
+  const to = dateTo ?? "2025-12-31";
+  const invoices = await getInvoices(companyFilter, from, to);
   const budget = await getBudgetEntries(companyFilter);
   const licenses = await getLicenses();
   const devices = await getDevices();
@@ -134,12 +138,17 @@ export async function getDashboardKPIs(
   const licenseUtilizationPercent =
     totalPrepaid > 0 ? (totalConsumed / totalPrepaid) * 100 : 0;
 
-  // Compare last 3 months to prior 3 months for trend
+  // Compute a spend trend: split the selected range into two halves and compare
+  const fromMs = new Date(from).getTime();
+  const toMs = new Date(to).getTime();
+  const midMs = Math.floor((fromMs + toMs) / 2);
+  const midDate = new Date(midMs).toISOString().split("T")[0];
+
   const recent = invoices
-    .filter((i) => i.postingDate >= "2025-07-01" && i.postingDate <= "2025-09-30")
+    .filter((i) => i.postingDate > midDate && i.postingDate <= to)
     .reduce((s, i) => s + i.totalAmountExcludingTax, 0);
   const prior = invoices
-    .filter((i) => i.postingDate >= "2025-04-01" && i.postingDate <= "2025-06-30")
+    .filter((i) => i.postingDate >= from && i.postingDate <= midDate)
     .reduce((s, i) => s + i.totalAmountExcludingTax, 0);
   const spendChangePercent = prior > 0 ? ((recent - prior) / prior) * 100 : 0;
 
@@ -157,15 +166,25 @@ export async function getDashboardKPIs(
 
 // ---- Monthly Spend Trend ----
 export async function getMonthlySpend(
-  companyFilter: CompanyFilter = "all"
+  companyFilter: CompanyFilter = "all",
+  dateFrom?: string,
+  dateTo?: string
 ): Promise<MonthlySpend[]> {
-  const invoices = await getInvoices(companyFilter, "2025-01-01", "2025-12-31");
+  const from = dateFrom ?? "2025-01-01";
+  const to = dateTo ?? "2025-12-31";
   const budget = await getBudgetEntries(companyFilter);
 
-  const months = Array.from({ length: 12 }, (_, i) => {
-    const m = (i + 1).toString().padStart(2, "0");
-    return `2025-${m}`;
-  });
+  // Enumerate all year-months within the requested range
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  const months: string[] = [];
+  const cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+  while (cursor <= toDate) {
+    const y = cursor.getFullYear();
+    const m = (cursor.getMonth() + 1).toString().padStart(2, "0");
+    months.push(`${y}-${m}`);
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
 
   return months.map((month) => {
     const monthBudget = budget.filter((b) => b.month === month);
@@ -179,9 +198,13 @@ export async function getMonthlySpend(
 
 // ---- Category Spend ----
 export async function getCategorySpend(
-  companyFilter: CompanyFilter = "all"
+  companyFilter: CompanyFilter = "all",
+  dateFrom?: string,
+  dateTo?: string
 ): Promise<CategorySpend[]> {
-  const invoices = await getInvoices(companyFilter, "2025-01-01", "2025-12-31");
+  const from = dateFrom ?? "2025-01-01";
+  const to = dateTo ?? "2025-12-31";
+  const invoices = await getInvoices(companyFilter, from, to);
   const budget = await getBudgetEntries(companyFilter);
 
   const categoryMap = new Map<string, { actual: number; budget: number }>();
@@ -215,9 +238,14 @@ export async function getCategorySpend(
 }
 
 // ---- Entity Spend ----
-export async function getEntitySpend(): Promise<EntitySpend[]> {
+export async function getEntitySpend(
+  dateFrom?: string,
+  dateTo?: string
+): Promise<EntitySpend[]> {
+  const from = dateFrom ?? "2025-01-01";
+  const to = dateTo ?? "2025-12-31";
   const companies = await getCompanies();
-  const invoices = await getInvoices("all", "2025-01-01", "2025-12-31");
+  const invoices = await getInvoices("all", from, to);
 
   // Approximate user counts per entity
   const userCounts: Record<string, number> = {
@@ -404,9 +432,13 @@ export async function getCostInsights(): Promise<CostInsight[]> {
 
 // ---- Vendor Summary ----
 export async function getVendorSummary(
-  companyFilter: CompanyFilter = "all"
+  companyFilter: CompanyFilter = "all",
+  dateFrom?: string,
+  dateTo?: string
 ): Promise<VendorSummary[]> {
-  const invoices = await getInvoices(companyFilter, "2025-01-01", "2025-12-31");
+  const from = dateFrom ?? "2025-01-01";
+  const to = dateTo ?? "2025-12-31";
+  const invoices = await getInvoices(companyFilter, from, to);
   const totalSpend = invoices.reduce(
     (s, i) => s + i.totalAmountExcludingTax,
     0

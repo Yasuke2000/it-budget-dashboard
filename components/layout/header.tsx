@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { MobileSidebarTrigger } from "@/components/layout/sidebar";
 import { useCompany } from "@/components/layout/company-context";
+import { DateRangePicker } from "@/components/layout/date-range-picker";
 import { useSession, signOut } from "next-auth/react";
 
 const PAGE_TITLES: Record<string, string> = {
@@ -68,8 +69,11 @@ export function Header() {
         </h1>
       </div>
 
-      {/* Right: company selector + theme toggle */}
+      {/* Right: date range picker + company selector + theme toggle */}
       <div className="flex items-center gap-2 shrink-0">
+        {/* Date range picker */}
+        <DateRangePicker />
+
         {/* Company selector */}
         <Select
           value={selectedCompany}

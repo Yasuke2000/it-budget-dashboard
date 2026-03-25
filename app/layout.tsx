@@ -4,6 +4,7 @@ import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CompanyProvider } from "@/components/layout/company-context";
+import { DateRangeProvider } from "@/components/layout/date-range-context";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -39,6 +40,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <CompanyProvider>
+            <DateRangeProvider>
             <TooltipProvider delay={300}>
               {/* Outer flex: sidebar + content column */}
               <div className="flex min-h-screen">
@@ -57,6 +59,7 @@ export default function RootLayout({
                 </div>
               </div>
             </TooltipProvider>
+            </DateRangeProvider>
           </CompanyProvider>
         </ThemeProvider>
         </SessionProvider>
