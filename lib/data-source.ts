@@ -166,13 +166,10 @@ export async function getMonthlySpend(
   });
 
   return months.map((month) => {
-    const monthInvoices = invoices.filter((inv) =>
-      inv.postingDate.startsWith(month)
-    );
     const monthBudget = budget.filter((b) => b.month === month);
     return {
       month,
-      actual: monthInvoices.reduce((s, i) => s + i.totalAmountExcludingTax, 0),
+      actual: monthBudget.reduce((s, b) => s + b.actualAmount, 0),
       budget: monthBudget.reduce((s, b) => s + b.budgetAmount, 0),
     };
   });
