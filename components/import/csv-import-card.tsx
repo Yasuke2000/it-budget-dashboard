@@ -1,11 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Upload, CheckCircle2, AlertTriangle, X, FileText, Trash2 } from "lucide-react";
+import { Upload, CheckCircle2, AlertTriangle, X, FileText, Trash2, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { parseCSV, mapInvoiceCSV, mapBudgetCSV, mapDeviceCSV, mapLicenseCSV } from "@/lib/csv-parser";
+import {
+  parseCSV,
+  importInvoiceCSV,
+  importBudgetCSV,
+  importDeviceCSV,
+  importLicenseCSV,
+} from "@/lib/csv-parser";
+import type { ImportResult, ValidationError } from "@/lib/csv-parser";
 import { saveImportedData, getImportedData, clearImportedData } from "@/lib/imported-data";
 import type { PurchaseInvoice, BudgetEntry, ManagedDevice, M365License } from "@/lib/types";
 
@@ -21,18 +28,30 @@ interface CsvImportCardProps {
 
 type ImportState = "idle" | "preview" | "success" | "error";
 
+type MappedType = PurchaseInvoice | BudgetEntry | ManagedDevice | M365License;
+
 function getExistingCount(dataType: DataType): number {
   const data = getImportedData(dataType);
   return data ? data.length : 0;
 }
 
-function mapRows(dataType: DataType, rows: Record<string, string>[]) {
+function runImport(dataType: DataType, rows: Record<string, string>[]): ImportResult<MappedType> {
   switch (dataType) {
-    case "invoices": return mapInvoiceCSV(rows) as PurchaseInvoice[];
-    case "budget":   return mapBudgetCSV(rows) as BudgetEntry[];
-    case "devices":  return mapDeviceCSV(rows) as ManagedDevice[];
-    case "licenses": return mapLicenseCSV(rows) as M365License[];
+    case "invoices": return importInvoiceCSV(rows) as ImportResult<MappedType>;
+    case "budget":   return importBudgetCSV(rows) as ImportResult<MappedType>;
+    case "devices":  return importDeviceCSV(rows) as ImportResult<MappedType>;
+    case "licenses": return importLicenseCSV(rows) as ImportResult<MappedType>;
   }
+}
+
+function hasCriticalErrors(errors: ValidationError[], dataType: DataType): boolean {
+  const criticalFields: Record<DataType, string[]> = {
+    invoices: ['vendorName', 'totalAmountExcludingTax'],
+    budget: ['category', 'month', 'budgetAmount'],
+    devices: ['deviceName'],
+    licenses: ['skuPartNumber', 'prepaidUnits'],
+  };
+  return errors.some(e => criticalFields[dataType].includes(e.field));
 }
 
 export function CsvImportCard({
@@ -50,6 +69,8 @@ export function CsvImportCard({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [importedCount, setImportedCount] = useState(0);
   const [existingCount, setExistingCount] = useState(0);
+  const [importResult, setImportResult] = useState<ImportResult<MappedType> | null>(null);
+  const [showAllErrors, setShowAllErrors] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Read existing data count on mount and on storage events
@@ -86,6 +107,8 @@ export function CsvImportCard({
         }
         setRawRows(rows);
         setDetectedHeaders(Object.keys(rows[0]));
+        setImportResult(null);
+        setShowAllErrors(false);
         setImportState("preview");
         setErrorMsg(null);
       } catch {
@@ -114,13 +137,18 @@ export function CsvImportCard({
     [processFile]
   );
 
+  function handleValidateAndPreview() {
+    const result = runImport(dataType, rawRows);
+    setImportResult(result);
+  }
+
   function handleImport() {
     try {
-      const mapped = mapRows(dataType, rawRows);
-      saveImportedData(dataType, mapped);
-      setImportedCount(mapped.length);
+      const result = importResult ?? runImport(dataType, rawRows);
+      saveImportedData(dataType, result.data);
+      setImportedCount(result.data.length);
       setImportState("success");
-      setExistingCount(mapped.length);
+      setExistingCount(result.data.length);
       onImport?.();
     } catch {
       setErrorMsg("Failed to import data. Please check that the columns match the expected format.");
@@ -136,6 +164,8 @@ export function CsvImportCard({
     setRawRows([]);
     setDetectedHeaders([]);
     setErrorMsg(null);
+    setImportResult(null);
+    setShowAllErrors(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -145,6 +175,8 @@ export function CsvImportCard({
     setRawRows([]);
     setDetectedHeaders([]);
     setErrorMsg(null);
+    setImportResult(null);
+    setShowAllErrors(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -158,6 +190,10 @@ export function CsvImportCard({
     const found = detectedHeaders.some(h => normalise(h) === colNorm || normalise(h).includes(colNorm) || colNorm.includes(normalise(h)));
     return { col, found };
   });
+
+  const blockingImport = importResult !== null && hasCriticalErrors(importResult.errors, dataType);
+  const displayErrors = importResult?.errors ?? [];
+  const visibleErrors = showAllErrors ? displayErrors : displayErrors.slice(0, 5);
 
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col gap-4">
@@ -306,14 +342,84 @@ export function CsvImportCard({
             </div>
           </div>
 
+          {/* Validation results */}
+          {importResult !== null && (
+            <div className="flex flex-col gap-2">
+              {/* Summary row */}
+              <div className="flex items-center gap-3 flex-wrap text-xs">
+                <span className="flex items-center gap-1.5 text-teal-300">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span className="font-semibold">{importResult.data.length}</span> rows valid
+                </span>
+                {importResult.errors.length > 0 && (
+                  <span className="flex items-center gap-1.5 text-red-400">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    <span className="font-semibold">{importResult.errors.length}</span> validation errors
+                  </span>
+                )}
+                {importResult.duplicatesRemoved > 0 && (
+                  <span className="flex items-center gap-1.5 text-amber-400">
+                    <Info className="h-3.5 w-3.5" />
+                    <span className="font-semibold">{importResult.duplicatesRemoved}</span> duplicates removed
+                  </span>
+                )}
+              </div>
+
+              {/* Validation errors list */}
+              {displayErrors.length > 0 && (
+                <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2.5 flex flex-col gap-1.5">
+                  <p className="text-xs font-semibold text-red-300 mb-0.5">Validation errors</p>
+                  {visibleErrors.map((err, i) => (
+                    <div key={i} className="flex items-start gap-2 text-xs text-red-300">
+                      <AlertTriangle className="h-3 w-3 text-red-400 shrink-0 mt-0.5" />
+                      <span>
+                        <span className="font-semibold">Row {err.row}</span> — {err.field}:{" "}
+                        {err.message}
+                        {err.value ? (
+                          <span className="ml-1 font-mono text-red-400/80">(got: &quot;{err.value}&quot;)</span>
+                        ) : null}
+                      </span>
+                    </div>
+                  ))}
+                  {displayErrors.length > 5 && (
+                    <button
+                      onClick={() => setShowAllErrors(v => !v)}
+                      className="text-xs text-red-400 hover:text-red-300 self-start transition-colors mt-0.5"
+                    >
+                      {showAllErrors
+                        ? "Show less"
+                        : `Show ${displayErrors.length - 5} more errors`}
+                    </button>
+                  )}
+                  {blockingImport && (
+                    <p className="text-xs text-red-400 font-semibold mt-1 border-t border-red-500/20 pt-1.5">
+                      Import blocked: fix critical errors (missing required fields) before importing.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Actions */}
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={handleImport}
-              className="bg-teal-600 hover:bg-teal-500 text-white text-xs h-8 px-4"
-            >
-              Import {rawRows.length} rows
-            </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {importResult === null ? (
+              <Button
+                onClick={handleValidateAndPreview}
+                className="bg-slate-700 hover:bg-slate-600 text-white text-xs h-8 px-4"
+              >
+                Validate {rawRows.length} rows
+              </Button>
+            ) : (
+              <Button
+                onClick={handleImport}
+                disabled={blockingImport}
+                className="bg-teal-600 hover:bg-teal-500 text-white text-xs h-8 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Import {importResult.data.length} rows
+                {importResult.errors.length > 0 && !blockingImport && " (with warnings)"}
+              </Button>
+            )}
             <Button
               variant="ghost"
               onClick={handleReset}

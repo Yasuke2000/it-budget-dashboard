@@ -6,6 +6,20 @@ A comprehensive IT budget management and cost analysis dashboard built for IT ma
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss)
 ![License](https://img.shields.io/badge/License-MIT-green)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
+
+## One-Click Deploy
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FYasuke2000%2Fit-budget-dashboard&env=NEXT_PUBLIC_DEMO_MODE&envDescription=Set%20to%20true%20for%20demo%20mode%20or%20false%20for%20live%20APIs&envLink=https%3A%2F%2Fgithub.com%2FYasuke2000%2Fit-budget-dashboard%23environment-variables&project-name=it-budget-dashboard)
+
+Or run locally with Docker:
+
+```bash
+git clone https://github.com/Yasuke2000/it-budget-dashboard.git
+cd it-budget-dashboard
+docker compose up --build
+# Open http://localhost:3000
+```
 
 ## Features
 
@@ -143,14 +157,51 @@ IT costs are categorized using the **TBM (Technology Business Management) framew
 
 ## Deployment
 
-### Vercel (recommended)
+### Option 1: Vercel (recommended for getting started)
+
+Click the **Deploy with Vercel** button at the top of this README, or:
 
 1. Push to GitHub
 2. Connect repo to Vercel
-3. Set environment variables in Vercel dashboard
+3. Set `NEXT_PUBLIC_DEMO_MODE=true`
 4. Deploy — zero config for Next.js
 
-The `vercel.json` includes a daily cron job at 06:00 UTC to trigger data sync.
+### Option 2: Docker Compose (recommended for production)
+
+```bash
+# Clone and start
+git clone https://github.com/Yasuke2000/it-budget-dashboard.git
+cd it-budget-dashboard
+cp .env.example .env
+# Edit .env with your credentials
+docker compose up --build -d
+
+# Dashboard: http://localhost:3000
+# PostgreSQL: localhost:5432
+```
+
+Development with hot reload:
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+### Option 3: Azure App Service (NIS2 compliant)
+
+For production with real data in Belgium:
+1. Deploy to Azure App Service B1 (~€12/month) in Belgium Central region
+2. Use Azure Database for PostgreSQL Flexible Server
+3. Enable Entra ID authentication
+4. See [HANDOFF.md](HANDOFF.md) for full migration guide
+
+## First-Run Setup
+
+On first visit, a setup wizard guides you through connecting your data sources. You can also access it anytime from **Settings → Run Setup Wizard Again**.
+
+The wizard walks you through:
+1. Choosing demo mode or live data
+2. Connecting Microsoft 365 (licenses, devices, SSO)
+3. Connecting Business Central (invoices, GL entries, budget)
+4. Optional integrations (Jira, Officient HR, Samsung Knox)
 
 ## License
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import Link from "next/link";
 import {
   RefreshCw,
   CheckCircle2,
@@ -16,6 +17,7 @@ import {
   Wifi,
   WifiOff,
   AlertTriangle,
+  Wand2,
 } from "lucide-react";
 import {
   Card,
@@ -510,6 +512,30 @@ function GeneralTab() {
             Disabled entities are excluded from spend totals, variance
             calculations, and all charts.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* ── SETUP WIZARD ────────────────────────────────────────────── */}
+      <Card className="bg-slate-900 border-slate-700">
+        <CardHeader>
+          <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
+            <Wand2 className="size-4 text-slate-400" />
+            First-Run Setup Wizard
+          </CardTitle>
+          <CardDescription>
+            Run the setup wizard again to reconfigure your data source connections.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link href="/setup">
+            <Button
+              variant="ghost"
+              className="border border-slate-700 text-slate-300 hover:text-white hover:border-slate-600 text-sm"
+            >
+              <Wand2 className="size-4 mr-2" />
+              Run Setup Wizard Again
+            </Button>
+          </Link>
         </CardContent>
       </Card>
     </div>

@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_DEMO_MODE=${NEXT_PUBLIC_DEMO_MODE:-true}
+      - DATABASE_URL=postgresql://itfinance:itfinance@db:5432/itfinance
+      # Authentication (optional)
+      - AUTH_SECRET=${AUTH_SECRET:-}
+      - AUTH_MICROSOFT_ENTRA_ID_ID=${AUTH_MICROSOFT_ENTRA_ID_ID:-}
+      - AUTH_MICROSOFT_ENTRA_ID_SECRET=${AUTH_MICROSOFT_ENTRA_ID_SECRET:-}
+      - AUTH_MICROSOFT_ENTRA_ID_TENANT_ID=${AUTH_MICROSOFT_ENTRA_ID_TENANT_ID:-}
+      # Business Central
+      - BC_TENANT_ID=${BC_TENANT_ID:-}
+      - BC_CLIENT_ID=${BC_CLIENT_ID:-}
+      - BC_CLIENT_SECRET=${BC_CLIENT_SECRET:-}
+      - BC_ENVIRONMENT=${BC_ENVIRONMENT:-production}
+      # Jira
+      - JIRA_BASE_URL=${JIRA_BASE_URL:-}
+      - JIRA_EMAIL=${JIRA_EMAIL:-}
+      - JIRA_API_TOKEN=${JIRA_API_TOKEN:-}
+      # Officient
+      - OFFICIENT_CLIENT_ID=${OFFICIENT_CLIENT_ID:-}
+      - OFFICIENT_CLIENT_SECRET=${OFFICIENT_CLIENT_SECRET:-}
+      # Knox
+      - KNOX_CLIENT_ID=${KNOX_CLIENT_ID:-}
+      - KNOX_CLIENT_SECRET=${KNOX_CLIENT_SECRET:-}
+      # Dell/Lenovo
+      - DELL_CLIENT_ID=${DELL_CLIENT_ID:-}
+      - DELL_CLIENT_SECRET=${DELL_CLIENT_SECRET:-}
+      - LENOVO_CLIENT_ID=${LENOVO_CLIENT_ID:-}
+      # Sync
+      - SYNC_CRON_SECRET=${SYNC_CRON_SECRET:-changeme}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=itfinance
+      - POSTGRES_PASSWORD=itfinance
+      - POSTGRES_DB=itfinance
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U itfinance"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { Sparkles, X } from "lucide-react";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { SpendTrendChart } from "@/components/dashboard/spend-trend-chart";
 import { EntityComparison } from "@/components/dashboard/entity-comparison";
@@ -16,6 +18,7 @@ export default function OverviewPage() {
   const { selectedRange } = useDateRange();
   const { selectedCompany } = useCompany();
   const [loading, setLoading] = useState(true);
+  const [showSetupBanner, setShowSetupBanner] = useState(false);
   const [data, setData] = useState<{
     kpis: DashboardKPIs;
     monthly: MonthlySpend[];
@@ -23,6 +26,17 @@ export default function OverviewPage() {
     vendors: VendorSummary[];
     categories: CategorySpend[];
   } | null>(null);
+
+  // Show setup banner if the user hasn't completed the wizard yet
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("itdash_setup_complete")) {
+        setShowSetupBanner(true);
+      }
+    } catch {
+      // localStorage unavailable — no banner
+    }
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -65,6 +79,31 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-6">
+      {/* Setup banner */}
+      {showSetupBanner && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-teal-500/30 bg-teal-500/10 px-4 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Sparkles className="h-4 w-4 text-teal-400 shrink-0" />
+            <p className="text-sm text-teal-300">
+              <span className="font-semibold">Welcome!</span> Set up your data sources to get started.{" "}
+              <Link href="/setup" className="underline underline-offset-2 hover:text-white transition-colors">
+                Run setup wizard
+              </Link>
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setShowSetupBanner(false);
+              try { localStorage.setItem("itdash_setup_complete", "1"); } catch { /* ignore */ }
+            }}
+            className="text-teal-500 hover:text-teal-300 transition-colors shrink-0"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div>
         <h1 className="text-2xl font-bold text-white">Overview</h1>
         <p className="text-slate-400">
