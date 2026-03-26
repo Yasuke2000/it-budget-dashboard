@@ -24,7 +24,7 @@ export async function getGraphToken(): Promise<string> {
   return result.accessToken;
 }
 
-async function fetchGraph(endpoint: string): Promise<any> {
+async function fetchGraph(endpoint: string): Promise<unknown> {
   const token = await getGraphToken();
   const response = await fetch(`https://graph.microsoft.com/v1.0${endpoint}`, {
     headers: {
@@ -36,21 +36,21 @@ async function fetchGraph(endpoint: string): Promise<any> {
   return response.json();
 }
 
-export async function fetchSubscribedSkus(): Promise<any[]> {
-  const data = await fetchGraph("/subscribedSkus");
+export async function fetchSubscribedSkus(): Promise<Record<string, unknown>[]> {
+  const data = await fetchGraph("/subscribedSkus") as { value: Record<string, unknown>[] };
   return data.value;
 }
 
-export async function fetchManagedDevices(): Promise<any[]> {
+export async function fetchManagedDevices(): Promise<Record<string, unknown>[]> {
   const data = await fetchGraph(
     "/deviceManagement/managedDevices?$select=deviceName,model,manufacturer,serialNumber,osVersion,enrolledDateTime,complianceState,managedDeviceOwnerType,chassisType,operatingSystem"
-  );
+  ) as { value: Record<string, unknown>[] };
   return data.value;
 }
 
-export async function fetchUsers(): Promise<any[]> {
+export async function fetchUsers(): Promise<Record<string, unknown>[]> {
   const data = await fetchGraph(
     "/users?$select=displayName,assignedLicenses,accountEnabled&$top=999"
-  );
+  ) as { value: Record<string, unknown>[] };
   return data.value;
 }

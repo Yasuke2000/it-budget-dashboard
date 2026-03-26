@@ -1,5 +1,6 @@
 import { auth, signIn } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Building2 } from "lucide-react";
 
 export default async function SignInPage() {
@@ -48,12 +49,12 @@ export default async function SignInPage() {
                 and AUTH_MICROSOFT_ENTRA_ID_SECRET to enable Entra ID sign-in.
               </p>
             </div>
-            <a
+            <Link
               href="/"
               className="inline-block w-full bg-teal-600 hover:bg-teal-500 text-white font-medium py-3 px-4 rounded-lg transition-colors"
             >
               Continue to Dashboard
-            </a>
+            </Link>
           </div>
         )}
 

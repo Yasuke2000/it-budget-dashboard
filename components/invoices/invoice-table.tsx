@@ -139,9 +139,6 @@ export function InvoiceTable({ invoices }: InvoiceTableProps) {
   }, [invoices]);
 
   const entities = useMemo(() => {
-    const set = new Set(
-      invoices.map((inv) => ({ id: inv.companyId, name: inv.companyName }))
-    );
     const map = new Map<string, string>();
     invoices.forEach((inv) => map.set(inv.companyId, inv.companyName));
     return Array.from(map.entries());

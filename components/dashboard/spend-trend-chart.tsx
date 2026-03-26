@@ -9,12 +9,18 @@ interface SpendTrendChartProps {
   data: MonthlySpend[];
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+interface SpendTooltipPayloadEntry {
+  name?: string;
+  value: number;
+  color?: string;
+}
+
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: SpendTooltipPayloadEntry[]; label?: string }) {
   if (!active || !payload) return null;
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
       <p className="text-sm font-medium text-slate-300 mb-1">{label}</p>
-      {payload.map((entry: any, index: number) => (
+      {payload.map((entry, index: number) => (
         <p key={index} className="text-sm font-mono" style={{ color: entry.color }}>
           {entry.name}: {formatCurrency(entry.value)}
         </p>

@@ -68,15 +68,13 @@ export function CsvImportCard({
   const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [importedCount, setImportedCount] = useState(0);
-  const [existingCount, setExistingCount] = useState(0);
+  const [existingCount, setExistingCount] = useState(() => getExistingCount(dataType));
   const [importResult, setImportResult] = useState<ImportResult<MappedType> | null>(null);
   const [showAllErrors, setShowAllErrors] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Read existing data count on mount and on storage events
+  // Keep existing count in sync when data is imported elsewhere
   useEffect(() => {
-    setExistingCount(getExistingCount(dataType));
-
     function handleDataImported(e: Event) {
       const detail = (e as CustomEvent).detail;
       if (detail.type === dataType || detail.type === "all") {

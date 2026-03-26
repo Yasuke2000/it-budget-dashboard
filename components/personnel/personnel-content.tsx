@@ -54,7 +54,12 @@ function anonymizeWorklogs(worklogs: JiraWorklog[]): JiraWorklog[] {
 
 const COST_COLORS = ["#14b8a6", "#3b82f6", "#a855f7"];
 
-function CostTooltip({ active, payload, privacyMode }: { active?: boolean; payload?: any[]; privacyMode: boolean }) {
+interface CostTooltipPayloadEntry {
+  value: number;
+  payload?: { name?: string };
+}
+
+function CostTooltip({ active, payload, privacyMode }: { active?: boolean; payload?: CostTooltipPayloadEntry[]; privacyMode: boolean }) {
   if (!active || !payload || !payload.length) return null;
   const entry = payload[0];
   return (

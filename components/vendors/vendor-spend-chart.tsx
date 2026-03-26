@@ -17,7 +17,21 @@ interface VendorSpendChartProps {
   vendors: VendorSummary[];
 }
 
-function CustomTooltip({ active, payload }: any) {
+interface TooltipPayloadEntry {
+  payload: {
+    name: string;
+    spend: number;
+    percent: number;
+    isRisk: boolean;
+  };
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+}
+
+function CustomTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (

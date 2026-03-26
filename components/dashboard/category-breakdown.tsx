@@ -9,8 +9,16 @@ interface CategoryBreakdownProps {
   data: CategorySpend[];
 }
 
-function CustomTooltip({ active, payload }: any) {
-  if (!active || !payload?.length) return null;
+interface CategoryTooltipPayloadEntry {
+  payload?: {
+    category: string;
+    amount: number;
+    percent: number;
+  };
+}
+
+function CustomTooltip({ active, payload }: { active?: boolean; payload?: CategoryTooltipPayloadEntry[] }) {
+  if (!active || !payload?.length || !payload[0].payload) return null;
   const d = payload[0].payload;
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">

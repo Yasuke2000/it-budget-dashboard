@@ -1,5 +1,4 @@
 import type {
-  PurchaseInvoice,
   M365License,
   ManagedDevice,
   VendorSummary,

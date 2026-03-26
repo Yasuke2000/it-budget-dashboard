@@ -32,7 +32,12 @@ const AGE_BUCKETS: AgeBucket[] = [
   { label: "5+ yr", min: 5, max: Infinity, color: "#ef4444" },
 ];
 
-function CustomTooltip({ active, payload, label }: any) {
+interface AgeTooltipPayloadEntry {
+  value: number;
+  fill?: string;
+}
+
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: AgeTooltipPayloadEntry[]; label?: string }) {
   if (!active || !payload?.length) return null;
   const count = payload[0].value as number;
   return (

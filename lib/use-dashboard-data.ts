@@ -2,12 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getImportedData } from "./imported-data";
-import type {
-  PurchaseInvoice,
-  BudgetEntry,
-  ManagedDevice,
-  M365License,
-} from "./types";
 
 /**
  * Hook that checks localStorage for imported data.
@@ -17,7 +11,7 @@ import type {
 export function useImportedData<T>(
   type: "invoices" | "budget" | "devices" | "licenses"
 ): { data: T[] | null; isImported: boolean; refresh: () => void } {
-  const [data, setData] = useState<T[] | null>(null);
+  const [data, setData] = useState<T[] | null>(() => getImportedData<T>(type));
 
   const refresh = useCallback(() => {
     const imported = getImportedData<T>(type);
@@ -25,8 +19,6 @@ export function useImportedData<T>(
   }, [type]);
 
   useEffect(() => {
-    refresh();
-
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail.type === type || detail.type === "all") {
@@ -41,22 +33,24 @@ export function useImportedData<T>(
   return { data, isImported: data !== null, refresh };
 }
 
+const IMPORTED_KEYS = [
+  "itdash_imported_invoices",
+  "itdash_imported_budget",
+  "itdash_imported_devices",
+  "itdash_imported_licenses",
+];
+
+function checkHasImportedData(): boolean {
+  if (typeof window === "undefined") return false;
+  return IMPORTED_KEYS.some((k) => localStorage.getItem(k) !== null);
+}
+
 /** Check if any imported data exists (for showing badges/indicators) */
 export function useHasImportedData(): boolean {
-  const [has, setHas] = useState(false);
+  const [has, setHas] = useState(() => checkHasImportedData());
 
   useEffect(() => {
-    const check = () => {
-      const keys = [
-        "itdash_imported_invoices",
-        "itdash_imported_budget",
-        "itdash_imported_devices",
-        "itdash_imported_licenses",
-      ];
-      setHas(keys.some((k) => localStorage.getItem(k) !== null));
-    };
-
-    check();
+    const check = () => setHas(checkHasImportedData());
     window.addEventListener("itdash-data-imported", check);
     return () => window.removeEventListener("itdash-data-imported", check);
   }, []);

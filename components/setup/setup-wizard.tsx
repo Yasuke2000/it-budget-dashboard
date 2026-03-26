@@ -9,7 +9,6 @@ import {
   X,
   Wifi,
   Database,
-  Users,
   Layers,
   LayoutDashboard,
   RefreshCw,

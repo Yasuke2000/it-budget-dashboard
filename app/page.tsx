@@ -18,7 +18,14 @@ export default function OverviewPage() {
   const { selectedRange } = useDateRange();
   const { selectedCompany } = useCompany();
   const [loading, setLoading] = useState(true);
-  const [showSetupBanner, setShowSetupBanner] = useState(false);
+  const [showSetupBanner, setShowSetupBanner] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return !localStorage.getItem("itdash_setup_complete");
+    } catch {
+      return false;
+    }
+  });
   const [data, setData] = useState<{
     kpis: DashboardKPIs;
     monthly: MonthlySpend[];
@@ -27,19 +34,10 @@ export default function OverviewPage() {
     categories: CategorySpend[];
   } | null>(null);
 
-  // Show setup banner if the user hasn't completed the wizard yet
   useEffect(() => {
-    try {
-      if (!localStorage.getItem("itdash_setup_complete")) {
-        setShowSetupBanner(true);
-      }
-    } catch {
-      // localStorage unavailable — no banner
-    }
-  }, []);
-
-  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
+    let cancelled = false;
     const params = new URLSearchParams({
       company: selectedCompany,
       dateFrom: selectedRange.from,
@@ -48,10 +46,13 @@ export default function OverviewPage() {
     fetch(`/api/dashboard?${params}`)
       .then((res) => res.json())
       .then((d) => {
-        setData(d);
-        setLoading(false);
+        if (!cancelled) {
+          setData(d);
+          setLoading(false);
+        }
       })
-      .catch(() => setLoading(false));
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [selectedRange, selectedCompany]);
 
   if (loading || !data) {

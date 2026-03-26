@@ -15,15 +15,6 @@ export function LicenseCard({ license }: LicenseCardProps) {
   const isFree = license.pricePerUser === 0;
   const pct = license.utilizationRate * 100;
 
-  const utilizationColor =
-    isFree
-      ? "text-slate-400"
-      : pct >= 90
-      ? "text-emerald-400"
-      : pct >= 70
-      ? "text-amber-400"
-      : "text-red-400";
-
   const utilizationLabel =
     isFree
       ? "Free"

@@ -6,7 +6,6 @@ import {
   Cell,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 
 interface ComplianceDonutProps {
@@ -21,17 +20,32 @@ const SLICES = [
   { key: "unknown", label: "Unknown", color: "#64748b" },
 ];
 
-function CustomTooltip({ active, payload }: any) {
+interface ComplianceTooltipPayloadEntry {
+  name?: string;
+  value: number;
+  payload?: { fill?: string };
+}
+
+function CustomTooltip({ active, payload }: { active?: boolean; payload?: ComplianceTooltipPayloadEntry[] }) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
-      <p className="text-sm font-semibold" style={{ color: entry.payload.fill }}>
+      <p className="text-sm font-semibold" style={{ color: entry.payload?.fill }}>
         {entry.name}
       </p>
       <p className="text-sm font-mono text-white">{entry.value} devices</p>
     </div>
   );
+}
+
+interface CustomLabelProps {
+  cx: number;
+  cy: number;
+  midAngle: number;
+  innerRadius: number;
+  outerRadius: number;
+  percent: number;
 }
 
 function renderCustomLabel({
@@ -41,7 +55,7 @@ function renderCustomLabel({
   innerRadius,
   outerRadius,
   percent,
-}: any) {
+}: CustomLabelProps) {
   if (percent < 0.05) return null;
   const RADIAN = Math.PI / 180;
   const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
@@ -89,7 +103,7 @@ export function ComplianceDonut({
               outerRadius={85}
               dataKey="value"
               labelLine={false}
-              label={renderCustomLabel}
+              label={renderCustomLabel as unknown as boolean}
             >
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.fill} strokeWidth={0} />

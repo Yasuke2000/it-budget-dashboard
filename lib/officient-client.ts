@@ -28,7 +28,7 @@ async function getOfficientToken(): Promise<string> {
   return data.access_token;
 }
 
-async function fetchOfficient(endpoint: string): Promise<any> {
+async function fetchOfficient(endpoint: string): Promise<unknown> {
   const token = await getOfficientToken();
   const response = await fetch(`${OFFICIENT_BASE}${endpoint}`, {
     headers: {
@@ -66,36 +66,36 @@ export interface OfficientTeam {
 }
 
 export async function fetchEmployees(): Promise<OfficientEmployee[]> {
-  const data = await fetchOfficient("/people?include_inactive=false");
-  return (data.data || []).map((p: any) => ({
-    id: p.id,
+  const data = await fetchOfficient("/people?include_inactive=false") as { data?: Record<string, unknown>[] };
+  return (data.data || []).map((p: Record<string, unknown>) => ({
+    id: p.id as number,
     name: `${p.first_name} ${p.last_name}`,
-    email: p.email || "",
-    department: p.department?.name || "Unknown",
-    function_title: p.function_description || p.function_title || "",
-    start_date: p.start_date || "",
+    email: (p.email as string) || "",
+    department: (p.department as { name?: string } | undefined)?.name || "Unknown",
+    function_title: (p.function_description as string) || (p.function_title as string) || "",
+    start_date: (p.start_date as string) || "",
     status: p.status === "active" ? "active" : "inactive",
   }));
 }
 
 export async function fetchTeams(): Promise<OfficientTeam[]> {
-  const data = await fetchOfficient("/teams");
-  return (data.data || []).map((t: any) => ({
-    id: t.id,
-    name: t.name,
-    manager_id: t.manager_id,
-    member_count: t.people_count || 0,
+  const data = await fetchOfficient("/teams") as { data?: Record<string, unknown>[] };
+  return (data.data || []).map((t: Record<string, unknown>) => ({
+    id: t.id as number,
+    name: t.name as string,
+    manager_id: (t.manager_id as number | null) ?? null,
+    member_count: (t.people_count as number) || 0,
   }));
 }
 
 export async function fetchAssets(): Promise<OfficientAsset[]> {
-  const data = await fetchOfficient("/assets");
-  return (data.data || []).map((a: any) => ({
-    id: a.id,
-    person_id: a.person_id,
-    name: a.name,
-    description: a.description || "",
-    category: a.category || "Other",
+  const data = await fetchOfficient("/assets") as { data?: Record<string, unknown>[] };
+  return (data.data || []).map((a: Record<string, unknown>) => ({
+    id: a.id as number,
+    person_id: a.person_id as number,
+    name: a.name as string,
+    description: (a.description as string) || "",
+    category: (a.category as string) || "Other",
   }));
 }
 
@@ -103,7 +103,7 @@ export async function fetchWageData(
   personId: number
 ): Promise<{ grossMonthly: number; totalCost: number } | null> {
   try {
-    const data = await fetchOfficient(`/people/${personId}/current_wage`);
+    const data = await fetchOfficient(`/people/${personId}/current_wage`) as { data?: { gross_monthly?: number; total_cost?: number } };
     return {
       grossMonthly: data.data?.gross_monthly || 0,
       totalCost: data.data?.total_cost || 0,

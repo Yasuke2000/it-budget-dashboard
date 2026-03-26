@@ -9,8 +9,17 @@ interface EntityComparisonProps {
   data: EntitySpend[];
 }
 
-function CustomTooltip({ active, payload }: any) {
-  if (!active || !payload?.length) return null;
+interface EntityTooltipPayloadEntry {
+  payload?: {
+    companyName?: string;
+    totalSpend: number;
+    perUserSpend: number;
+    userCount: number;
+  };
+}
+
+function CustomTooltip({ active, payload }: { active?: boolean; payload?: EntityTooltipPayloadEntry[] }) {
+  if (!active || !payload?.length || !payload[0].payload) return null;
   const d = payload[0].payload;
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">

@@ -20,7 +20,22 @@ const PROJECT_COLORS: Record<string, string> = {
   PROJ: "#10b981",
 };
 
-function CustomTooltip({ active, payload }: any) {
+interface TooltipPayloadEntry {
+  name: string;
+  value: number;
+  payload: {
+    fill: string;
+    totalHours: number;
+    contributors: number;
+  };
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+}
+
+function CustomTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   return (
@@ -38,7 +53,16 @@ function CustomTooltip({ active, payload }: any) {
   );
 }
 
-function renderCustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) {
+interface LabelProps {
+  cx: number;
+  cy: number;
+  midAngle: number;
+  innerRadius: number;
+  outerRadius: number;
+  percent: number;
+}
+
+function renderCustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: LabelProps) {
   if (percent < 0.07) return null;
   const RADIAN = Math.PI / 180;
   const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
@@ -83,7 +107,7 @@ export function ProjectCostDonut({ projectCosts }: ProjectCostDonutProps) {
               outerRadius={85}
               dataKey="value"
               labelLine={false}
-              label={renderCustomLabel}
+              label={renderCustomLabel as unknown as boolean}
             >
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.fill} strokeWidth={0} />

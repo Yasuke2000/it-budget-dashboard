@@ -44,6 +44,7 @@ export async function POST(request: Request) {
     }
 
     // Strip raw XML from the response to keep the payload lean
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { rawXml: _raw, ...invoice } = parsed;
 
     return NextResponse.json(invoice, { status: 201 });
