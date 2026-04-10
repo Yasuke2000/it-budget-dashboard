@@ -59,7 +59,7 @@ export function SpendTrendChart({ data }: SpendTrendChartProps) {
               <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}K`} />
               <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ color: "#94a3b8" }} />
-              <Area type="monotone" dataKey="budget" name="Budget" stroke="#6366f1" fill="url(#budgetGradient)" strokeWidth={2} strokeDasharray="5 5" />
+              <Area type="stepAfter" dataKey="budget" name="Budget" stroke="#6366f1" fill="url(#budgetGradient)" strokeWidth={2} strokeDasharray="5 5" />
               <Area type="monotone" dataKey="actual" name="Actual" stroke="#0d9488" fill="url(#actualGradient)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>

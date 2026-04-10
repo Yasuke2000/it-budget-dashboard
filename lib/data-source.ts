@@ -186,14 +186,16 @@ export async function getMonthlySpend(
     cursor.setMonth(cursor.getMonth() + 1);
   }
 
-  return months.map((month) => {
-    const monthBudget = budget.filter((b) => b.month === month);
-    return {
-      month,
-      actual: monthBudget.reduce((s, b) => s + b.actualAmount, 0),
-      budget: monthBudget.reduce((s, b) => s + b.budgetAmount, 0),
-    };
-  });
+  return months
+    .map((month) => {
+      const monthBudget = budget.filter((b) => b.month === month);
+      return {
+        month,
+        actual: monthBudget.reduce((s, b) => s + b.actualAmount, 0),
+        budget: monthBudget.reduce((s, b) => s + b.budgetAmount, 0),
+      };
+    })
+    .filter((m) => m.budget > 0 || m.actual > 0);
 }
 
 // ---- Category Spend ----
