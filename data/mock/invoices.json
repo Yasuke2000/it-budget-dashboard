@@ -2250,9 +2250,89 @@
     "currencyCode": "EUR",
     "companyId": "comp-gdi",
     "companyName": "GDI",
-    "costCategory": "External IT Services",
+    "costCategory": "IT Personnel",
     "lines": [
       { "lineNumber": 1, "description": "IT Staffing & Project Support - Q1 2026", "quantity": 1, "unitPrice": 4500.00, "amount": 4500.00 }
+    ]
+  },
+  {
+    "id": "inv-118",
+    "number": "PI-2026-0019",
+    "invoiceDate": "2026-01-31",
+    "postingDate": "2026-02-02",
+    "dueDate": "2026-03-03",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 940.00,
+    "totalAmountIncludingTax": 1137.40,
+    "totalTaxAmount": 197.40,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - January 2026", "quantity": 1, "unitPrice": 940.00, "amount": 940.00 }
+    ]
+  },
+  {
+    "id": "inv-119",
+    "number": "PI-2026-0020",
+    "invoiceDate": "2026-02-28",
+    "postingDate": "2026-03-02",
+    "dueDate": "2026-04-01",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 870.00,
+    "totalAmountIncludingTax": 1052.70,
+    "totalTaxAmount": 182.70,
+    "status": "Paid",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - February 2026", "quantity": 1, "unitPrice": 870.00, "amount": 870.00 }
+    ]
+  },
+  {
+    "id": "inv-120",
+    "number": "PI-2026-0021",
+    "invoiceDate": "2026-03-31",
+    "postingDate": "2026-04-02",
+    "dueDate": "2026-05-02",
+    "vendorNumber": "10000",
+    "vendorName": "Microsoft",
+    "totalAmountExcludingTax": 1020.00,
+    "totalAmountIncludingTax": 1234.20,
+    "totalTaxAmount": 214.20,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Cloud & Hosting",
+    "lines": [
+      { "lineNumber": 1, "description": "Azure AVD & Cloud Consumption - March 2026", "quantity": 1, "unitPrice": 1020.00, "amount": 1020.00 }
+    ]
+  },
+  {
+    "id": "inv-121",
+    "number": "PI-2026-0022",
+    "invoiceDate": "2026-03-31",
+    "postingDate": "2026-04-02",
+    "dueDate": "2026-05-02",
+    "vendorNumber": "99000",
+    "vendorName": "Internal Depreciation",
+    "totalAmountExcludingTax": 1500.00,
+    "totalAmountIncludingTax": 1500.00,
+    "totalTaxAmount": 0.00,
+    "status": "Open",
+    "currencyCode": "EUR",
+    "companyId": "comp-gdi",
+    "companyName": "GDI",
+    "costCategory": "Hardware (Depreciation)",
+    "lines": [
+      { "lineNumber": 1, "description": "Laptop & Server Depreciation Charge - Q1 2026", "quantity": 1, "unitPrice": 1500.00, "amount": 1500.00 }
     ]
   }
 ]
