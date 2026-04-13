@@ -146,17 +146,22 @@ function SaveButton({
 
 // ─── Connection status types ──────────────────────────────────────────────────
 
+interface ServiceStatus {
+  configured: boolean;
+  connected: boolean;
+  error: string | null;
+}
+
 interface ConnectionStatus {
   demoMode: boolean;
-  connections: {
-    entraId: boolean;
-    businessCentral: boolean;
-    jira: boolean;
-    officient: boolean;
-    knox: boolean;
-    dell: boolean;
-    lenovo: boolean;
+  services: {
+    bc: ServiceStatus;
+    graph: ServiceStatus;
+    jira: ServiceStatus;
+    dell: ServiceStatus;
+    lenovo: ServiceStatus;
   };
+  cache: { size: number; keys: string[] };
 }
 
 // ─── Tab 1: General ───────────────────────────────────────────────────────────
@@ -290,15 +295,13 @@ function GeneralTab() {
 
   const integrationConnections: Array<{
     label: string;
-    key: keyof ConnectionStatus["connections"];
+    key: keyof ConnectionStatus["services"];
     description: string;
   }> = [
-    { label: "Microsoft 365 / Entra ID", key: "entraId", description: "AUTH_MICROSOFT_ENTRA_ID_ID" },
-    { label: "Business Central", key: "businessCentral", description: "BC_CLIENT_ID" },
-    { label: "Jira Cloud", key: "jira", description: "JIRA_BASE_URL" },
-    { label: "Officient HR", key: "officient", description: "OFFICIENT_CLIENT_ID" },
-    { label: "Samsung Knox", key: "knox", description: "KNOX_CLIENT_ID" },
-    { label: "Dell TechDirect", key: "dell", description: "DELL_CLIENT_ID" },
+    { label: "Business Central", key: "bc", description: "BC_CLIENT_ID + BC_CLIENT_SECRET" },
+    { label: "Microsoft Graph", key: "graph", description: "Same app registration as BC" },
+    { label: "Jira Cloud", key: "jira", description: "JIRA_BASE_URL + JIRA_API_TOKEN" },
+    { label: "Dell TechDirect", key: "dell", description: "DELL_CLIENT_ID + DELL_CLIENT_SECRET" },
     { label: "Lenovo eSupport", key: "lenovo", description: "LENOVO_CLIENT_ID" },
   ];
 
@@ -396,7 +399,8 @@ function GeneralTab() {
             <p className="text-xs text-red-400">Could not reach /api/status.</p>
           ) : (
             integrationConnections.map(({ label, key, description }) => {
-              const connected = connStatus.connections[key];
+              const svc = connStatus.services[key];
+              const connected = svc?.configured ?? false;
               return (
                 <div
                   key={key}
@@ -412,8 +416,8 @@ function GeneralTab() {
                       <p className="text-[10px] font-mono text-slate-500 truncate">{description}</p>
                     </div>
                   </div>
-                  <span className={`text-xs font-semibold shrink-0 ${connected ? "text-emerald-400" : "text-slate-500"}`}>
-                    {connected ? "Configured" : "Not set"}
+                  <span className={`text-xs font-semibold shrink-0 ${svc?.connected ? "text-emerald-400" : connected ? "text-amber-400" : "text-slate-500"}`}>
+                    {svc?.connected ? "Connected" : connected ? "Configured" : "Not set"}
                   </span>
                 </div>
               );

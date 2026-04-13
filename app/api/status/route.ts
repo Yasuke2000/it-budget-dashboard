@@ -22,14 +22,14 @@ export async function GET() {
   if (process.env.BC_CLIENT_ID && process.env.BC_CLIENT_SECRET && process.env.BC_TENANT_ID) {
     status.bc.configured = true;
     try { await getBCToken(); status.bc.connected = true; }
-    catch (e: any) { status.bc.error = e.message; }
+    catch (e: unknown) { status.bc.error = e instanceof Error ? e.message : String(e); }
   }
 
   // Graph (same app registration as BC)
   if (process.env.BC_CLIENT_ID && process.env.BC_CLIENT_SECRET && process.env.BC_TENANT_ID) {
     status.graph.configured = true;
     try { await getGraphToken(); status.graph.connected = true; }
-    catch (e: any) { status.graph.error = e.message; }
+    catch (e: unknown) { status.graph.error = e instanceof Error ? e.message : String(e); }
   }
 
   // Jira

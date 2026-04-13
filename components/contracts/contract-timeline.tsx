@@ -52,7 +52,6 @@ function CustomTooltip({
 
 export function ContractTimeline({ contracts }: ContractTimelineProps) {
   const now = new Date();
-  const todayStr = now.toISOString().split("T")[0];
   const oneYearLater = new Date(now);
   oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
 
