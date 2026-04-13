@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Sparkles, X } from "lucide-react";
+import { Sparkles, X, FileDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { SpendTrendChart } from "@/components/dashboard/spend-trend-chart";
 import { EntityComparison } from "@/components/dashboard/entity-comparison";
@@ -105,11 +106,28 @@ export default function OverviewPage() {
         </div>
       )}
 
-      <div>
-        <h1 className="text-2xl font-bold text-white">Overview</h1>
-        <p className="text-slate-400">
-          IT spend across all entities — {selectedRange.label}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Overview</h1>
+          <p className="text-slate-400">
+            IT spend across all entities — {selectedRange.label}
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-teal-400 hover:text-teal-300 hover:bg-teal-500/10 gap-2"
+          onClick={async () => {
+            const res = await fetch(`/api/report?company=${selectedCompany}`);
+            const reportData = await res.json();
+            const { generateExecutiveReport } = await import("@/lib/pdf-report");
+            const doc = generateExecutiveReport(reportData);
+            doc.save(`IT-Finance-Report-${new Date().toISOString().split("T")[0]}.pdf`);
+          }}
+        >
+          <FileDown className="h-4 w-4" />
+          PDF Report
+        </Button>
       </div>
 
       {/* KPI Cards */}

@@ -6,6 +6,7 @@ import {
   demoDevices,
   demoBudgetEntries,
   demoPeppolInvoices,
+  demoContracts,
 } from "./demo-data";
 import type {
   Company,
@@ -19,6 +20,7 @@ import type {
   CategorySpend,
   EntitySpend,
   VendorSummary,
+  Contract,
   CompanyFilter,
   Employee,
   JiraWorklog,
@@ -96,6 +98,12 @@ export async function getLicenses(): Promise<M365License[]> {
 export async function getDevices(): Promise<ManagedDevice[]> {
   if (isDemoMode()) return demoDevices;
   return demoDevices;
+}
+
+// ---- Contracts ----
+export async function getContracts(): Promise<Contract[]> {
+  if (isDemoMode()) return demoContracts;
+  return demoContracts;
 }
 
 // ---- Budget ----

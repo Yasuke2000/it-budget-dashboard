@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Sun, Moon, LogOut } from "lucide-react";
+import { Sun, Moon, LogOut, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -11,6 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetTrigger,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { ChatPanel } from "@/components/ai/chat-panel";
 import { MobileSidebarTrigger } from "@/components/layout/sidebar";
 import { useCompany } from "@/components/layout/company-context";
 import { DateRangePicker } from "@/components/layout/date-range-picker";
@@ -92,6 +100,27 @@ export function Header() {
             ))}
           </SelectContent>
         </Select>
+
+        {/* AI Chat toggle */}
+        <Sheet>
+          <SheetTrigger
+            className="inline-flex items-center justify-center rounded-lg h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            aria-label="Open AI Assistant"
+          >
+            <Sparkles className="h-4 w-4" />
+          </SheetTrigger>
+          <SheetContent side="right" className="w-[400px] sm:max-w-[400px] p-0 bg-slate-950 border-slate-800 flex flex-col">
+            <SheetHeader className="px-4 py-3 border-b border-slate-800 shrink-0">
+              <SheetTitle className="text-white flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-teal-400" />
+                AI Assistant
+              </SheetTitle>
+            </SheetHeader>
+            <div className="flex-1 min-h-0">
+              <ChatPanel />
+            </div>
+          </SheetContent>
+        </Sheet>
 
         {/* Theme toggle */}
         <Button

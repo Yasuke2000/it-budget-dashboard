@@ -252,6 +252,27 @@ export interface JiraProjectCost {
   contributors: number;
 }
 
+// === Contracts ===
+
+export interface Contract {
+  id: string;
+  vendor: string;
+  description: string;
+  category: 'license' | 'domain' | 'ssl' | 'support' | 'saas' | 'infrastructure';
+  startDate: string;
+  endDate: string;
+  renewalType: 'auto' | 'manual';
+  autoRenew: boolean;
+  noticePeriodDays: number;
+  monthlyCost: number;
+  annualCost: number;
+  billingCycle: 'monthly' | 'quarterly' | 'annual' | 'multi-year';
+  status: 'active' | 'expiring_soon' | 'expired' | 'cancelled';
+  owner: string;
+  notes: string;
+  tags: string[];
+}
+
 // === Warranty ===
 
 export interface WarrantyInfo {

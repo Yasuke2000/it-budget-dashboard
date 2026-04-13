@@ -17,6 +17,7 @@ import {
   FileCheck,
   Lightbulb,
   Plug,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -40,6 +41,7 @@ const navItems = [
   { label: "Peppol", icon: FileCheck, href: "/peppol" },
   { label: "Connectors", icon: Plug, href: "/connectors" },
   { label: "Insights", icon: Lightbulb, href: "/insights" },
+  { label: "Contracts", icon: ScrollText, href: "/contracts" },
   { label: "Settings", icon: Settings, href: "/settings" },
 ];
 
