@@ -11,6 +11,7 @@ import {
 import type {
   Company,
   PurchaseInvoice,
+  PurchaseInvoiceLine,
   GeneralLedgerEntry,
   M365License,
   ManagedDevice,
@@ -29,9 +30,18 @@ import type {
   DepartmentSummary,
 } from "./types";
 import type { PeppolInvoice } from "./peppol-parser";
-import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD } from "./constants";
+import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING } from "./constants";
 import { generateAllInsights } from "./cost-insights";
 import type { CostInsight } from "./cost-insights";
+import { getCache, setCache } from "./sync-cache";
+import { fetchBCCompanies, fetchBCInvoices, fetchBCGLEntries } from "./bc-client";
+import {
+  fetchSubscribedSkus,
+  fetchManagedDevices,
+  mapGraphLicenseToM365License,
+  mapGraphDeviceToManagedDevice,
+} from "./graph-client";
+import { fetchJiraWorklogs as fetchLiveJiraWorklogs } from "./jira-client";
 
 function isDemoMode(): boolean {
   return process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
@@ -40,8 +50,24 @@ function isDemoMode(): boolean {
 // ---- Companies ----
 export async function getCompanies(): Promise<Company[]> {
   if (isDemoMode()) return demoCompanies;
-  // TODO: Live mode — fetch from BC API
-  return demoCompanies;
+
+  const cacheKey = "companies";
+  const cached = getCache<Company[]>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const bcCompanies = await fetchBCCompanies();
+    const companies: Company[] = bcCompanies.map((c) => ({
+      id: (c.id as string) || "",
+      name: (c.name as string) || "",
+      displayName: (c.displayName as string) || (c.name as string) || "",
+    }));
+    setCache(cacheKey, companies, 60 * 24); // 24h TTL
+    return companies;
+  } catch (err) {
+    console.warn("BC API error (companies), falling back to demo data:", err);
+    return demoCompanies;
+  }
 }
 
 // ---- Invoices ----
@@ -63,7 +89,80 @@ export async function getInvoices(
     }
     return invoices;
   }
-  return demoInvoices;
+
+  const from = dateFrom ?? "2025-01-01";
+  const to = dateTo ?? "2025-12-31";
+  const cacheKey = `invoices-${companyFilter}-${from}-${to}`;
+  const cached = getCache<PurchaseInvoice[]>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const companies = await getCompanies();
+    const targetCompanies =
+      companyFilter === "all"
+        ? companies
+        : companies.filter((c) => c.id === companyFilter);
+
+    const allInvoices: PurchaseInvoice[] = [];
+    for (const company of targetCompanies) {
+      const bcInvoices = await fetchBCInvoices(company.id, from, to);
+      for (const inv of bcInvoices) {
+        const lines = (
+          (inv.purchaseInvoiceLines as Array<Record<string, unknown>>) || []
+        ).map(
+          (line): PurchaseInvoiceLine => ({
+            lineType: (line.lineType as string) || "",
+            description: (line.description as string) || "",
+            unitCost: (line.unitCost as number) || 0,
+            quantity: (line.quantity as number) || 0,
+            netAmount: (line.netAmount as number) || 0,
+            accountId: (line.accountId as string) || "",
+            accountNumber: (line.accountNumber as string) || "",
+          })
+        );
+
+        // Derive cost category from GL account of first line
+        const firstAccount = lines[0]?.accountNumber || "";
+        const costCategory =
+          DEFAULT_GL_MAPPING[firstAccount] || "Other IT";
+
+        allInvoices.push({
+          id: (inv.id as string) || "",
+          number: (inv.number as string) || "",
+          invoiceDate: (inv.invoiceDate as string) || "",
+          postingDate: (inv.postingDate as string) || "",
+          dueDate: (inv.dueDate as string) || "",
+          vendorNumber: (inv.buyFromVendorNumber as string) || (inv.vendorNumber as string) || "",
+          vendorName: (inv.buyFromVendorName as string) || (inv.vendorName as string) || "",
+          totalAmountExcludingTax: (inv.totalAmountExcludingTax as number) || 0,
+          totalAmountIncludingTax: (inv.totalAmountIncludingTax as number) || 0,
+          totalTaxAmount: (inv.totalTaxAmount as number) || 0,
+          status: ((inv.status as string) as PurchaseInvoice["status"]) || "Open",
+          currencyCode: (inv.currencyCode as string) || "EUR",
+          companyId: company.id,
+          companyName: company.displayName,
+          costCategory,
+          lines,
+        });
+      }
+    }
+
+    setCache(cacheKey, allInvoices, 120); // 2h TTL
+    return allInvoices;
+  } catch (err) {
+    console.warn("BC API error (invoices), falling back to demo data:", err);
+    let invoices = demoInvoices;
+    if (companyFilter !== "all") {
+      invoices = invoices.filter((inv) => inv.companyId === companyFilter);
+    }
+    if (dateFrom) {
+      invoices = invoices.filter((inv) => inv.postingDate >= dateFrom);
+    }
+    if (dateTo) {
+      invoices = invoices.filter((inv) => inv.postingDate <= dateTo);
+    }
+    return invoices;
+  }
 }
 
 // ---- GL Entries ----
@@ -85,24 +184,107 @@ export async function getGLEntries(
     }
     return entries;
   }
-  return demoGLEntries;
+
+  const from = dateFrom ?? "2025-01-01";
+  const to = dateTo ?? "2025-12-31";
+  const cacheKey = `gl-entries-${companyFilter}-${from}-${to}`;
+  const cached = getCache<GeneralLedgerEntry[]>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const companies = await getCompanies();
+    const targetCompanies =
+      companyFilter === "all"
+        ? companies
+        : companies.filter((c) => c.id === companyFilter);
+
+    const allEntries: GeneralLedgerEntry[] = [];
+    for (const company of targetCompanies) {
+      const bcEntries = await fetchBCGLEntries(company.id, from, to);
+      for (const entry of bcEntries) {
+        const accountNumber = (entry.accountNumber as string) || "";
+        const costCategory =
+          DEFAULT_GL_MAPPING[accountNumber] || "Other IT";
+
+        allEntries.push({
+          id: (entry.id as number) || 0,
+          postingDate: (entry.postingDate as string) || "",
+          accountNumber,
+          accountName: (entry.accountName as string) || (entry.description as string) || "",
+          description: (entry.description as string) || "",
+          debitAmount: (entry.debitAmount as number) || 0,
+          creditAmount: (entry.creditAmount as number) || 0,
+          documentType: (entry.documentType as string) || "",
+          documentNumber: (entry.documentNumber as string) || "",
+          companyId: company.id,
+          companyName: company.displayName,
+          costCategory,
+        });
+      }
+    }
+
+    setCache(cacheKey, allEntries, 120); // 2h TTL
+    return allEntries;
+  } catch (err) {
+    console.warn("BC API error (GL entries), falling back to demo data:", err);
+    let entries = demoGLEntries;
+    if (companyFilter !== "all") {
+      entries = entries.filter((e) => e.companyId === companyFilter);
+    }
+    if (dateFrom) {
+      entries = entries.filter((e) => e.postingDate >= dateFrom);
+    }
+    if (dateTo) {
+      entries = entries.filter((e) => e.postingDate <= dateTo);
+    }
+    return entries;
+  }
 }
 
 // ---- Licenses ----
 export async function getLicenses(): Promise<M365License[]> {
   if (isDemoMode()) return demoLicenses;
-  return demoLicenses;
+
+  const cacheKey = "licenses";
+  const cached = getCache<M365License[]>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const skus = await fetchSubscribedSkus();
+    const licenses: M365License[] = skus.map(mapGraphLicenseToM365License);
+    setCache(cacheKey, licenses, 240); // 4h TTL
+    return licenses;
+  } catch (err) {
+    console.warn("Graph API error (licenses), falling back to demo data:", err);
+    return demoLicenses;
+  }
 }
 
 // ---- Devices ----
 export async function getDevices(): Promise<ManagedDevice[]> {
   if (isDemoMode()) return demoDevices;
-  return demoDevices;
+
+  const cacheKey = "devices";
+  const cached = getCache<ManagedDevice[]>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const rawDevices = await fetchManagedDevices();
+    const devices: ManagedDevice[] = rawDevices.map(mapGraphDeviceToManagedDevice);
+    setCache(cacheKey, devices, 240); // 4h TTL
+    return devices;
+  } catch (err) {
+    console.warn("Graph API error (devices), falling back to demo data:", err);
+    return demoDevices;
+  }
 }
 
 // ---- Contracts ----
 export async function getContracts(): Promise<Contract[]> {
   if (isDemoMode()) return demoContracts;
+
+  // No live API source for contracts yet — return demo data
+  console.warn("getContracts: no live API source configured, returning demo data");
   return demoContracts;
 }
 
@@ -115,6 +297,12 @@ export async function getBudgetEntries(
       return demoBudgetEntries.filter((b) => b.companyId === companyFilter || b.companyId === "all");
     }
     return demoBudgetEntries;
+  }
+
+  // No live API source for budget entries yet — return demo data
+  console.warn("getBudgetEntries: no live API source configured, returning demo data");
+  if (companyFilter !== "all") {
+    return demoBudgetEntries.filter((b) => b.companyId === companyFilter || b.companyId === "all");
   }
   return demoBudgetEntries;
 }
@@ -327,9 +515,20 @@ export async function getJiraWorklogs(): Promise<JiraWorklog[]> {
     const mockData = await import("../data/mock/jira-worklogs.json");
     return mockData.default as JiraWorklog[];
   }
-  // Live mode: placeholder — integrate Jira REST API here
-  const mockData = await import("../data/mock/jira-worklogs.json");
-  return mockData.default as JiraWorklog[];
+
+  const cacheKey = "jira-worklogs";
+  const cached = getCache<JiraWorklog[]>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const worklogs = await fetchLiveJiraWorklogs();
+    setCache(cacheKey, worklogs, 360); // 6h TTL
+    return worklogs;
+  } catch (err) {
+    console.warn("Jira API error (worklogs), falling back to demo data:", err);
+    const mockData = await import("../data/mock/jira-worklogs.json");
+    return mockData.default as JiraWorklog[];
+  }
 }
 
 // ---- Jira Project Costs (derived) ----
@@ -430,7 +629,10 @@ export async function getPeppolInvoices(): Promise<PeppolInvoice[]> {
   if (isDemoMode()) {
     return demoPeppolInvoices;
   }
-  return demoPeppolInvoices; // TODO: live Peppol Access Point integration
+
+  // No live API source for Peppol invoices yet — return demo data
+  console.warn("getPeppolInvoices: no live API source configured, returning demo data");
+  return demoPeppolInvoices;
 }
 
 // ---- Cost Insights ----

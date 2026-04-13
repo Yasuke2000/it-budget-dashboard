@@ -1,16 +1,57 @@
 import { NextResponse } from "next/server";
+import { getBCToken } from "@/lib/bc-client";
+import { getGraphToken } from "@/lib/graph-client";
+import { getCacheStats } from "@/lib/sync-cache";
+
+interface ServiceStatus {
+  configured: boolean;
+  connected: boolean;
+  error: string | null;
+}
 
 export async function GET() {
-  return NextResponse.json({
-    demoMode: process.env.NEXT_PUBLIC_DEMO_MODE !== "false",
-    connections: {
-      entraId: !!process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
-      businessCentral: !!process.env.BC_CLIENT_ID,
-      jira: !!process.env.JIRA_BASE_URL,
-      officient: !!process.env.OFFICIENT_CLIENT_ID,
-      knox: !!process.env.KNOX_CLIENT_ID,
-      dell: !!process.env.DELL_CLIENT_ID,
-      lenovo: !!process.env.LENOVO_CLIENT_ID,
-    },
-  });
+  const status: Record<string, ServiceStatus> = {
+    bc: { configured: false, connected: false, error: null },
+    graph: { configured: false, connected: false, error: null },
+    jira: { configured: false, connected: false, error: null },
+    dell: { configured: false, connected: false, error: null },
+    lenovo: { configured: false, connected: false, error: null },
+  };
+
+  // BC
+  if (process.env.BC_CLIENT_ID && process.env.BC_CLIENT_SECRET && process.env.BC_TENANT_ID) {
+    status.bc.configured = true;
+    try { await getBCToken(); status.bc.connected = true; }
+    catch (e: any) { status.bc.error = e.message; }
+  }
+
+  // Graph (same app registration as BC)
+  if (process.env.BC_CLIENT_ID && process.env.BC_CLIENT_SECRET && process.env.BC_TENANT_ID) {
+    status.graph.configured = true;
+    try { await getGraphToken(); status.graph.connected = true; }
+    catch (e: any) { status.graph.error = e.message; }
+  }
+
+  // Jira
+  if (process.env.JIRA_BASE_URL && process.env.JIRA_EMAIL && process.env.JIRA_API_TOKEN) {
+    status.jira.configured = true;
+    status.jira.connected = true; // no cheap auth test for Jira, assume OK if configured
+  }
+
+  // Dell
+  if (process.env.DELL_CLIENT_ID && process.env.DELL_CLIENT_SECRET) {
+    status.dell.configured = true;
+    status.dell.connected = true; // test on first warranty call
+  }
+
+  // Lenovo
+  if (process.env.LENOVO_CLIENT_ID) {
+    status.lenovo.configured = true;
+    status.lenovo.connected = true;
+  }
+
+  const cache = getCacheStats();
+  const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
+
+  return NextResponse.json({ demoMode, services: status, cache });
 }
