@@ -5,6 +5,9 @@ import {
   getCategorySpend,
   getMonthlySpend,
   getContracts,
+  getEntitySpend,
+  getCostInsights,
+  getDevices,
 } from "@/lib/data-source";
 
 export async function GET(request: Request) {
@@ -12,7 +15,7 @@ export async function GET(request: Request) {
   const company = searchParams.get("company") || "all";
   const format = searchParams.get("format") || "markdown";
 
-  const [kpis, licenses, vendors, categories, monthly, contracts] =
+  const [kpis, licenses, vendors, categories, monthly, contracts, entities, insights, devices] =
     await Promise.all([
       getDashboardKPIs(company),
       getLicenses(),
@@ -20,21 +23,66 @@ export async function GET(request: Request) {
       getCategorySpend(company),
       getMonthlySpend(company),
       getContracts(),
+      getEntitySpend(),
+      getCostInsights(),
+      getDevices(),
     ]);
+
+  const now = new Date();
+
+  if (format === "json") {
+    return Response.json({ kpis, licenses, vendors, categories, monthly, contracts, entities, insights, devices });
+  }
 
   const fmt = (n: number) =>
     new Intl.NumberFormat("nl-BE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 
-  const now = new Date();
+  const fmtFull = (n: number) =>
+    new Intl.NumberFormat("nl-BE", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(n);
+
   const dateStr = now.toLocaleDateString("nl-BE");
 
-  if (format === "json") {
-    return Response.json({ kpis, licenses, vendors, categories, monthly, contracts });
-  }
+  // Fix contract statuses: compute real status from days left
+  const enrichedContracts = contracts.map((c) => {
+    const daysLeft = Math.ceil((new Date(c.endDate).getTime() - now.getTime()) / 86400000);
+    let realStatus: string;
+    if (daysLeft < 0) realStatus = c.autoRenew ? "auto-renewed (past end date)" : "EXPIRED";
+    else if (daysLeft <= 90) realStatus = "expiring_soon";
+    else realStatus = "active";
+    return { ...c, daysLeft, realStatus };
+  });
 
-  // Markdown format — optimized for LLM context
-  const md = `# IT Finance Status — ${dateStr}
-Company: ${company === "all" ? "All entities (GDI, WHS, GRE, TDR)" : company}
+  // License waste summary
+  const totalWastedUnits = licenses.filter(l => l.pricePerUser > 0).reduce((s, l) => s + l.wastedUnits, 0);
+  const totalMonthlyWaste = licenses.reduce((s, l) => s + l.wastedCost, 0);
+  const totalAnnualWaste = totalMonthlyWaste * 12;
+
+  // Device age breakdown
+  const devicesByAge = {
+    under2: devices.filter(d => d.ageYears < 2).length,
+    twoToFour: devices.filter(d => d.ageYears >= 2 && d.ageYears < 4).length,
+    fourPlus: devices.filter(d => d.ageYears >= 4).length,
+  };
+  const complianceRate = devices.length > 0
+    ? ((devices.filter(d => d.complianceState === "compliant").length / devices.length) * 100).toFixed(1)
+    : "N/A";
+
+  const md = `# IT Finance Status Export
+> Generated: ${dateStr} | Currency: EUR | Fiscal Year: Jan–Dec
+> Entity scope: ${company === "all" ? "Consolidated (GDI, WHS, GRE, TDR)" : company}
+> Data source: Microsoft Business Central + Microsoft Graph + Intune
+> Purpose: LLM-ready financial context for IT cost analysis
+
+---
+
+## Executive Summary
+- **Total IT Spend YTD:** ${fmt(kpis.totalSpendYTD)} against a budget of ${fmt(kpis.totalBudgetYTD)} (variance: ${kpis.budgetVariancePercent >= 0 ? "+" : ""}${kpis.budgetVariancePercent.toFixed(1)}%)
+- **Spend trend:** ${kpis.spendTrend} (${kpis.spendChangePercent >= 0 ? "+" : ""}${kpis.spendChangePercent.toFixed(1)}% vs prior period)
+- **License waste:** ${totalWastedUnits} unused paid licenses = ${fmt(totalMonthlyWaste)}/month (${fmt(totalAnnualWaste)}/year)
+- **Managed devices:** ${kpis.deviceCount} enrolled in Intune (${complianceRate}% compliant)
+- **Contracts requiring action:** ${enrichedContracts.filter(c => c.realStatus === "EXPIRED" || c.realStatus === "expiring_soon").length} (expired or expiring within 90 days)
+
+---
 
 ## Key Metrics
 | Metric | Value |
@@ -45,34 +93,76 @@ Company: ${company === "all" ? "All entities (GDI, WHS, GRE, TDR)" : company}
 | License Utilization | ${kpis.licenseUtilizationPercent.toFixed(1)}% |
 | Managed Devices | ${kpis.deviceCount} |
 | Spend Trend | ${kpis.spendTrend} (${kpis.spendChangePercent >= 0 ? "+" : ""}${kpis.spendChangePercent.toFixed(1)}%) |
+| License Waste (monthly) | ${fmt(totalMonthlyWaste)} |
+| License Waste (annual) | ${fmt(totalAnnualWaste)} |
 
-## Cost Categories
-| Category | Actual | Budget | Variance |
-|----------|--------|--------|----------|
-${categories.map((c) => `| ${c.category} | ${fmt(c.amount)} | ${fmt(c.budget)} | ${c.variancePercent >= 0 ? "+" : ""}${c.variancePercent.toFixed(1)}% |`).join("\n")}
+## Entity Breakdown
+| Entity | Total Spend | Users | IT Cost/User |
+|--------|-------------|-------|--------------|
+${entities.map((e) => `| ${e.companyName} | ${fmt(e.totalSpend)} | ${e.userCount} | ${fmt(e.perUserSpend)} |`).join("\n")}
+
+## Cost Categories (sorted by spend)
+| Category | Actual | Budget | Variance | Variance % | Over/Under |
+|----------|--------|--------|----------|------------|------------|
+${categories.sort((a, b) => b.amount - a.amount).map((c) => `| ${c.category} | ${fmt(c.amount)} | ${fmt(c.budget)} | ${fmt(c.variance)} | ${c.variancePercent >= 0 ? "+" : ""}${c.variancePercent.toFixed(1)}% | ${c.variancePercent > 5 ? "OVER" : c.variancePercent < -20 ? "significantly under" : "on track"} |`).join("\n")}
 
 ## Monthly Spend Trend
-| Month | Actual | Budget |
-|-------|--------|--------|
-${monthly.map((m) => `| ${m.month} | ${fmt(m.actual)} | ${fmt(m.budget)} |`).join("\n")}
-
-## Top Vendors
-| Vendor | YTD Spend | % of Total | Invoices | Concentration Risk |
-|--------|-----------|------------|----------|-------------------|
-${vendors.slice(0, 15).map((v) => `| ${v.vendorName} | ${fmt(v.totalSpend)} | ${v.percentOfTotal.toFixed(1)}% | ${v.invoiceCount} | ${v.isConcentrationRisk ? "YES" : "No"} |`).join("\n")}
-
-## Licenses (paid)
-| SKU | Purchased | Used | Unused | Price/User/mo | Monthly Waste |
-|-----|-----------|------|--------|---------------|---------------|
-${licenses.filter((l) => l.pricePerUser > 0).map((l) => `| ${l.displayName} | ${l.prepaidUnits} | ${l.consumedUnits} | ${l.wastedUnits} | ${fmt(l.pricePerUser)} | ${fmt(l.wastedCost)} |`).join("\n")}
-
-## Contracts
-| Vendor | Description | End Date | Days Left | Annual Cost | Status | Auto-Renew |
-|--------|-------------|----------|-----------|-------------|--------|------------|
-${contracts.map((c) => {
-  const daysLeft = Math.ceil((new Date(c.endDate).getTime() - now.getTime()) / 86400000);
-  return `| ${c.vendor} | ${c.description} | ${c.endDate} | ${daysLeft} | ${fmt(c.annualCost)} | ${c.status} | ${c.autoRenew ? "Yes" : "No"} |`;
+| Month | Actual | Budget | Delta | Notes |
+|-------|--------|--------|-------|-------|
+${monthly.map((m) => {
+  const delta = m.actual - m.budget;
+  const pct = m.budget > 0 ? ((delta / m.budget) * 100).toFixed(1) : "0";
+  const note = Math.abs(delta) > m.budget * 0.1 ? (delta > 0 ? "⚠ overspend" : "underspend") : "";
+  return `| ${m.month} | ${fmt(m.actual)} | ${fmt(m.budget)} | ${delta >= 0 ? "+" : ""}${fmt(delta)} (${pct}%) | ${note} |`;
 }).join("\n")}
+
+## Vendor Analysis
+| # | Vendor | YTD Spend | % of Total | Invoices | Categories | Concentration Risk |
+|---|--------|-----------|------------|----------|------------|-------------------|
+${vendors.map((v, i) => `| ${i + 1} | ${v.vendorName} | ${fmt(v.totalSpend)} | ${v.percentOfTotal.toFixed(1)}% | ${v.invoiceCount} | ${v.categories.join(", ")} | ${v.isConcentrationRisk ? "⚠ YES (>30%)" : "No"} |`).join("\n")}
+
+## License Inventory (paid licenses only)
+| SKU | Purchased | Assigned | Unused | Utilization | Price/User/mo | Monthly Cost | Monthly Waste | Annual Waste |
+|-----|-----------|----------|--------|-------------|---------------|-------------|---------------|--------------|
+${licenses.filter((l) => l.pricePerUser > 0).map((l) => {
+  const util = l.prepaidUnits > 0 ? ((l.consumedUnits / l.prepaidUnits) * 100).toFixed(0) : "0";
+  return `| ${l.displayName} | ${l.prepaidUnits} | ${l.consumedUnits} | ${l.wastedUnits} | ${util}% | ${fmtFull(l.pricePerUser)} | ${fmt(l.monthlyCost)} | ${fmt(l.wastedCost)} | ${fmt(l.wastedCost * 12)} |`;
+}).join("\n")}
+
+**Total license waste: ${fmt(totalMonthlyWaste)}/month = ${fmt(totalAnnualWaste)}/year**
+
+## Contracts & Renewals
+| Vendor | Description | Start | End | Days Left | Annual Cost | Billing | Status | Renewal | Notice Period |
+|--------|-------------|-------|-----|-----------|-------------|---------|--------|---------|---------------|
+${enrichedContracts.sort((a, b) => a.daysLeft - b.daysLeft).map((c) => `| ${c.vendor} | ${c.description} | ${c.startDate} | ${c.endDate} | ${c.daysLeft} | ${fmt(c.annualCost)} | ${c.billingCycle} | ${c.realStatus} | ${c.autoRenew ? "Auto" : "Manual"} | ${c.noticePeriodDays}d |`).join("\n")}
+
+**Total annual contract commitment: ${fmt(enrichedContracts.filter(c => c.realStatus !== "EXPIRED").reduce((s, c) => s + c.annualCost, 0))}**
+
+## Device Fleet
+| Metric | Value |
+|--------|-------|
+| Total enrolled | ${devices.length} |
+| Compliant | ${devices.filter(d => d.complianceState === "compliant").length} (${complianceRate}%) |
+| Non-compliant | ${devices.filter(d => d.complianceState === "noncompliant").length} |
+| < 2 years old | ${devicesByAge.under2} |
+| 2–4 years old | ${devicesByAge.twoToFour} |
+| > 4 years old (refresh candidates) | ${devicesByAge.fourPlus} |
+| Company-owned | ${devices.filter(d => d.managedDeviceOwnerType === "company").length} |
+| Personal (BYOD) | ${devices.filter(d => d.managedDeviceOwnerType === "personal").length} |
+
+## AI-Generated Insights (pre-computed)
+${insights.sort((a, b) => {
+  const sev = { critical: 0, warning: 1, info: 2 };
+  return (sev[a.severity] ?? 2) - (sev[b.severity] ?? 2);
+}).map((i) => `### ${i.severity === "critical" ? "🔴" : i.severity === "warning" ? "🟡" : "🔵"} ${i.title}
+- **Category:** ${i.category} | **Severity:** ${i.severity}
+- **Detail:** ${i.description}
+- **Potential savings:** ${fmt(i.potentialSavings)}/year
+- **Recommended action:** ${i.action}
+`).join("\n")}
+
+---
+*Export generated by IT Finance Dashboard — it-budget-dashboard.vercel.app*
 `;
 
   return new Response(md, {
