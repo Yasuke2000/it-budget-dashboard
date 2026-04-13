@@ -2,6 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import {
   DollarSign,
   TrendingUp,
@@ -45,7 +46,14 @@ interface KPICardProps {
   changeType?: "positive" | "negative" | "neutral";
   iconName: KPIIconName;
   description?: string;
+  sparklineData?: number[];
 }
+
+const SPARKLINE_COLORS = {
+  positive: { stroke: "#34d399", fill: "#34d399" },
+  negative: { stroke: "#f87171", fill: "#f87171" },
+  neutral: { stroke: "#94a3b8", fill: "#94a3b8" },
+} as const;
 
 export function KPICard({
   title,
@@ -54,8 +62,11 @@ export function KPICard({
   changeType = "neutral",
   iconName,
   description,
+  sparklineData,
 }: KPICardProps) {
   const Icon = ICON_MAP[iconName];
+  const colors = SPARKLINE_COLORS[changeType];
+  const chartData = sparklineData?.map((v) => ({ v }));
 
   return (
     <Card className="bg-slate-900 border-slate-800">
@@ -63,7 +74,30 @@ export function KPICard({
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-sm font-medium text-slate-400">{title}</p>
-            <p className="text-2xl font-bold font-mono text-white">{value}</p>
+            <div className="flex items-center gap-3">
+              <p className="text-2xl font-bold font-mono tabular-nums text-white">{value}</p>
+              {chartData && chartData.length > 1 && (
+                <ResponsiveContainer width={80} height={28}>
+                  <AreaChart data={chartData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                    <defs>
+                      <linearGradient id={`spark-${iconName}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={colors.fill} stopOpacity={0.2} />
+                        <stop offset="100%" stopColor={colors.fill} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <Area
+                      type="monotone"
+                      dataKey="v"
+                      stroke={colors.stroke}
+                      strokeWidth={1.5}
+                      fill={`url(#spark-${iconName})`}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
             {change && (
               <p
                 className={cn(

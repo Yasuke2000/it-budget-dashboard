@@ -78,6 +78,7 @@ export default function OverviewPage() {
   }
 
   const { kpis, monthly, entities, vendors, categories } = data;
+  const spendSparkline = monthly.slice(-6).map((m) => m.actual);
 
   return (
     <div className="space-y-6">
@@ -150,6 +151,7 @@ export default function OverviewPage() {
           changeType={kpis.spendTrend === "up" ? "negative" : kpis.spendTrend === "down" ? "positive" : "neutral"}
           iconName="DollarSign"
           description={selectedRange.label}
+          sparklineData={spendSparkline}
         />
         <KPICard
           title="Budget Variance"

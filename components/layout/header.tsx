@@ -22,6 +22,7 @@ import { ChatPanel } from "@/components/ai/chat-panel";
 import { MobileSidebarTrigger } from "@/components/layout/sidebar";
 import { useCompany } from "@/components/layout/company-context";
 import { DateRangePicker } from "@/components/layout/date-range-picker";
+import { CommandPalette } from "@/components/command-palette";
 import { useSession, signOut } from "next-auth/react";
 
 const PAGE_TITLES: Record<string, string> = {
@@ -68,6 +69,8 @@ export function Header() {
     .join("");
 
   return (
+    <>
+    <CommandPalette />
     <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b border-slate-800 bg-slate-950/95 backdrop-blur-sm px-4 lg:px-6">
       {/* Left: mobile menu + page title */}
       <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -100,6 +103,15 @@ export function Header() {
             ))}
           </SelectContent>
         </Select>
+
+        {/* Command palette trigger */}
+        <button
+          onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+          className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-300 border border-slate-700 rounded-md px-2 py-1 text-xs transition-colors"
+          aria-label="Open command palette"
+        >
+          <kbd className="font-sans">⌘K</kbd>
+        </button>
 
         {/* AI Chat toggle */}
         <Sheet>
@@ -174,5 +186,6 @@ export function Header() {
         )}
       </div>
     </header>
+    </>
   );
 }

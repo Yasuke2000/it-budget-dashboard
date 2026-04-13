@@ -23,7 +23,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Catego
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
       <p className="text-sm font-medium text-slate-300">{d.category}</p>
-      <p className="text-sm font-mono text-teal-400">{formatCurrency(d.amount)}</p>
+      <p className="text-sm font-mono tabular-nums text-teal-400">{formatCurrency(d.amount)}</p>
       <p className="text-xs text-slate-400">{d.percent.toFixed(1)}% of total</p>
     </div>
   );
@@ -41,7 +41,7 @@ export function CategoryBreakdown({ data }: CategoryBreakdownProps) {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-white">Cost Categories</CardTitle>
-          <span className="text-xs text-slate-500 font-mono">
+          <span className="text-xs text-slate-500 font-mono tabular-nums">
             {formatCurrency(total)} total
           </span>
         </div>
@@ -82,10 +82,10 @@ export function CategoryBreakdown({ data }: CategoryBreakdownProps) {
                     </span>
                   </div>
                   <div className="flex items-center gap-3 shrink-0 ml-2">
-                    <span className="text-xs font-mono text-slate-500 w-12 text-right">
+                    <span className="text-xs font-mono tabular-nums text-slate-500 w-12 text-right">
                       {cat.percent.toFixed(1)}%
                     </span>
-                    <span className="font-mono text-xs text-slate-300 w-20 text-right">
+                    <span className="font-mono tabular-nums text-xs text-slate-300 w-20 text-right">
                       {formatCurrency(cat.amount)}
                     </span>
                   </div>

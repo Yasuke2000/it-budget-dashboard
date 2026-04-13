@@ -129,9 +129,9 @@ export function ContractTable({ contracts }: ContractTableProps) {
                       {CATEGORY_LABELS[c.category] || c.category}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-slate-300 text-sm font-mono">{formatDate(c.endDate)}</TableCell>
+                  <TableCell className="text-slate-300 text-sm font-mono tabular-nums">{formatDate(c.endDate)}</TableCell>
                   <TableCell><ExpiryBadge endDate={c.endDate} /></TableCell>
-                  <TableCell className="text-right text-slate-300 font-mono text-sm">{formatCurrency(c.annualCost)}</TableCell>
+                  <TableCell className="text-right text-slate-300 font-mono tabular-nums text-sm">{formatCurrency(c.annualCost)}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={STATUS_STYLES[c.status] || ""}>
                       {c.status.replace("_", " ")}

@@ -30,7 +30,7 @@ export function TopVendors({ vendors }: TopVendorsProps) {
                     <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
                   )}
                 </div>
-                <span className="text-sm font-mono text-slate-400">{formatCurrency(vendor.totalSpend)}</span>
+                <span className="text-sm font-mono tabular-nums text-slate-400">{formatCurrency(vendor.totalSpend)}</span>
               </div>
               <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                 <div

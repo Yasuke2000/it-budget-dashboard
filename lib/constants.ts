@@ -27,15 +27,15 @@ export const IT_CATEGORIES: string[] = [
 ];
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  "Software & Licenses": "#0d9488",
-  "Hardware (Depreciation)": "#f97316",
-  "Hardware (Purchases)": "#fb923c",
-  "Cloud & Hosting": "#3b82f6",
-  "External IT Services": "#8b5cf6",
-  "Telecom": "#22c55e",
-  "Security": "#ef4444",
-  "IT Personnel": "#eab308",
-  "Other IT": "#6b7280",
+  "Software & Licenses": "#0072B2",
+  "Hardware (Depreciation)": "#E69F00",
+  "Hardware (Purchases)": "#D55E00",
+  "Cloud & Hosting": "#56B4E9",
+  "External IT Services": "#009E73",
+  "Telecom": "#CC79A7",
+  "Security": "#F5C710",
+  "IT Personnel": "#882255",
+  "Other IT": "#999999",
 };
 
 export const SKU_NAMES: Record<string, string> = {
