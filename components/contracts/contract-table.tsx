@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { CheckCircle, XCircle } from "lucide-react";
 import { ExpiryBadge } from "./expiry-badge";
+import { ContractDetailSheet } from "./contract-detail-sheet";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Contract } from "@/lib/types";
 
@@ -47,6 +48,7 @@ export function ContractTable({ contracts }: ContractTableProps) {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [expiryFilter, setExpiryFilter] = useState("all");
+  const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
 
   const filtered = useMemo(() => {
     let result = [...contracts];
@@ -121,7 +123,7 @@ export function ContractTable({ contracts }: ContractTableProps) {
             </TableHeader>
             <TableBody>
               {filtered.map((c) => (
-                <TableRow key={c.id} className="border-slate-800 hover:bg-slate-800/50">
+                <TableRow key={c.id} className="border-slate-800 hover:bg-slate-800/50 cursor-pointer" onClick={() => setSelectedContract(c)}>
                   <TableCell className="text-white font-medium text-sm">{c.vendor}</TableCell>
                   <TableCell className="text-slate-400 text-xs max-w-[200px] truncate hidden lg:table-cell">{c.description}</TableCell>
                   <TableCell>
@@ -156,6 +158,11 @@ export function ContractTable({ contracts }: ContractTableProps) {
             </TableBody>
           </Table>
         </div>
+        <ContractDetailSheet
+          contract={selectedContract}
+          open={selectedContract !== null}
+          onOpenChange={(open) => { if (!open) setSelectedContract(null); }}
+        />
       </CardContent>
     </Card>
   );

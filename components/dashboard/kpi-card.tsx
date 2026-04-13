@@ -75,7 +75,11 @@ export function KPICard({
           <div className="space-y-1">
             <p className="text-sm font-medium text-slate-400">{title}</p>
             <div className="flex items-center gap-3">
-              <p className="text-2xl font-bold font-mono tabular-nums text-white">{value}</p>
+              <p
+                className="text-2xl font-bold font-mono tabular-nums text-white"
+                aria-live="polite"
+                {...((/[KM]/).test(value) ? { "aria-label": `${title}: ${value.replace(/K/, ' thousand').replace(/M/, ' million')}` } : {})}
+              >{value}</p>
               {chartData && chartData.length > 1 && (
                 <ResponsiveContainer width={80} height={28}>
                   <AreaChart data={chartData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>

@@ -32,6 +32,9 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="dark min-h-full bg-slate-950 text-slate-100">
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:bg-teal-600 focus:text-white focus:px-4 focus:py-2 focus:rounded-md focus:text-sm">
+          Skip to main content
+        </a>
         <SessionProvider>
         <ThemeProvider
           attribute="class"
@@ -53,7 +56,7 @@ export default function RootLayout({
                   <Header />
 
                   {/* Scrollable page content */}
-                  <main className="flex-1 overflow-auto p-6">
+                  <main id="main-content" className="flex-1 overflow-auto p-6">
                     {children}
                   </main>
                 </div>

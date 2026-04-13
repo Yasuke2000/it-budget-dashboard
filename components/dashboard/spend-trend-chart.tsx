@@ -30,6 +30,8 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 }
 
 export function SpendTrendChart({ data }: SpendTrendChartProps) {
+  const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   const chartData = data.map((d) => ({
     ...d,
     name: getMonthName(d.month),
@@ -41,6 +43,7 @@ export function SpendTrendChart({ data }: SpendTrendChartProps) {
         <CardTitle className="text-white">Monthly Spend vs Budget</CardTitle>
       </CardHeader>
       <CardContent>
+        <figure role="figure" aria-label="Monthly spend vs budget trend chart">
         <div className="h-[350px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -59,11 +62,13 @@ export function SpendTrendChart({ data }: SpendTrendChartProps) {
               <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}K`} />
               <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ color: "#94a3b8" }} />
-              <Area type="stepAfter" dataKey="budget" name="Budget" stroke="#6366f1" fill="url(#budgetGradient)" strokeWidth={2} strokeDasharray="5 5" />
-              <Area type="monotone" dataKey="actual" name="Actual" stroke="#0d9488" fill="url(#actualGradient)" strokeWidth={2} />
+              <Area type="stepAfter" dataKey="budget" name="Budget" stroke="#6366f1" fill="url(#budgetGradient)" strokeWidth={2} strokeDasharray="5 5" isAnimationActive={!prefersReducedMotion} />
+              <Area type="monotone" dataKey="actual" name="Actual" stroke="#0d9488" fill="url(#actualGradient)" strokeWidth={2} isAnimationActive={!prefersReducedMotion} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
+        <figcaption className="sr-only">Chart showing monthly IT spending compared to budget over the past 12 months</figcaption>
+        </figure>
       </CardContent>
     </Card>
   );

@@ -273,6 +273,21 @@ export interface Contract {
   tags: string[];
 }
 
+// === Savings Pipeline ===
+export interface SavingsOpportunity {
+  id: string;
+  sku: string;
+  displayName: string;
+  unusedCount: number;
+  pricePerUser: number;
+  monthlyWaste: number;
+  annualSavings: number;
+  status: 'identified' | 'in_review' | 'approved' | 'reclaimed';
+  utilization: number; // percentage
+  totalLicenses: number;
+  assignedLicenses: number;
+}
+
 // === Warranty ===
 
 export interface WarrantyInfo {

@@ -48,7 +48,7 @@ export function CategoryBreakdown({ data }: CategoryBreakdownProps) {
       </CardHeader>
       <CardContent>
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-          <div className="h-[220px] w-[220px] shrink-0">
+          <figure role="figure" aria-label="IT cost category breakdown" className="h-[220px] w-[220px] shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -67,7 +67,8 @@ export function CategoryBreakdown({ data }: CategoryBreakdownProps) {
                 <Tooltip content={<CustomTooltip />} />
               </PieChart>
             </ResponsiveContainer>
-          </div>
+            <figcaption className="sr-only">Pie chart showing IT spending distribution across cost categories</figcaption>
+          </figure>
           <div className="flex-1 space-y-1.5 pt-1 w-full">
             {enriched.map((cat) => (
               <div key={cat.category} className="group">

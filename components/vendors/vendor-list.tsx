@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { VendorDetailSheet } from "./vendor-detail-sheet";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import type { VendorSummary, PurchaseInvoice } from "@/lib/types";
 
@@ -30,6 +31,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export function VendorList({ vendors, invoices }: VendorListProps) {
   const [expandedVendor, setExpandedVendor] = useState<string | null>(null);
+  const [selectedVendor, setSelectedVendor] = useState<VendorSummary | null>(null);
 
   function toggle(vendorName: string) {
     setExpandedVendor((prev) => (prev === vendorName ? null : vendorName));
@@ -60,7 +62,7 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
             <CardContent className="p-0">
               <button
                 className="w-full text-left"
-                onClick={() => toggle(vendor.vendorName)}
+                onClick={() => setSelectedVendor(vendor)}
               >
                 <div className="flex items-center gap-4 p-4 hover:bg-slate-800/50 transition-colors rounded-t-lg">
                   {/* Rank */}
@@ -130,8 +132,15 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
                     </div>
                   </div>
 
-                  {/* Chevron */}
-                  <div className="shrink-0 text-slate-500">
+                  {/* Chevron — toggles invoice expansion */}
+                  <div
+                    role="button"
+                    className="shrink-0 text-slate-500 hover:text-slate-300 p-1 rounded transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggle(vendor.vendorName);
+                    }}
+                  >
                     {isExpanded ? (
                       <ChevronUp className="h-4 w-4" />
                     ) : (
@@ -216,6 +225,11 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
           </Card>
         );
       })}
+      <VendorDetailSheet
+        vendor={selectedVendor}
+        open={selectedVendor !== null}
+        onOpenChange={(open) => { if (!open) setSelectedVendor(null); }}
+      />
     </div>
   );
 }

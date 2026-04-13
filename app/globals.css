@@ -126,5 +126,6 @@
   }
   html {
     @apply font-sans;
+    scroll-padding-top: 5rem; /* Account for sticky header */
   }
 }

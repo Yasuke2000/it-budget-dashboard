@@ -18,6 +18,7 @@ import {
   Lightbulb,
   Plug,
   ScrollText,
+  Coins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -33,6 +34,7 @@ const navItems = [
   { label: "Overview", icon: LayoutDashboard, href: "/" },
   { label: "Invoices", icon: FileText, href: "/invoices" },
   { label: "Licenses", icon: Key, href: "/licenses" },
+  { label: "Savings", icon: Coins, href: "/savings" },
   { label: "Budget", icon: PiggyBank, href: "/budget" },
   { label: "Vendors", icon: Building2, href: "/vendors" },
   { label: "Devices", icon: Monitor, href: "/devices" },
