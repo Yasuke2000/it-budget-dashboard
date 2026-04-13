@@ -133,11 +133,16 @@ export async function getDashboardKPIs(
   const devices = await getDevices();
 
   const totalSpendYTD = invoices.reduce((sum, inv) => sum + inv.totalAmountExcludingTax, 0);
-  const totalBudgetYTD = budget.reduce((sum, b) => sum + b.budgetAmount, 0);
-  const totalActualYTD = budget.reduce((sum, b) => sum + b.actualAmount, 0);
+
+  // Filter budget entries to match the requested date range
+  const fromMonth = from.substring(0, 7); // "2025-01"
+  const toMonth = to.substring(0, 7);     // "2026-12"
+  const budgetInRange = budget.filter((b) => b.month >= fromMonth && b.month <= toMonth);
+  const totalBudgetYTD = budgetInRange.reduce((sum, b) => sum + b.budgetAmount, 0);
+  const totalActualYTD = budgetInRange.reduce((sum, b) => sum + b.actualAmount, 0);
   const budgetVariancePercent =
     totalBudgetYTD > 0
-      ? ((totalActualYTD - totalBudgetYTD) / totalBudgetYTD) * 100
+      ? ((totalSpendYTD - totalBudgetYTD) / totalBudgetYTD) * 100
       : 0;
 
   const paidLicenses = licenses.filter((l) => l.pricePerUser > 0);
@@ -146,17 +151,17 @@ export async function getDashboardKPIs(
   const licenseUtilizationPercent =
     totalPrepaid > 0 ? (totalConsumed / totalPrepaid) * 100 : 0;
 
-  // Compute a spend trend: split the selected range into two halves and compare
-  const fromMs = new Date(from).getTime();
-  const toMs = new Date(to).getTime();
-  const midMs = Math.floor((fromMs + toMs) / 2);
-  const midDate = new Date(midMs).toISOString().split("T")[0];
+  // Spend trend: compare last 3 months vs prior 3 months (rolling)
+  const sortedInvoices = [...invoices].sort((a, b) => a.postingDate.localeCompare(b.postingDate));
+  const allMonths = [...new Set(sortedInvoices.map(i => i.postingDate.substring(0, 7)))].sort();
+  const recentMonths = allMonths.slice(-3);
+  const priorMonths = allMonths.slice(-6, -3);
 
   const recent = invoices
-    .filter((i) => i.postingDate > midDate && i.postingDate <= to)
+    .filter((i) => recentMonths.includes(i.postingDate.substring(0, 7)))
     .reduce((s, i) => s + i.totalAmountExcludingTax, 0);
   const prior = invoices
-    .filter((i) => i.postingDate >= from && i.postingDate <= midDate)
+    .filter((i) => priorMonths.includes(i.postingDate.substring(0, 7)))
     .reduce((s, i) => s + i.totalAmountExcludingTax, 0);
   const spendChangePercent = prior > 0 ? ((recent - prior) / prior) * 100 : 0;
 

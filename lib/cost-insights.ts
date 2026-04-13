@@ -25,6 +25,9 @@ export function analyzeLicenseWaste(licenses: M365License[]): CostInsight[] {
   // Unused paid licenses
   for (const lic of paid) {
     if (lic.wastedUnits > 0) {
+      const recommended = Math.ceil(lic.consumedUnits * 1.1);
+      const actualSaving = recommended < lic.prepaidUnits;
+      const target = actualSaving ? recommended : lic.consumedUnits;
       insights.push({
         id: `lic-waste-${lic.skuPartNumber}`,
         category: "license_waste",
@@ -32,7 +35,9 @@ export function analyzeLicenseWaste(licenses: M365License[]): CostInsight[] {
         title: `${lic.wastedUnits} unused ${lic.displayName} licenses`,
         description: `You're paying for ${lic.prepaidUnits} licenses but only ${lic.consumedUnits} are assigned. ${lic.wastedUnits} licenses are sitting idle at €${lic.pricePerUser.toFixed(2)}/user/month.`,
         potentialSavings: lic.wastedCost * 12,
-        action: `Reduce ${lic.displayName} from ${lic.prepaidUnits} to ${Math.ceil(lic.consumedUnits * 1.1)} licenses (keep 10% buffer)`,
+        action: actualSaving
+          ? `Reduce ${lic.displayName} from ${lic.prepaidUnits} to ${target} licenses (keep 10% buffer). Saves €${((lic.prepaidUnits - target) * lic.pricePerUser).toFixed(0)}/month.`
+          : `${lic.wastedUnits} unused license(s) — minor waste but monitor. Reclaim if user count stays stable for 3+ months.`,
         dataSource: "Microsoft Graph — subscribedSkus",
         detectedAt: new Date().toISOString().split("T")[0],
       });
@@ -177,20 +182,26 @@ export function analyzeHardwareLifecycle(devices: ManagedDevice[]): CostInsight[
 export function analyzeBudgetOverruns(budget: BudgetEntry[]): CostInsight[] {
   const insights: CostInsight[] = [];
 
-  // Categories consistently over budget
+  // Categories consistently over budget — only report if the TOTAL is also over
   const categories = [...new Set(budget.map(b => b.category))];
-  const uniqueMonths = [...new Set(budget.map(b => b.month))].length;
   for (const cat of categories) {
     const entries = budget.filter(b => b.category === cat);
+    const totalActual = entries.reduce((s, b) => s + b.actualAmount, 0);
+    const totalBudget = entries.reduce((s, b) => s + b.budgetAmount, 0);
+    const totalVariancePct = totalBudget > 0 ? ((totalActual - totalBudget) / totalBudget) * 100 : 0;
+
+    // Only flag if the category is actually over budget overall
+    if (totalVariancePct <= 5) continue;
+
     const overruns = entries.filter(b => b.variancePercent > 5);
     if (overruns.length >= 3) {
       const avgOverrun = overruns.reduce((s, b) => s + b.variance, 0) / overruns.length;
       insights.push({
         id: `budget-overrun-${cat.replace(/[^a-z]/gi, "")}`,
         category: "budget_overrun",
-        severity: overruns.length >= 6 ? "critical" : "warning",
-        title: `${cat}: over budget ${overruns.length} of ${uniqueMonths} months`,
-        description: `Average overrun of €${avgOverrun.toFixed(0)}/month when over budget. This category may need a budget increase or cost reduction initiative.`,
+        severity: totalVariancePct > 15 ? "critical" : "warning",
+        title: `${cat}: ${totalVariancePct.toFixed(1)}% over budget (${overruns.length} months over)`,
+        description: `Total actual €${totalActual.toFixed(0)} vs budget €${totalBudget.toFixed(0)}. Average overrun €${avgOverrun.toFixed(0)}/month in overspend months.`,
         potentialSavings: Math.abs(avgOverrun) * 12,
         action: `Either increase the ${cat} budget by €${avgOverrun.toFixed(0)}/month or investigate cost reduction opportunities.`,
         dataSource: "Budget tracking — GL entries",
