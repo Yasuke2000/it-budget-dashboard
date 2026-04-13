@@ -1,18 +1,61 @@
 # IT Finance Dashboard
 
-A comprehensive IT budget management and cost analysis dashboard built for IT managers overseeing multi-entity organizations. Pulls financial data from Business Central, M365 license info from Microsoft Graph, Azure costs, and Intune device inventory — all through a single Azure AD app registration.
+Multi-entity IT budget management dashboard for organizations running Microsoft 365 and Business Central. Tracks spend, budgets, licenses, vendors, contracts, and devices from a single interface.
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
 
-## One-Click Deploy
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FYasuke2000%2Fit-budget-dashboard&env=NEXT_PUBLIC_DEMO_MODE&envDescription=Set%20to%20true%20for%20demo%20mode&project-name=it-budget-dashboard)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FYasuke2000%2Fit-budget-dashboard&env=NEXT_PUBLIC_DEMO_MODE&envDescription=Set%20to%20true%20for%20demo%20mode%20or%20false%20for%20live%20APIs&envLink=https%3A%2F%2Fgithub.com%2FYasuke2000%2Fit-budget-dashboard%23environment-variables&project-name=it-budget-dashboard)
+## What it does
 
-Or run locally with Docker:
+| Page | Description |
+|------|-------------|
+| **Overview** | KPI cards with sparklines, 12-month spend trend, category breakdown, entity comparison, top vendors. PDF report download and markdown export. |
+| **Invoices** | Searchable invoice table with vendor/category/date filters and CSV export. |
+| **Licenses** | M365 license inventory with utilization rates, waste detection, cost per SKU. |
+| **Budget** | Monthly budget vs actual tracking per category with variance indicators. |
+| **Vendors** | Spend ranking, concentration risk alerts (>30% threshold), category breakdown per vendor. |
+| **Devices** | Intune device fleet with compliance status, age distribution, OS breakdown. |
+| **Personnel** | HR integration, IT cost per employee, department breakdown. |
+| **Contracts** | Contract tracker with expiry countdown, timeline chart, renewal management. |
+| **Insights** | AI-generated cost insights ranked by severity with savings estimates and recommended actions. |
+| **Peppol** | Peppol e-invoicing viewer. |
+| **Connectors** | Data source connection status for all integrations. |
+| **Settings** | GL account mapping, license pricing, threshold configuration. |
+
+### Extra features
+
+- **AI Chat** — Sparkles button in header opens a chat panel powered by Gemini 2.5 Flash. Analyzes your dashboard data and answers questions about spend, licenses, vendors, and contracts. Works without an API key (demo responses).
+- **PDF Report** — One-click A4 executive report with KPIs, categories, vendors, and expiring contracts. Generated client-side via jsPDF.
+- **Markdown Export** — `/api/export` generates an LLM-ready markdown file with all dashboard data, optimized for pasting into ChatGPT/Claude/Gemini.
+- **Command Palette** — `Cmd+K` / `Ctrl+K` for quick navigation across all pages and actions.
+- **Multi-Company** — Supports multiple BC entities with consolidated and per-entity views.
+- **Colorblind-safe** — Okabe-Ito chart palette safe for protanopia, deuteranopia, and tritanopia.
+
+## Quick start
+
+```bash
+git clone https://github.com/Yasuke2000/it-budget-dashboard.git
+cd it-budget-dashboard
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). The dashboard loads immediately with realistic mock data — no configuration needed.
+
+## Deploy to Vercel
+
+1. Push to GitHub
+2. Connect repo in [vercel.com](https://vercel.com)
+3. Add environment variable: `NEXT_PUBLIC_DEMO_MODE` = `true`
+4. Deploy
+
+Optional: add `GOOGLE_GENERATIVE_AI_API_KEY` (free from [aistudio.google.com](https://aistudio.google.com)) to enable live AI chat, and `AUTH_SECRET` (run `openssl rand -base64 32`) for NextAuth.
+
+## Docker
 
 ```bash
 git clone https://github.com/Yasuke2000/it-budget-dashboard.git
@@ -21,187 +64,154 @@ docker compose up --build
 # Open http://localhost:3000
 ```
 
-## Features
-
-- **Executive Overview** — KPI cards, 12-month spend vs budget trend, entity comparison, cost category breakdown
-- **Invoice Management** — Filterable, searchable, sortable data table with CSV export
-- **M365 License Tracking** — Utilization gauges, waste identification, cost per SKU
-- **Budget vs Actual** — Monthly variance tracking with traffic-light indicators (green/amber/red)
-- **Vendor Analysis** — Spend ranking, concentration risk alerts (>30% threshold), drill-through to invoices
-- **Device Inventory** — Intune-synced fleet with compliance status, age distribution, lifecycle alerts
-- **Settings** — GL account mapping, license price configuration, sync management
-- **Multi-Company** — Supports 4 BC entities (GDI, WHS, GRE, TDR) with consolidated and per-entity views
-- **Demo Mode** — Works immediately with realistic mock data, no API connections required
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 (App Router, TypeScript) |
-| Styling | Tailwind CSS v4 + shadcn/ui |
-| Charts | Recharts |
-| Icons | Lucide React |
-| Auth | @azure/msal-node (server-side, client credentials) |
-| Deployment | Vercel (free tier compatible) |
-
-## Quick Start
-
-```bash
-# Clone the repository
-git clone https://github.com/Yasuke2000/it-budget-dashboard.git
-cd it-budget-dashboard
-
-# Install dependencies
-npm install
-
-# Create environment file
-cp .env.example .env.local
-
-# Run in demo mode (default)
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) — the dashboard loads with realistic mock data immediately.
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `NEXT_PUBLIC_DEMO_MODE` | No | `true` (default) for mock data, `false` for live APIs |
-| `BC_TENANT_ID` | Live mode | Azure AD tenant GUID |
-| `BC_CLIENT_ID` | Live mode | App registration client ID |
-| `BC_CLIENT_SECRET` | Live mode | App registration client secret |
-| `BC_ENVIRONMENT` | Live mode | BC environment name (`production` or `sandbox`) |
-| `AZURE_SUBSCRIPTION_ID` | Optional | For Azure Cost Management API |
-| `SYNC_CRON_SECRET` | Optional | Secret for protecting the sync API endpoint |
-
-## Live Mode Setup
-
-To connect to real Business Central and Microsoft Graph APIs:
-
-1. **Register an app** in Microsoft Entra admin center (single-tenant)
-2. **Add API permissions:**
-   - Dynamics 365 Business Central → `API.ReadWrite.All`
-   - Microsoft Graph → `Organization.Read.All`, `User.Read.All`, `DeviceManagementManagedDevices.Read.All`
-3. **Grant admin consent**
-4. **Create a client secret**
-5. **In BC**, go to Microsoft Entra Applications → add the Client ID → set State to Enabled
-6. **Assign a custom read-only permission set** (see Security Note below)
-7. **Set environment variables** in `.env.local` with `NEXT_PUBLIC_DEMO_MODE=false`
-
-### Security Note: Principle of Least Privilege
-
-Microsoft does not offer a read-only `API.Read.All` permission for Business Central — only `API.ReadWrite.All` exists. This is a known limitation. To enforce least privilege:
-
-- **Do NOT assign `D365 BUS FULL ACCESS`** to the app registration
-- Instead, create a **custom permission set** in BC that grants only **Read** access to the tables this dashboard needs: G/L Entries, Purchase Invoices, Chart of Accounts, Dimensions
-- No Insert, Modify, or Delete rights — the app can effectively only read, even though the Azure AD permission is ReadWrite
-- Ask your BC partner (Alistar/Dynavision) to set this up
-
-This defense-in-depth approach ensures that even if the app token were compromised, it cannot modify any financial data in Business Central.
-
-## Project Structure
-
-```
-app/                    # Next.js App Router pages + API routes
-  api/                  # Server-side API endpoints
-  budget/               # Budget vs actual page
-  devices/              # Device inventory page
-  invoices/             # Invoice management page
-  licenses/             # M365 license tracking page
-  settings/             # Configuration page
-  vendors/              # Vendor analysis page
-components/
-  dashboard/            # Overview page components (KPI cards, charts)
-  budget/               # Budget table, variance indicators
-  devices/              # Device table, age chart, compliance donut
-  invoices/             # Invoice table with filters
-  licenses/             # License cards, utilization gauges
-  vendors/              # Vendor list, spend chart
-  layout/               # Sidebar, header, company context
-  ui/                   # shadcn/ui base components
-lib/
-  bc-client.ts          # Business Central API client
-  graph-client.ts       # Microsoft Graph API client
-  data-source.ts        # Data abstraction (demo vs live mode)
-  demo-data.ts          # Mock data loader
-  types.ts              # TypeScript type definitions
-  constants.ts          # GL mappings, SKU names, thresholds
-  utils.ts              # Currency formatting, date helpers
-data/mock/              # Demo mode JSON files
-```
-
-## Data Architecture
-
-The dashboard uses an **ETL pattern**: rather than hitting BC's API on every page load, data is synced into a local data layer. In demo mode, this is static JSON files. In production, you'd use PostgreSQL with scheduled sync jobs.
-
-```
-Business Central API  →  /api/sync  →  Local data store  →  Dashboard pages
-Microsoft Graph API   →             →                    →
-Azure Cost Mgmt API   →             →                    →
-```
-
-## Cost Categorization
-
-IT costs are categorized using the **TBM (Technology Business Management) framework**:
-
-| GL Account Range | Category | Examples |
-|-----------------|----------|----------|
-| 61xxx | Software & Licenses | M365, SaaS tools |
-| 62xxx | Telecom | Internet, mobile, MPLS |
-| 63xxx | External IT Services | Consulting, managed services |
-| 64xxx | IT Personnel | Salaries, contractors |
-| 23xxx | Hardware (Depreciation) | Laptop/server depreciation |
-| 60xxx | Cloud & Hosting | Azure, AWS, hosting |
-| 65xxx | Security | Firewall, antivirus |
-
-## Deployment
-
-### Option 1: Vercel (recommended for getting started)
-
-Click the **Deploy with Vercel** button at the top of this README, or:
-
-1. Push to GitHub
-2. Connect repo to Vercel
-3. Set `NEXT_PUBLIC_DEMO_MODE=true`
-4. Deploy — zero config for Next.js
-
-### Option 2: Docker Compose (recommended for production)
-
-```bash
-# Clone and start
-git clone https://github.com/Yasuke2000/it-budget-dashboard.git
-cd it-budget-dashboard
-cp .env.example .env
-# Edit .env with your credentials
-docker compose up --build -d
-
-# Dashboard: http://localhost:3000
-# PostgreSQL: localhost:5432
-```
-
 Development with hot reload:
 ```bash
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-### Option 3: Azure App Service (NIS2 compliant)
+## Tech stack
 
-For production with real data in Belgium:
-1. Deploy to Azure App Service B1 (~€12/month) in Belgium Central region
-2. Use Azure Database for PostgreSQL Flexible Server
-3. Enable Entra ID authentication
-4. See [HANDOFF.md](HANDOFF.md) for full migration guide
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16 (App Router, Turbopack) |
+| Language | TypeScript 5 |
+| Styling | Tailwind CSS 4 + shadcn/ui |
+| Charts | Recharts 3.8 |
+| Auth | NextAuth v5 (Microsoft Entra ID SSO) |
+| AI | Vercel AI SDK + Google Gemini 2.5 Flash |
+| PDF | jsPDF + jspdf-autotable |
+| Hosting | Vercel |
 
-## First-Run Setup
+## Demo mode vs live mode
 
-On first visit, a setup wizard guides you through connecting your data sources. You can also access it anytime from **Settings → Run Setup Wizard Again**.
+The dashboard has two modes controlled by `NEXT_PUBLIC_DEMO_MODE`:
 
-The wizard walks you through:
-1. Choosing demo mode or live data
-2. Connecting Microsoft 365 (licenses, devices, SSO)
-3. Connecting Business Central (invoices, GL entries, budget)
-4. Optional integrations (Jira, Officient HR, Samsung Knox)
+- **`true` (default)** — All data comes from `data/mock/*.json`. No API calls. Works instantly.
+- **`false`** — Connects to real APIs: Business Central for invoices/GL, Microsoft Graph for licenses/devices, Jira for worklogs. Falls back to demo data if any API fails.
+
+Every data function checks `isDemoMode()` first. Live mode adds a cache layer (in-memory with TTL) to avoid hitting APIs on every page load.
+
+## Environment variables
+
+### Required (demo mode)
+
+| Variable | Value |
+|----------|-------|
+| `NEXT_PUBLIC_DEMO_MODE` | `true` |
+
+### Required (live mode)
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_DEMO_MODE` | `false` |
+| `BC_TENANT_ID` | Azure AD tenant GUID |
+| `BC_CLIENT_ID` | App registration client ID |
+| `BC_CLIENT_SECRET` | App registration client secret |
+| `BC_ENVIRONMENT` | `production` or `sandbox` |
+| `AUTH_SECRET` | Random string for NextAuth (`openssl rand -base64 32`) |
+
+### Optional
+
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Gemini API key for AI chat (free at [aistudio.google.com](https://aistudio.google.com)) |
+| `AUTH_MICROSOFT_ENTRA_ID_ID` | Entra ID app client ID for SSO |
+| `AUTH_MICROSOFT_ENTRA_ID_SECRET` | Entra ID app client secret for SSO |
+| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` | Tenant ID for SSO |
+| `JIRA_BASE_URL` | Jira Cloud URL (e.g. `https://yoursite.atlassian.net`) |
+| `JIRA_EMAIL` | Jira account email |
+| `JIRA_API_TOKEN` | Jira API token |
+| `OFFICIENT_CLIENT_ID` | Officient HR client ID |
+| `OFFICIENT_CLIENT_SECRET` | Officient HR client secret |
+| `DELL_CLIENT_ID` | Dell TechDirect client ID (warranty lookup) |
+| `DELL_CLIENT_SECRET` | Dell TechDirect client secret |
+| `LENOVO_CLIENT_ID` | Lenovo eSupport client ID (warranty lookup) |
+| `SYNC_CRON_SECRET` | Protects `POST /api/sync` endpoint |
+
+Copy `.env.example` to `.env.local` for local development.
+
+## Live mode setup
+
+To connect to real Business Central and Microsoft Graph APIs:
+
+1. **Register an app** in [Microsoft Entra admin center](https://entra.microsoft.com) (single-tenant)
+2. **Add API permissions:**
+   - Dynamics 365 Business Central: `API.ReadWrite.All`
+   - Microsoft Graph: `Organization.Read.All`, `User.Read.All`, `DeviceManagementManagedDevices.Read.All`
+3. **Grant admin consent** for the tenant
+4. **Create a client secret** and copy it
+5. **In Business Central**, go to Microsoft Entra Applications, add the Client ID, set State to Enabled
+6. **Assign a read-only permission set** in BC (see Security section below)
+7. **Set environment variables** in `.env.local` with `NEXT_PUBLIC_DEMO_MODE=false`
+8. **Run a sync**: `POST /api/sync` with `Authorization: Bearer {SYNC_CRON_SECRET}` header
+
+### Security: principle of least privilege
+
+Microsoft does not offer a read-only BC API permission — only `API.ReadWrite.All` exists. To enforce least privilege:
+
+- Do **not** assign `D365 BUS FULL ACCESS` to the app
+- Create a custom permission set in BC granting only **Read** access to: G/L Entries, Purchase Invoices, Chart of Accounts, Dimensions
+- No Insert, Modify, or Delete rights
+- Even if the app token were compromised, it cannot modify financial data
+
+## API endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/dashboard` | GET | KPIs, monthly spend, categories, entities, vendors |
+| `/api/invoices` | GET | Purchase invoices with date/company filtering |
+| `/api/licenses` | GET | M365 license inventory |
+| `/api/budget` | GET | Budget entries |
+| `/api/vendors` | GET | Vendor spend summary |
+| `/api/devices` | GET | Managed device inventory |
+| `/api/contracts` | GET | Contract list |
+| `/api/personnel` | GET | Employee and department data |
+| `/api/insights` | GET | Pre-computed cost insights |
+| `/api/chat` | POST | AI chat (Gemini or demo responses) |
+| `/api/export` | GET | LLM-ready markdown or JSON export |
+| `/api/report` | GET | Data for PDF report generation |
+| `/api/sync` | POST | Trigger data sync from all sources (requires auth) |
+| `/api/status` | GET | Connection status for all integrations |
+| `/api/peppol` | GET | Peppol e-invoices |
+| `/api/worklogs` | GET | Jira worklog data |
+| `/api/settings` | GET/POST | Dashboard configuration |
+
+## Project structure
+
+```
+app/
+  page.tsx                  # Overview dashboard
+  budget/                   # Budget vs actual
+  contracts/                # Contract tracker
+  devices/                  # Device inventory
+  invoices/                 # Invoice management
+  licenses/                 # License tracking
+  vendors/                  # Vendor analysis
+  personnel/                # HR integration
+  insights/                 # Cost insights
+  connectors/               # Data source status
+  settings/                 # Configuration
+  api/                      # 17 API endpoints
+components/
+  dashboard/                # KPI cards, charts, breakdowns
+  contracts/                # Contract table, timeline, badges
+  ai/                       # Chat panel
+  layout/                   # Sidebar, header, date picker
+  ui/                       # shadcn/ui components
+lib/
+  data-source.ts            # Unified data layer (demo/live switch)
+  bc-client.ts              # Business Central API client
+  graph-client.ts           # Microsoft Graph API client
+  jira-client.ts            # Jira Cloud API client
+  warranty-client.ts        # Dell/Lenovo warranty API client
+  sync-cache.ts             # In-memory cache with TTL
+  cost-insights.ts          # Automated cost analysis engine
+  pdf-report.ts             # PDF report generator
+  types.ts                  # TypeScript interfaces
+  constants.ts              # GL mappings, SKU names, colors
+  utils.ts                  # Currency formatting, date helpers
+data/mock/                  # Demo mode JSON files
+```
 
 ## License
 
