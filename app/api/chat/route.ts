@@ -1,4 +1,4 @@
-import { streamText } from "ai";
+import { generateText } from "ai";
 import { google } from "@ai-sdk/google";
 import {
   getDashboardKPIs,
@@ -50,16 +50,16 @@ export async function POST(req: Request) {
     return Response.json({ role: "assistant", content: response });
   }
 
-  // Live mode: stream response using Gemini
+  // Live mode: generate response using Gemini
   const context = await buildDashboardContext();
 
-  const result = streamText({
+  const result = await generateText({
     model: google("gemini-2.0-flash"),
     system: `You are an IT Finance Analyst for a Belgian logistics company (4 entities: GDI, WHS, GRE, TDR). Answer questions using ONLY the data below. Be specific with EUR amounts. Keep answers concise (max 200 words). If asked about something not in the data, say so.\n\n${context}`,
     messages,
   });
 
-  return result.toTextStreamResponse();
+  return Response.json({ role: "assistant", content: result.text });
 }
 
 async function buildDashboardContext(): Promise<string> {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Sparkles, X, FileDown } from "lucide-react";
+import { Sparkles, X, FileDown, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { SpendTrendChart } from "@/components/dashboard/spend-trend-chart";
@@ -127,6 +127,17 @@ export default function OverviewPage() {
         >
           <FileDown className="h-4 w-4" />
           PDF Report
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-slate-400 hover:text-slate-300 hover:bg-slate-500/10 gap-2"
+          onClick={() => {
+            window.open(`/api/export?company=${selectedCompany}`, "_blank");
+          }}
+        >
+          <Share2 className="h-4 w-4" />
+          Export
         </Button>
       </div>
 
