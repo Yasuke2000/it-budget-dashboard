@@ -1,5 +1,5 @@
 import { streamText } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { google } from "@ai-sdk/google";
 import {
   getDashboardKPIs,
   getLicenses,
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   const { messages } = await req.json();
 
   // Demo mode: return canned responses when no API key is configured
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     const q =
       messages[messages.length - 1]?.content?.toLowerCase() || "";
     let response: string;
@@ -50,14 +50,13 @@ export async function POST(req: Request) {
     return Response.json({ role: "assistant", content: response });
   }
 
-  // Live mode: stream response using the Anthropic model
+  // Live mode: stream response using Gemini
   const context = await buildDashboardContext();
 
   const result = streamText({
-    model: anthropic("claude-sonnet-4-20250514"),
+    model: google("gemini-2.0-flash"),
     system: `You are an IT Finance Analyst for a Belgian logistics company (4 entities: GDI, WHS, GRE, TDR). Answer questions using ONLY the data below. Be specific with EUR amounts. Keep answers concise (max 200 words). If asked about something not in the data, say so.\n\n${context}`,
     messages,
-    maxOutputTokens: 500,
   });
 
   return result.toTextStreamResponse();
