@@ -33,7 +33,7 @@ export function analyzeLicenseWaste(licenses: M365License[]): CostInsight[] {
         category: "license_waste",
         severity: lic.wastedCost > 100 ? "critical" : "warning",
         title: `${lic.wastedUnits} unused ${lic.displayName} licenses`,
-        description: `You're paying for ${lic.prepaidUnits} licenses but only ${lic.consumedUnits} are assigned. ${lic.wastedUnits} licenses are sitting idle at €${lic.pricePerUser.toFixed(2)}/user/month.`,
+        description: `You're paying for ${lic.prepaidUnits} licenses but only ${lic.consumedUnits} are assigned. ${lic.wastedUnits} license${lic.wastedUnits > 1 ? "s are" : " is"} sitting idle at €${lic.pricePerUser.toFixed(2)}/user/month.`,
         potentialSavings: lic.wastedCost * 12,
         action: actualSaving
           ? `Reduce ${lic.displayName} from ${lic.prepaidUnits} to ${target} licenses (keep 10% buffer). Saves €${((lic.prepaidUnits - target) * lic.pricePerUser).toFixed(0)}/month.`
@@ -196,13 +196,14 @@ export function analyzeBudgetOverruns(budget: BudgetEntry[]): CostInsight[] {
     const overruns = entries.filter(b => b.variancePercent > 5);
     if (overruns.length >= 3) {
       const avgOverrun = overruns.reduce((s, b) => s + b.variance, 0) / overruns.length;
+      const isHardware = cat.toLowerCase().includes("hardware");
       insights.push({
         id: `budget-overrun-${cat.replace(/[^a-z]/gi, "")}`,
         category: "budget_overrun",
         severity: totalVariancePct > 15 ? "critical" : "warning",
         title: `${cat}: ${totalVariancePct.toFixed(1)}% over budget (${overruns.length} months over)`,
         description: `Total actual €${totalActual.toFixed(0)} vs budget €${totalBudget.toFixed(0)}. Average overrun €${avgOverrun.toFixed(0)}/month in overspend months.`,
-        potentialSavings: Math.abs(avgOverrun) * 12,
+        potentialSavings: isHardware ? 0 : Math.abs(avgOverrun) * 12,
         action: `Either increase the ${cat} budget by €${avgOverrun.toFixed(0)}/month or investigate cost reduction opportunities.`,
         dataSource: "Budget tracking — GL entries",
         detectedAt: new Date().toISOString().split("T")[0],
