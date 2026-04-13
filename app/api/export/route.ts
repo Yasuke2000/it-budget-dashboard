@@ -187,10 +187,10 @@ ${(() => {
     const matchedCat = categories.find(c => i.title.startsWith(c.category));
     if (!matchedCat) return true;
     const invoiceVar = catVariance.get(matchedCat.category) ?? 0;
-    // Suppress if invoice data says under budget but insight says over (or vice versa)
+    // Only suppress if the DIRECTION contradicts: insight says over but invoices say clearly under (or vice versa)
     const insightSaysOver = i.title.includes("over budget");
-    const invoiceSaysOver = invoiceVar > 5;
-    if (insightSaysOver !== invoiceSaysOver) return false;
+    const invoiceSaysClearlyUnder = invoiceVar < -10;
+    if (insightSaysOver && invoiceSaysClearlyUnder) return false;
     return true;
   });
 
