@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     const context = await buildDashboardContext();
 
     const result = await generateText({
-      model: google("gemini-2.0-flash"),
+      model: google("gemini-2.5-flash"),
       system: `You are an IT Finance Analyst for a Belgian logistics company (4 entities: GDI, WHS, GRE, TDR). Answer questions using ONLY the data below. Be specific with EUR amounts. Keep answers concise (max 200 words). If asked about something not in the data, say so.\n\n${context}`,
       messages,
     });
