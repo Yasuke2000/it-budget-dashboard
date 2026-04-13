@@ -15,15 +15,20 @@ export async function GET(request: Request) {
   const company = searchParams.get("company") || "all";
   const format = searchParams.get("format") || "markdown";
 
+  // Use full date range including current year
+  const currentYear = new Date().getFullYear();
+  const fullFrom = "2025-01-01";
+  const fullTo = `${currentYear}-12-31`;
+
   const [kpis, licenses, vendors, categories, monthly, contracts, entities, insights, devices] =
     await Promise.all([
-      getDashboardKPIs(company),
+      getDashboardKPIs(company, fullFrom, fullTo),
       getLicenses(),
-      getVendorSummary(company),
-      getCategorySpend(company),
-      getMonthlySpend(company),
+      getVendorSummary(company, fullFrom, fullTo),
+      getCategorySpend(company, fullFrom, fullTo),
+      getMonthlySpend(company, fullFrom, fullTo),
       getContracts(),
-      getEntitySpend(),
+      getEntitySpend(fullFrom, fullTo),
       getCostInsights(),
       getDevices(),
     ]);
@@ -67,10 +72,19 @@ export async function GET(request: Request) {
     ? ((devices.filter(d => d.complianceState === "compliant").length / devices.length) * 100).toFixed(1)
     : "N/A";
 
+  // Data coverage: which months have actual data
+  const monthsWithData = monthly.filter(m => m.actual > 0).map(m => m.month);
+  const firstMonth = monthsWithData[0] || "N/A";
+  const lastMonth = monthsWithData[monthsWithData.length - 1] || "N/A";
+
+  // Total entity spend for % calculation
+  const totalEntitySpend = entities.reduce((s, e) => s + e.totalSpend, 0);
+
   const md = `# IT Finance Status Export
 > Generated: ${dateStr} | Currency: EUR | Fiscal Year: Jan–Dec
 > Entity scope: ${company === "all" ? "Consolidated (GDI, WHS, GRE, TDR)" : company}
-> Data source: Microsoft Business Central + Microsoft Graph + Intune
+> Data coverage: ${firstMonth} to ${lastMonth} (${monthsWithData.length} months with actuals)
+> Data sources: Microsoft Business Central, Microsoft Graph (licenses), Intune (devices)
 > Purpose: LLM-ready financial context for IT cost analysis
 
 ---
@@ -97,9 +111,14 @@ export async function GET(request: Request) {
 | License Waste (annual) | ${fmt(totalAnnualWaste)} |
 
 ## Entity Breakdown
-| Entity | Total Spend | Users | IT Cost/User |
-|--------|-------------|-------|--------------|
-${entities.map((e) => `| ${e.companyName} | ${fmt(e.totalSpend)} | ${e.userCount} | ${fmt(e.perUserSpend)} |`).join("\n")}
+| Entity | Total Spend | % of Total | Users | IT Cost/User | Avg Monthly |
+|--------|-------------|------------|-------|--------------|-------------|
+${entities.map((e) => {
+  const pct = totalEntitySpend > 0 ? ((e.totalSpend / totalEntitySpend) * 100).toFixed(1) : "0";
+  const avgMonthly = monthsWithData.length > 0 ? e.totalSpend / monthsWithData.length : 0;
+  return `| ${e.companyName} | ${fmt(e.totalSpend)} | ${pct}% | ${e.userCount} | ${fmt(e.perUserSpend)} | ${fmt(avgMonthly)} |`;
+}).join("\n")}
+| **Total** | **${fmt(totalEntitySpend)}** | **100%** | **${entities.reduce((s, e) => s + e.userCount, 0)}** | **${fmt(totalEntitySpend / Math.max(entities.reduce((s, e) => s + e.userCount, 0), 1))}** | **${fmt(monthsWithData.length > 0 ? totalEntitySpend / monthsWithData.length : 0)}** |
 
 ## Cost Categories (sorted by spend)
 | Category | Actual | Budget | Variance | Variance % | Over/Under |

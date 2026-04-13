@@ -32,7 +32,7 @@ export function analyzeLicenseWaste(licenses: M365License[]): CostInsight[] {
         title: `${lic.wastedUnits} unused ${lic.displayName} licenses`,
         description: `You're paying for ${lic.prepaidUnits} licenses but only ${lic.consumedUnits} are assigned. ${lic.wastedUnits} licenses are sitting idle at €${lic.pricePerUser.toFixed(2)}/user/month.`,
         potentialSavings: lic.wastedCost * 12,
-        action: `Reduce ${lic.displayName} from ${lic.prepaidUnits} to ${lic.consumedUnits + Math.ceil(lic.wastedUnits * 0.1)} licenses (keep 10% buffer)`,
+        action: `Reduce ${lic.displayName} from ${lic.prepaidUnits} to ${Math.ceil(lic.consumedUnits * 1.1)} licenses (keep 10% buffer)`,
         dataSource: "Microsoft Graph — subscribedSkus",
         detectedAt: new Date().toISOString().split("T")[0],
       });
@@ -179,6 +179,7 @@ export function analyzeBudgetOverruns(budget: BudgetEntry[]): CostInsight[] {
 
   // Categories consistently over budget
   const categories = [...new Set(budget.map(b => b.category))];
+  const uniqueMonths = [...new Set(budget.map(b => b.month))].length;
   for (const cat of categories) {
     const entries = budget.filter(b => b.category === cat);
     const overruns = entries.filter(b => b.variancePercent > 5);
@@ -188,7 +189,7 @@ export function analyzeBudgetOverruns(budget: BudgetEntry[]): CostInsight[] {
         id: `budget-overrun-${cat.replace(/[^a-z]/gi, "")}`,
         category: "budget_overrun",
         severity: overruns.length >= 6 ? "critical" : "warning",
-        title: `${cat}: over budget ${overruns.length} of ${entries.length} months`,
+        title: `${cat}: over budget ${overruns.length} of ${uniqueMonths} months`,
         description: `Average overrun of €${avgOverrun.toFixed(0)}/month when over budget. This category may need a budget increase or cost reduction initiative.`,
         potentialSavings: Math.abs(avgOverrun) * 12,
         action: `Either increase the ${cat} budget by €${avgOverrun.toFixed(0)}/month or investigate cost reduction opportunities.`,
