@@ -434,10 +434,13 @@ export async function getPeppolInvoices(): Promise<PeppolInvoice[]> {
 }
 
 // ---- Cost Insights ----
-export async function getCostInsights(): Promise<CostInsight[]> {
+export async function getCostInsights(
+  dateFrom?: string,
+  dateTo?: string
+): Promise<CostInsight[]> {
   const [licenses, vendors, devices, budget, employees] = await Promise.all([
     getLicenses(),
-    getVendorSummary(),
+    getVendorSummary("all", dateFrom, dateTo),
     getDevices(),
     getBudgetEntries(),
     getEmployees(),

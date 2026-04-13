@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       getMonthlySpend(company, fullFrom, fullTo),
       getContracts(),
       getEntitySpend(fullFrom, fullTo),
-      getCostInsights(),
+      getCostInsights(fullFrom, fullTo),
       getDevices(),
     ]);
 
@@ -77,6 +77,13 @@ export async function GET(request: Request) {
   const firstMonth = monthsWithData[0] || "N/A";
   const lastMonth = monthsWithData[monthsWithData.length - 1] || "N/A";
 
+  // Trend period labels (last 3 months vs prior 3)
+  const recentMonths = monthsWithData.slice(-3);
+  const priorMonths = monthsWithData.slice(-6, -3);
+  const trendLabel = recentMonths.length > 0 && priorMonths.length > 0
+    ? `${recentMonths[0]}–${recentMonths[recentMonths.length - 1]} vs ${priorMonths[0]}–${priorMonths[priorMonths.length - 1]}`
+    : "insufficient data";
+
   // Total entity spend for % calculation
   const totalEntitySpend = entities.reduce((s, e) => s + e.totalSpend, 0);
 
@@ -91,7 +98,7 @@ export async function GET(request: Request) {
 
 ## Executive Summary
 - **Total IT Spend YTD:** ${fmt(kpis.totalSpendYTD)} against a budget of ${fmt(kpis.totalBudgetYTD)} (variance: ${kpis.budgetVariancePercent >= 0 ? "+" : ""}${kpis.budgetVariancePercent.toFixed(1)}%)
-- **Spend trend:** ${kpis.spendTrend} (${kpis.spendChangePercent >= 0 ? "+" : ""}${kpis.spendChangePercent.toFixed(1)}% vs prior period)
+- **Spend trend:** ${kpis.spendTrend} (${kpis.spendChangePercent >= 0 ? "+" : ""}${kpis.spendChangePercent.toFixed(1)}%, comparing ${trendLabel})
 - **License waste:** ${totalWastedUnits} unused paid licenses = ${fmt(totalMonthlyWaste)}/month (${fmt(totalAnnualWaste)}/year)
 - **Managed devices:** ${kpis.deviceCount} enrolled in Intune (${complianceRate}% compliant)
 - **Contracts requiring action:** ${enrichedContracts.filter(c => c.realStatus === "EXPIRED" || c.realStatus === "expiring_soon").length} (expired or expiring within 90 days)
@@ -106,7 +113,7 @@ export async function GET(request: Request) {
 | Budget Variance | ${kpis.budgetVariancePercent >= 0 ? "+" : ""}${kpis.budgetVariancePercent.toFixed(1)}% |
 | License Utilization | ${kpis.licenseUtilizationPercent.toFixed(1)}% |
 | Managed Devices | ${kpis.deviceCount} |
-| Spend Trend | ${kpis.spendTrend} (${kpis.spendChangePercent >= 0 ? "+" : ""}${kpis.spendChangePercent.toFixed(1)}%) |
+| Spend Trend | ${kpis.spendTrend} (${kpis.spendChangePercent >= 0 ? "+" : ""}${kpis.spendChangePercent.toFixed(1)}%, ${trendLabel}) |
 | License Waste (monthly) | ${fmt(totalMonthlyWaste)} |
 | License Waste (annual) | ${fmt(totalAnnualWaste)} |
 
@@ -170,6 +177,8 @@ ${enrichedContracts.sort((a, b) => a.daysLeft - b.daysLeft).map((c) => `| ${c.ve
 | Personal (BYOD) | ${devices.filter(d => d.managedDeviceOwnerType === "personal").length} |
 
 ## AI-Generated Insights (pre-computed)
+> Note: Budget overrun insights use GL-based budget tracking data which may differ slightly from the invoice-based figures in the Cost Categories table above. Vendor percentages are computed over the same date range as the tables.
+
 ${insights.sort((a, b) => {
   const sev = { critical: 0, warning: 1, info: 2 };
   return (sev[a.severity] ?? 2) - (sev[b.severity] ?? 2);
