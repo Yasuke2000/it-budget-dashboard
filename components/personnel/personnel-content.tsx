@@ -31,7 +31,7 @@ function anonymizeEmployees(employees: Employee[]): Employee[] {
   return employees.map((emp, i) => ({
     ...emp,
     name: `Employee #${i + 1}`,
-    email: "•••@gheeraert.be",
+    email: "•••@example.com",
     monthlyCost: undefined,
   }));
 }

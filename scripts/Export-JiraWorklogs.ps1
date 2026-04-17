@@ -3,7 +3,7 @@
 .SYNOPSIS
     Export Jira Cloud worklogs to CSV for the IT Finance Dashboard.
 .PARAMETER JiraBaseUrl
-    Your Jira Cloud URL (e.g., https://gheeraertportal.atlassian.net)
+    Your Jira Cloud URL (e.g., https://yourcompany.atlassian.net)
 .PARAMETER Email
     Your Jira account email
 .PARAMETER ApiToken

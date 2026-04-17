@@ -11,7 +11,7 @@
 
 ## 1. What Was Built
 
-A full-stack IT budget management dashboard for a Belgian multi-entity logistics company (Gheeraert Group: GDI, WHS, GRE, TDR). The dashboard consolidates IT financial data from multiple sources into a single view for IT management decision-making.
+A full-stack IT budget management dashboard for a Belgian multi-entity logistics company (Acme Group: GDI, WHS, GRE, TDR). The dashboard consolidates IT financial data from multiple sources into a single view for IT management decision-making.
 
 ### Core Capabilities
 - **9 dashboard pages** with real-time KPIs, charts, and data tables
@@ -405,7 +405,7 @@ All scripts in `scripts/` follow the same pattern:
 The Personnel page contains sensitive personal data (names, emails, salary figures). A **privacy mode toggle** is implemented:
 
 - **Default: ON** — personal data is anonymized automatically
-- Names → "Employee #1", emails → "•••@gheeraert.be", individual costs → "•••"
+- Names → "Employee #1", emails → "•••@example.com", individual costs → "•••"
 - Aggregate KPIs (headcount, department counts) remain visible
 - User must explicitly disable privacy mode to see personal data
 - Project cost summary cards are fully hidden in privacy mode

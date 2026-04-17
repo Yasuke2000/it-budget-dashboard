@@ -1,6 +1,6 @@
 [
-  { "id": "comp-gdi", "name": "GDI", "displayName": "Gheeraert Distribution International" },
+  { "id": "comp-gdi", "name": "GDI", "displayName": "Acme Distribution International" },
   { "id": "comp-whs", "name": "WHS", "displayName": "Warehouse Solutions" },
-  { "id": "comp-gre", "name": "GRE", "displayName": "Gheeraert Real Estate" },
+  { "id": "comp-gre", "name": "GRE", "displayName": "Acme Real Estate" },
   { "id": "comp-tdr", "name": "TDR", "displayName": "Transport De Rudder" }
 ]

@@ -146,7 +146,7 @@
   {
     "id": "ctr-009",
     "vendor": "Sectigo",
-    "description": "SSL/TLS Wildcard Certificates — *.gheeraert.be, *.gdi-logistics.be",
+    "description": "SSL/TLS Wildcard Certificates — *.example.com, *.gdi-logistics.be",
     "category": "ssl",
     "startDate": "2025-05-28",
     "endDate": "2026-05-28",
@@ -164,7 +164,7 @@
   {
     "id": "ctr-010",
     "vendor": "Cloudflare",
-    "description": "Domain Registration & DNS — gheeraert.be, gdi-logistics.be, daviddelporte.com",
+    "description": "Domain Registration & DNS — example.com, gdi-logistics.be, daviddelporte.com",
     "category": "domain",
     "startDate": "2025-06-01",
     "endDate": "2026-06-01",

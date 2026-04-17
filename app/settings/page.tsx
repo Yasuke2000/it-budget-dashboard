@@ -78,9 +78,9 @@ interface SyncState {
 // ─── Static demo companies ─────────────────────────────────────────────────
 
 const DEMO_COMPANIES = [
-  { id: "comp-gdi", name: "Gheeraert Distribution International", active: true },
+  { id: "comp-gdi", name: "Acme Distribution International", active: true },
   { id: "comp-whs", name: "Warehouse Solutions", active: true },
-  { id: "comp-gre", name: "Gheeraert Real Estate", active: true },
+  { id: "comp-gre", name: "Acme Real Estate", active: true },
   { id: "comp-tdr", name: "Transport De Rudder", active: true },
 ];
 
