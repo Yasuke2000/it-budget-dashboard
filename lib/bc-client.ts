@@ -1,5 +1,6 @@
 import { ConfidentialClientApplication } from "@azure/msal-node";
 import type { PurchaseInvoice, PurchaseInvoiceLine } from "./types";
+import { fetchWithRetry } from "./http";
 
 const msalConfig = {
   auth: {
@@ -29,30 +30,25 @@ export async function getBCToken(): Promise<string> {
 
 const BC_BASE_URL = `https://api.businesscentral.dynamics.com/v2.0/${process.env.BC_TENANT_ID}/${process.env.BC_ENVIRONMENT || "production"}/api/v2.0`;
 
-// --- Rate limiter (BC allows 6000 req/5min, we stay under at 5500) ---
-let requestCount = 0;
-let windowStart = Date.now();
-async function rateLimitedFetch(url: string, headers: Record<string, string>): Promise<Response> {
-  if (Date.now() - windowStart > 300000) { requestCount = 0; windowStart = Date.now(); }
-  if (requestCount >= 5500) { await new Promise(r => setTimeout(r, 60000)); requestCount = 0; windowStart = Date.now(); }
-  requestCount++;
-  return fetch(url, { headers });
-}
-
 // --- OData pagination helper ---
+// BC allows 6000 requests / 5 min. With 4 entities on a daily sync we make ~200
+// calls, so instead of a request-blocking throttle we let fetchWithRetry honour
+// the 429 Retry-After header on the rare occasion we're limited.
 async function fetchAllPages<T>(url: string, token: string): Promise<T[]> {
   const results: T[] = [];
   let nextUrl: string | null = url;
   while (nextUrl) {
-    const res = await rateLimitedFetch(nextUrl, {
-      Authorization: `Bearer ${token}`,
-      'Data-Access-Intent': 'ReadOnly',
-      Accept: 'application/json',
+    const res = await fetchWithRetry(nextUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Data-Access-Intent": "ReadOnly",
+        Accept: "application/json",
+      },
     });
     if (!res.ok) throw new Error(`BC API ${res.status}: ${await res.text()}`);
     const data = await res.json();
     results.push(...(data.value || []));
-    nextUrl = data['@odata.nextLink'] || null;
+    nextUrl = data["@odata.nextLink"] || null;
   }
   return results;
 }
@@ -60,7 +56,7 @@ async function fetchAllPages<T>(url: string, token: string): Promise<T[]> {
 export async function fetchBC(endpoint: string, companyId: string): Promise<unknown> {
   const token = await getBCToken();
   const url = `${BC_BASE_URL}/companies(${companyId})/${endpoint}`;
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     headers: {
       Authorization: `Bearer ${token}`,
       "Data-Access-Intent": "ReadOnly",
@@ -75,7 +71,7 @@ export async function fetchBC(endpoint: string, companyId: string): Promise<unkn
 
 export async function fetchBCCompanies(): Promise<Record<string, unknown>[]> {
   const token = await getBCToken();
-  const response = await fetch(`${BC_BASE_URL}/companies`, {
+  const response = await fetchWithRetry(`${BC_BASE_URL}/companies`, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
@@ -104,7 +100,7 @@ export async function fetchBCGLEntries(
 ): Promise<Record<string, unknown>[]> {
   const token = await getBCToken();
   const filter = `postingDate ge ${dateFrom} and postingDate le ${dateTo}`;
-  const url = `${BC_BASE_URL}/companies(${companyId})/generalLedgerEntries?$filter=${encodeURIComponent(filter)}&$select=postingDate,accountNumber,description,debitAmount,creditAmount,documentType&$orderby=postingDate desc`;
+  const url = `${BC_BASE_URL}/companies(${companyId})/generalLedgerEntries?$filter=${encodeURIComponent(filter)}&$select=id,postingDate,accountNumber,description,debitAmount,creditAmount,documentType,documentNumber&$orderby=postingDate desc`;
   return fetchAllPages<Record<string, unknown>>(url, token);
 }
 

@@ -1,6 +1,7 @@
 import { ConfidentialClientApplication } from "@azure/msal-node";
 import type { M365License, ManagedDevice } from "./types";
 import { SKU_NAMES, DEFAULT_LICENSE_PRICES } from "./constants";
+import { fetchWithRetry } from "./http";
 
 let msalClient: ConfidentialClientApplication | null = null;
 
@@ -28,7 +29,7 @@ export async function getGraphToken(): Promise<string> {
 
 async function fetchGraph(endpoint: string): Promise<unknown> {
   const token = await getGraphToken();
-  const response = await fetch(`https://graph.microsoft.com/v1.0${endpoint}`, {
+  const response = await fetchWithRetry(`https://graph.microsoft.com/v1.0${endpoint}`, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
@@ -42,7 +43,7 @@ async function fetchAllGraphPages<T>(url: string, token: string): Promise<T[]> {
   const results: T[] = [];
   let nextUrl: string | null = url;
   while (nextUrl) {
-    const res: Response = await fetch(nextUrl, {
+    const res: Response = await fetchWithRetry(nextUrl, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
     if (!res.ok) throw new Error(`Graph API ${res.status}: ${await res.text()}`);
@@ -61,7 +62,7 @@ export async function fetchSubscribedSkus(): Promise<Record<string, unknown>[]> 
 export async function fetchManagedDevices(): Promise<Record<string, unknown>[]> {
   const token = await getGraphToken();
   return fetchAllGraphPages<Record<string, unknown>>(
-    "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?$select=deviceName,model,manufacturer,serialNumber,osVersion,enrolledDateTime,complianceState,managedDeviceOwnerType,chassisType,operatingSystem",
+    "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?$select=id,deviceName,model,manufacturer,serialNumber,osVersion,enrolledDateTime,complianceState,managedDeviceOwnerType,chassisType,operatingSystem,userDisplayName",
     token
   );
 }

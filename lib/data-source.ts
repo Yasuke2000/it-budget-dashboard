@@ -484,7 +484,7 @@ export async function getEmployees(): Promise<Employee[]> {
     return (mockData.default as Employee[]);
   }
   // Live mode: fetch from Officient
-  const { fetchEmployees, fetchAssets } = await import("./officient-client");
+  const { fetchEmployees, fetchAssets, fetchWagesForPeople } = await import("./officient-client");
   const [officientEmployees, officientAssets] = await Promise.all([
     fetchEmployees(),
     fetchAssets(),
@@ -497,6 +497,11 @@ export async function getEmployees(): Promise<Employee[]> {
     assetsByPerson.set(a.person_id, list);
   });
 
+  // Pull employer cost per person so personnel KPIs reflect real salary cost.
+  // Without this, monthlyCost stays undefined and itSalaryCost computes to 0.
+  const activeIds = officientEmployees.filter((e) => e.status === "active").map((e) => e.id);
+  const wagesByPerson = await fetchWagesForPeople(activeIds);
+
   return officientEmployees.map((e) => ({
     id: e.id,
     name: e.name,
@@ -505,6 +510,7 @@ export async function getEmployees(): Promise<Employee[]> {
     functionTitle: e.function_title,
     startDate: e.start_date,
     status: e.status,
+    monthlyCost: wagesByPerson.get(e.id) ?? 0,
     assets: assetsByPerson.get(e.id) || [],
   }));
 }

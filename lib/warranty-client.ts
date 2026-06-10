@@ -3,6 +3,7 @@
 // Lenovo: ClientID header at supportapi.lenovo.com
 
 import type { WarrantyInfo } from "./types";
+import { fetchWithRetry } from "./http";
 
 // ====== Dell ======
 
@@ -11,7 +12,7 @@ async function getDellToken(): Promise<string> {
   const clientSecret = process.env.DELL_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new Error("Dell credentials not configured");
 
-  const response = await fetch("https://apigtwb2c.us.dell.com/auth/oauth/v2/token", {
+  const response = await fetchWithRetry("https://apigtwb2c.us.dell.com/auth/oauth/v2/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -37,7 +38,7 @@ export async function fetchDellWarranty(serviceTags: string[]): Promise<Warranty
   const results: WarrantyInfo[] = [];
   for (const batch of batches) {
     const tags = batch.join(",");
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `https://apigtwb2c.us.dell.com/PROD/sbil/eapi/v5/asset-entitlements?servicetags=${tags}`,
       { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } }
     );
@@ -79,7 +80,7 @@ export async function fetchLenovoWarranty(serialNumbers: string[]): Promise<Warr
   const results: WarrantyInfo[] = [];
   for (const serial of serialNumbers) {
     try {
-      const response = await fetch(
+      const response = await fetchWithRetry(
         `https://supportapi.lenovo.com/v2.5/warranty?serial=${serial}`,
         { headers: { ClientID: clientId, Accept: "application/json" } }
       );

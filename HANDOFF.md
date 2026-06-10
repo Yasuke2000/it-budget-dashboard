@@ -446,6 +446,19 @@ For production deployment, add these controls:
 
 ---
 
+## 13b. Connector Production-Hardening (June 2026)
+
+Pre-production audit of the live connectors. All changes are in `lib/`:
+
+- **Shared retry layer** (`lib/http.ts`, new): `fetchWithRetry()` handles 429/5xx with `Retry-After`-aware exponential backoff and a 30s abort timeout. All connectors now use it.
+- **Jira — breaking API migration**: Atlassian **removed** `GET /rest/api/3/search` (410 Gone since Oct 2025). Rewrote `jira-client.ts` to use `POST /rest/api/3/search/jql` with `nextPageToken` pagination, then pull worklogs from the dedicated `/issue/{key}/worklog` endpoint (the inline `worklog` field caps at 20 per issue → undercounted labour). Worklog time is valued at `JIRA_HOURLY_COST` (default €75/h).
+- **Officient — auth fix**: supports **two** auth modes — static `OFFICIENT_API_TOKEN` (from app.officient.io/developer) or OAuth2 `client_credentials` (token now cached until expiry). Endpoint corrected to `/people/list` with `page` pagination (30/page). Wage data (`current_wage`) is now actually fetched and mapped into `monthlyCost`, so personnel KPIs are no longer zero in live mode.
+- **Business Central**: added `id` + `documentNumber` to the `generalLedgerEntries` `$select` (mapper read fields that weren't requested). Replaced the request-blocking 60s rate-limit sleep with `Retry-After` backoff.
+- **Microsoft Graph**: added `id` + `userDisplayName` to the `managedDevices` `$select` (assigned user was always blank).
+- **Hosting decision**: target is the on-prem **homelab via Docker** (free, Belgian data residency for NIS2, long-lived process so the in-memory cache + sync cron share state correctly). `Dockerfile`/`docker-compose.yml` already present.
+
+**Still needs live verification against the real tenants** (couldn't confirm from public docs): Officient asset/wage endpoint paths + JSON shapes, and whether your Officient app uses `client_credentials` vs authorization-code (set `OFFICIENT_TOKEN_URL` if different).
+
 ## 14. Known Issues & Technical Debt (updated to remove resolved items)
 
 1. **Recharts SSR warnings** — "width(-1) and height(-1)" warnings during `next build` static generation. Harmless — Recharts can't measure `ResponsiveContainer` during SSR. Charts render correctly in browser.
