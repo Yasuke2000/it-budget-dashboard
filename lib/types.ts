@@ -263,6 +263,28 @@ export interface JiraProjectCost {
   contributors: number;
 }
 
+// === Software Licenses (non-Microsoft / manually tracked) ===
+// M365 licenses come live from Graph (M365License). This covers everything else
+// — Adobe, antivirus, SaaS subscriptions, perpetual/maintenance licenses — tracked
+// manually or via CSV/automated import.
+export interface SoftwareLicense {
+  id: string;
+  vendor: string;
+  product: string;
+  licenseType: "subscription" | "perpetual" | "open-source" | "maintenance";
+  seats: number;          // total / purchased
+  assignedSeats: number;  // in use
+  unitCost: number;       // cost per seat per billing cycle
+  billingCycle: "monthly" | "quarterly" | "annual" | "one-time";
+  monthlyCost: number;    // normalized
+  annualCost: number;     // normalized
+  renewalDate?: string;   // "YYYY-MM-DD"
+  autoRenew?: boolean;
+  category: string;       // IT cost category, e.g. "Software & Licenses", "Security"
+  source: string;         // "manual" | "csv"
+  notes?: string;
+}
+
 // === Contracts ===
 
 export interface Contract {

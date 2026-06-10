@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { authorizeImport as authorize } from "@/lib/import-auth";
-import { parseCSV, importEasyPayCSV } from "@/lib/csv-parser";
-import { savePayrollEntries, getPayrollEntries, clearPayrollEntries } from "@/lib/payroll-store";
+import { parseCSV, importSoftwareLicenseCSV } from "@/lib/csv-parser";
+import {
+  saveSoftwareLicenses,
+  getSoftwareLicensesStored,
+  clearSoftwareLicenses,
+} from "@/lib/software-license-store";
 
-// EasyPay payroll ingest — serves BOTH integration paths:
-//   • Manual:    the Import page POSTs the uploaded file here (multipart/form-data).
-//   • Automated: a cron job / SFTP-drop watcher POSTs the CSV text with the
-//                `Authorization: Bearer <SYNC_CRON_SECRET>` header.
+// Non-Microsoft software-license ingest. Manual upload (multipart) or automated
+// drop (Bearer SYNC_CRON_SECRET). Self-authorizing (excluded from middleware).
 
 async function readCsv(request: Request): Promise<string> {
   const contentType = request.headers.get("content-type") || "";
@@ -21,7 +23,7 @@ async function readCsv(request: Request): Promise<string> {
     const body = (await request.json()) as { csv?: string };
     return body.csv || "";
   }
-  return await request.text(); // raw text/csv
+  return await request.text();
 }
 
 export async function POST(request: Request) {
@@ -40,23 +42,21 @@ export async function POST(request: Request) {
   }
 
   const rows = parseCSV(csv);
-  const { data, errors, totalRows } = importEasyPayCSV(rows);
+  const { data, errors, totalRows } = importSoftwareLicenseCSV(rows);
   if (data.length === 0) {
     return NextResponse.json(
-      { error: "No valid payroll rows found — check the month and employer-cost columns", errors },
+      { error: "No valid license rows found — check the vendor/product columns", errors },
       { status: 422 }
     );
   }
 
-  const merged = await savePayrollEntries(data);
-  const total = data.reduce((s, e) => s + e.amount, 0);
-  const formatted = new Intl.NumberFormat("nl-BE", { style: "currency", currency: "EUR" }).format(total);
+  const merged = await saveSoftwareLicenses(data);
+  const annual = data.reduce((s, l) => s + l.annualCost, 0);
+  const formatted = new Intl.NumberFormat("nl-BE", { style: "currency", currency: "EUR" }).format(annual);
   return NextResponse.json({
     success: true,
     imported: data.length,
-    summary: `${data.length} month(s) — ${formatted} total IT-personnel cost`,
-    months: data.map((e) => e.month),
-    totalImportedCost: Math.round(total * 100) / 100,
+    summary: `${data.length} license(s) — ${formatted}/yr`,
     storedEntries: merged.length,
     rowsParsed: totalRows,
     warnings: errors.length ? errors : undefined,
@@ -67,14 +67,13 @@ export async function GET(request: Request) {
   if (!(await authorize(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const entries = await getPayrollEntries();
-  return NextResponse.json({ entries });
+  return NextResponse.json({ licenses: await getSoftwareLicensesStored() });
 }
 
 export async function DELETE(request: Request) {
   if (!(await authorize(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  await clearPayrollEntries("EasyPay");
+  await clearSoftwareLicenses();
   return NextResponse.json({ success: true });
 }

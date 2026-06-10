@@ -1,4 +1,4 @@
-import type { PurchaseInvoice, BudgetEntry, ManagedDevice, M365License, PayrollCostEntry } from './types';
+import type { PurchaseInvoice, BudgetEntry, ManagedDevice, M365License, PayrollCostEntry, SoftwareLicense } from './types';
 import { generateId } from './utils';
 
 // ─── Result types ─────────────────────────────────────────────────────────────
@@ -476,4 +476,102 @@ export function importEasyPayCSV(rows: Record<string, string>[]): ImportResult<P
 
   const data = Array.from(agg.values()).sort((a, b) => a.month.localeCompare(b.month));
   return { data, errors, duplicatesRemoved: 0, totalRows: rows.length };
+}
+
+// ─── Software-license mapper + validator (non-Microsoft / manual) ───────────────
+//
+// Tracks any license M365/Graph doesn't cover: Adobe, antivirus, SaaS, perpetual,
+// maintenance. Flexible NL/FR/EN columns; normalises cost to monthly + annual.
+
+const SWL_VENDOR_COLS = ['vendor', 'publisher', 'leverancier', 'fournisseur', 'supplier'];
+const SWL_PRODUCT_COLS = ['product', 'name', 'license', 'licence', 'software', 'naam', 'nom', 'productname'];
+const SWL_TYPE_COLS = ['type', 'licensetype', 'license_type', 'licencetype'];
+const SWL_SEATS_COLS = ['seats', 'quantity', 'qty', 'licenses', 'licences', 'total', 'purchased', 'aantal', 'count'];
+const SWL_ASSIGNED_COLS = ['assigned', 'used', 'consumed', 'active', 'gebruikt', 'inuse', 'assignedseats'];
+const SWL_COST_COLS = ['unitcost', 'unit_cost', 'price', 'cost', 'prijs', 'prix', 'unitprice', 'priceperseat', 'seatprice'];
+const SWL_CYCLE_COLS = ['billingcycle', 'billing', 'cycle', 'frequency', 'facturatie', 'period'];
+const SWL_RENEWAL_COLS = ['renewal', 'renewaldate', 'renewal_date', 'expiry', 'expirydate', 'enddate', 'end_date', 'vervaldatum', 'echeance'];
+const SWL_CATEGORY_COLS = ['category', 'categorie', 'costcategory'];
+const SWL_AUTORENEW_COLS = ['autorenew', 'auto_renew', 'autorenewal'];
+
+function normalizeLicenseType(raw: string): SoftwareLicense['licenseType'] {
+  const v = raw.toLowerCase();
+  if (v.includes('perpet')) return 'perpetual';
+  if (v.includes('open') || v.includes('foss') || v.includes('gpl')) return 'open-source';
+  if (v.includes('mainten') || v.includes('support')) return 'maintenance';
+  return 'subscription';
+}
+
+function normalizeBillingCycle(raw: string): SoftwareLicense['billingCycle'] {
+  const v = raw.toLowerCase();
+  if (v.startsWith('month') || v.includes('maand') || v.includes('mois')) return 'monthly';
+  if (v.startsWith('quart') || v.includes('kwart') || v.includes('trimest')) return 'quarterly';
+  if (v.includes('one') || v.includes('once') || v.includes('perpet') || v.includes('eenmalig')) return 'one-time';
+  return 'annual';
+}
+
+function isTruthy(raw: string): boolean {
+  const v = raw.toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'ja' || v === 'oui' || v === 'y';
+}
+
+export function mapSoftwareLicenseCSV(rows: Record<string, string>[]): SoftwareLicense[] {
+  return importSoftwareLicenseCSV(rows).data;
+}
+
+export function importSoftwareLicenseCSV(rows: Record<string, string>[]): ImportResult<SoftwareLicense> {
+  const errors: ValidationError[] = [];
+  const valid: SoftwareLicense[] = [];
+
+  rows.forEach((row, index) => {
+    const rowNum = index + 2;
+    const vendor = pickField(row, SWL_VENDOR_COLS);
+    const product = pickField(row, SWL_PRODUCT_COLS);
+
+    if (!vendor && !product) {
+      errors.push({ row: rowNum, field: 'product', message: 'Vendor or product name is required', value: '' });
+      return;
+    }
+
+    const seats = parseInt(pickField(row, SWL_SEATS_COLS).replace(/\D/g, ''), 10) || 0;
+    const assignedSeats = parseInt(pickField(row, SWL_ASSIGNED_COLS).replace(/\D/g, ''), 10) || 0;
+    const unitCost = parseEuroNumber(pickField(row, SWL_COST_COLS));
+    const billingCycle = normalizeBillingCycle(pickField(row, SWL_CYCLE_COLS));
+    const licenseType = normalizeLicenseType(pickField(row, SWL_TYPE_COLS));
+    const renewalRaw = pickField(row, SWL_RENEWAL_COLS);
+    const category = pickField(row, SWL_CATEGORY_COLS) || 'Software & Licenses';
+    const autoRenew = isTruthy(pickField(row, SWL_AUTORENEW_COLS));
+
+    // Cost per billing cycle for all seats, normalised to monthly + annual.
+    const perCycle = unitCost * (seats || 1);
+    let monthlyCost = 0;
+    let annualCost = 0;
+    switch (billingCycle) {
+      case 'monthly': monthlyCost = perCycle; annualCost = perCycle * 12; break;
+      case 'quarterly': monthlyCost = perCycle / 3; annualCost = perCycle * 4; break;
+      case 'annual': monthlyCost = perCycle / 12; annualCost = perCycle; break;
+      case 'one-time': monthlyCost = 0; annualCost = 0; break; // capex, not recurring
+    }
+
+    valid.push({
+      id: row.id || generateId(),
+      vendor: vendor || product,
+      product: product || vendor,
+      licenseType,
+      seats,
+      assignedSeats,
+      unitCost,
+      billingCycle,
+      monthlyCost: Math.round(monthlyCost * 100) / 100,
+      annualCost: Math.round(annualCost * 100) / 100,
+      renewalDate: renewalRaw && isValidDate(renewalRaw) ? renewalRaw : undefined,
+      autoRenew,
+      category,
+      source: 'csv',
+      notes: pickField(row, ['notes', 'note', 'opmerking', 'remarque']) || undefined,
+    });
+  });
+
+  const { items: deduped, removed } = deduplicateBy(valid, l => `${l.vendor.toLowerCase()}__${l.product.toLowerCase()}`);
+  return { data: deduped, errors, duplicatesRemoved: removed, totalRows: rows.length };
 }

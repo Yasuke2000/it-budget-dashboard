@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Trash2, AlertTriangle } from "lucide-react";
+import { Download, Trash2, AlertTriangle, Building2, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CsvImportCard } from "@/components/import/csv-import-card";
-import { EasyPayImportCard } from "@/components/import/easypay-import-card";
+import { ServerImportCard } from "@/components/import/server-import-card";
 import { clearAllImportedData } from "@/lib/imported-data";
 
 // ─── Template definitions ────────────────────────────────────────────────────
@@ -48,6 +48,14 @@ const TEMPLATES = {
       ["2025-01", "18250.00", "all"],
       ["2025-02", "18410.00", "all"],
       ["2025-03", "18960.00", "all"],
+    ],
+  },
+  softwarelicenses: {
+    headers: ["vendor", "product", "type", "seats", "assigned", "unit cost", "billing cycle", "renewal date", "category"],
+    rows: [
+      ["Adobe", "Creative Cloud", "subscription", "5", "4", "59.99", "monthly", "2026-09-30", "Software & Licenses"],
+      ["Bitdefender", "GravityZone", "subscription", "120", "118", "32.00", "annual", "2026-12-01", "Security"],
+      ["JetBrains", "All Products Pack", "subscription", "3", "3", "779.00", "annual", "2026-07-15", "Software & Licenses"],
     ],
   },
 } as const;
@@ -160,8 +168,21 @@ export default function ImportPage() {
             expectedColumns={card.expectedColumns}
           />
         ))}
-        {/* EasyPay payroll — server-side import (no API; CSV/TXT export) */}
-        <EasyPayImportCard />
+        {/* Server-side imports (persisted on the server, shared with the automated drop) */}
+        <ServerImportCard
+          title="EasyPay Payroll"
+          description="Monthly IT-personnel cost from EasyPay (EASY online export). Export only your IT department's payroll — it rolls up to the 'IT Personnel' cost line."
+          endpoint="/api/import/easypay"
+          icon={Building2}
+          columns={["maand / mois / month", "werkgeverskost / coût total / employer cost", "brutoloon / gross", "company (optional)"]}
+        />
+        <ServerImportCard
+          title="Other Software Licenses"
+          description="Non-Microsoft licenses (Adobe, antivirus, SaaS, perpetual). Tracked on the Licenses page with seats, cost and renewal date."
+          endpoint="/api/import/software-licenses"
+          icon={KeyRound}
+          columns={["vendor", "product", "seats", "assigned", "unit cost", "billing cycle", "renewal date", "category"]}
+        />
       </div>
 
       {/* Download templates section */}
@@ -199,6 +220,15 @@ export default function ImportPage() {
           >
             <Download className="h-3.5 w-3.5" />
             EasyPay
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => downloadCSV("software-licenses-template.csv", "softwarelicenses")}
+            className="border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white text-xs h-8 gap-1.5"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Licenses+
           </Button>
         </div>
       </div>

@@ -331,6 +331,16 @@ export async function getDevices(): Promise<ManagedDevice[]> {
   }
 }
 
+// ---- Software Licenses (non-Microsoft / manually tracked) ----
+export async function getSoftwareLicenses(): Promise<import("./types").SoftwareLicense[]> {
+  try {
+    const { getSoftwareLicensesStored } = await import("./software-license-store");
+    return await getSoftwareLicensesStored();
+  } catch {
+    return [];
+  }
+}
+
 // ---- Contracts ----
 export async function getContracts(): Promise<Contract[]> {
   if (isDemoMode()) return demoContracts;
