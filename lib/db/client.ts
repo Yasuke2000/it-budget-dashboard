@@ -36,8 +36,13 @@ function sslConfig() {
 
 export function getPool(): Pool {
   if (!pool) {
+    // Strip sslmode from the URL so our explicit `ssl` object is authoritative.
+    // node-postgres v8.21 treats `sslmode=require` in the connection string as
+    // verify-full against the system CA store, which rejects the in-cluster
+    // self-signed Postgres cert even though we supply the correct CA below.
+    const connectionString = process.env.DATABASE_URL?.replace(/([?&])sslmode=[^&]*&?/i, "$1").replace(/[?&]$/, "");
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString,
       ssl: sslConfig(),
       max: Number(process.env.DATABASE_POOL_MAX) || 10,
       idleTimeoutMillis: 30_000,
