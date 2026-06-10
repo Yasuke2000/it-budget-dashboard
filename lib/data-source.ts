@@ -30,7 +30,7 @@ import type {
   DepartmentSummary,
 } from "./types";
 import type { PeppolInvoice } from "./peppol-parser";
-import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING } from "./constants";
+import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING, UNCLASSIFIED_CATEGORY, isITCategory } from "./constants";
 import { generateAllInsights } from "./cost-insights";
 import type { CostInsight } from "./cost-insights";
 import { getCache, setCache } from "./sync-cache";
@@ -171,10 +171,12 @@ export async function getInvoices(
           })
         );
 
-        // Derive cost category from GL account of first line
+        // Derive cost category from GL account of first line. Accounts not in
+        // the IT mapping become "Unclassified" (not "Other IT") so non-IT
+        // company spend is never silently counted as IT.
         const firstAccount = lines[0]?.accountNumber || "";
         const costCategory =
-          DEFAULT_GL_MAPPING[firstAccount] || "Other IT";
+          DEFAULT_GL_MAPPING[firstAccount] || UNCLASSIFIED_CATEGORY;
 
         allInvoices.push({
           id: (inv.id as string) || "",
@@ -254,7 +256,7 @@ export async function getGLEntries(
       for (const entry of bcEntries) {
         const accountNumber = (entry.accountNumber as string) || "";
         const costCategory =
-          DEFAULT_GL_MAPPING[accountNumber] || "Other IT";
+          DEFAULT_GL_MAPPING[accountNumber] || UNCLASSIFIED_CATEGORY;
 
         allEntries.push({
           id: (entry.id as number) || 0,
@@ -370,7 +372,11 @@ export async function getDashboardKPIs(
   const licenses = await getLicenses();
   const devices = await getDevices();
 
-  const totalSpendYTD = invoices.reduce((sum, inv) => sum + inv.totalAmountExcludingTax, 0);
+  // Headline IT spend excludes "Unclassified" (non-IT GL accounts the BC feed
+  // may include) so the KPI is trustworthy IT-only spend.
+  const totalSpendYTD = invoices
+    .filter((inv) => isITCategory(inv.costCategory))
+    .reduce((sum, inv) => sum + inv.totalAmountExcludingTax, 0);
 
   // Filter budget entries to match the requested date range
   const fromMonth = from.substring(0, 7); // "2025-01"

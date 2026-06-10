@@ -36,7 +36,20 @@ export const CATEGORY_COLORS: Record<string, string> = {
   "Security": "#F5C710",
   "IT Personnel": "#882255",
   "Other IT": "#999999",
+  // Spend on GL accounts not in the IT mapping — NOT counted as IT by default.
+  "Unclassified": "#4b5563",
 };
+
+// Bucket used in live mode when a purchase invoice / GL entry hits an account
+// that isn't in DEFAULT_GL_MAPPING. Kept distinct from "Other IT" so non-IT
+// company spend never silently inflates the IT totals — the dashboard excludes
+// it by default and surfaces how much is unclassified.
+export const UNCLASSIFIED_CATEGORY = "Unclassified";
+
+/** True for categories that count as IT spend (everything except Unclassified). */
+export function isITCategory(category: string): boolean {
+  return category !== UNCLASSIFIED_CATEGORY;
+}
 
 export const SKU_NAMES: Record<string, string> = {
   ENTERPRISEPACK: "Office 365 E3",
