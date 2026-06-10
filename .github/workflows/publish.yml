@@ -1,0 +1,43 @@
+name: Publish image
+
+# Builds the container image and pushes it to GHCR on every push to master.
+# Tags: `sha-<short>` (immutable, used by the homelab deployment) and `latest`.
+# The homelab apps/it-finance deployment pulls ghcr.io/yasuke2000/it-budget-dashboard.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: meta
+        run: |
+          echo "sha=sha-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/yasuke2000/it-budget-dashboard:${{ steps.meta.outputs.sha }}
+            ghcr.io/yasuke2000/it-budget-dashboard:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
