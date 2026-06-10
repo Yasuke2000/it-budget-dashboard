@@ -12,6 +12,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type { PayrollCostEntry } from "./types";
+import { isDbEnabled, ensureSchema, withClient } from "./db/client";
 
 const DATA_DIR = process.env.PAYROLL_DATA_DIR || path.join(process.cwd(), "data");
 const STORE_PATH = path.join(DATA_DIR, "easypay-payroll.json");
@@ -38,8 +39,24 @@ async function writeToDisk(entries: PayrollCostEntry[]): Promise<boolean> {
   }
 }
 
-/** All stored payroll entries (disk first, then in-memory fallback). */
+/** All stored payroll entries. Postgres when configured, else disk/in-memory. */
 export async function getPayrollEntries(): Promise<PayrollCostEntry[]> {
+  if (isDbEnabled()) {
+    await ensureSchema();
+    return withClient(async (c) => {
+      const { rows } = await c.query(
+        `SELECT source, company_id, month, amount, headcount
+           FROM payroll_entries ORDER BY month ASC`
+      );
+      return rows.map((r) => ({
+        source: r.source as string,
+        companyId: r.company_id as string,
+        month: r.month as string,
+        amount: Number(r.amount),
+        headcount: r.headcount == null ? undefined : Number(r.headcount),
+      }));
+    });
+  }
   const disk = await readFromDisk();
   if (disk) return disk;
   return memoryStore ?? [];
@@ -52,6 +69,22 @@ export async function getPayrollEntries(): Promise<PayrollCostEntry[]> {
 export async function savePayrollEntries(
   incoming: PayrollCostEntry[]
 ): Promise<PayrollCostEntry[]> {
+  if (isDbEnabled()) {
+    await ensureSchema();
+    await withClient(async (c) => {
+      for (const e of incoming) {
+        await c.query(
+          `INSERT INTO payroll_entries (source, company_id, month, amount, headcount, updated_at)
+             VALUES ($1, $2, $3, $4, $5, NOW())
+           ON CONFLICT (source, company_id, month)
+             DO UPDATE SET amount = EXCLUDED.amount, headcount = EXCLUDED.headcount, updated_at = NOW()`,
+          [e.source, e.companyId, e.month, e.amount, e.headcount ?? null]
+        );
+      }
+    });
+    return getPayrollEntries();
+  }
+
   const existing = await getPayrollEntries();
   const key = (e: PayrollCostEntry) => `${e.source}__${e.companyId}__${e.month}`;
   const merged = new Map<string, PayrollCostEntry>();
@@ -66,6 +99,11 @@ export async function savePayrollEntries(
 
 /** Remove all entries for a source (default EasyPay). */
 export async function clearPayrollEntries(source = "EasyPay"): Promise<void> {
+  if (isDbEnabled()) {
+    await ensureSchema();
+    await withClient((c) => c.query(`DELETE FROM payroll_entries WHERE source = $1`, [source]));
+    return;
+  }
   const existing = await getPayrollEntries();
   const remaining = existing.filter((e) => e.source !== source);
   const wrote = await writeToDisk(remaining);

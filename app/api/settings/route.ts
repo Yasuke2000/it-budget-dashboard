@@ -1,30 +1,25 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_GL_MAPPING, DEFAULT_LICENSE_PRICES } from "@/lib/constants";
+import { getAppSettings, saveAppSettings } from "@/lib/settings-store";
 
 export async function GET() {
-  return NextResponse.json({
-    glMappings: DEFAULT_GL_MAPPING,
-    licensePrices: DEFAULT_LICENSE_PRICES,
-  });
+  const { glMappings, licensePrices } = await getAppSettings();
+  return NextResponse.json({ glMappings, licensePrices });
 }
 
 export async function POST(request: Request) {
-  // In a production app these settings would be validated and persisted
-  // (e.g. to a database or a config file). For now we just echo them back.
   try {
-    const body = await request.json();
-    const { glMappings, licensePrices } = body as {
+    const body = (await request.json()) as {
       glMappings?: Record<string, string>;
       licensePrices?: Record<string, number>;
     };
-
+    const settings = await saveAppSettings({
+      glMappings: body.glMappings,
+      licensePrices: body.licensePrices,
+    });
     return NextResponse.json({
       status: "ok",
-      message: "Settings received (persistence not yet implemented)",
-      settings: {
-        glMappings: glMappings ?? DEFAULT_GL_MAPPING,
-        licensePrices: licensePrices ?? DEFAULT_LICENSE_PRICES,
-      },
+      message: "Settings saved",
+      settings,
     });
   } catch {
     return NextResponse.json(
