@@ -36,7 +36,6 @@ export default function OverviewPage() {
   } | null>(null);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     let cancelled = false;
     const params = new URLSearchParams({

@@ -47,6 +47,56 @@ function isDemoMode(): boolean {
   return process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
 }
 
+// Merge imported EasyPay payroll into the invoice list as an "IT Personnel" cost
+// line, so personnel cost appears in Total Spend, Category breakdown and Vendors.
+// Applied on every getInvoices() return path (incl. cache hits) so it's never
+// lost to caching. Range/company filtering matches the invoice query.
+async function applyPayroll(
+  invoices: PurchaseInvoice[],
+  companyFilter: CompanyFilter,
+  dateFrom?: string,
+  dateTo?: string
+): Promise<PurchaseInvoice[]> {
+  let entries;
+  try {
+    const { getPayrollEntries } = await import("./payroll-store");
+    entries = await getPayrollEntries();
+  } catch {
+    return invoices;
+  }
+  if (!entries.length) return invoices;
+
+  const fromMonth = dateFrom?.substring(0, 7);
+  const toMonth = dateTo?.substring(0, 7);
+  const synthetic: PurchaseInvoice[] = [];
+  for (const e of entries) {
+    if (companyFilter !== "all" && e.companyId !== "all" && e.companyId !== companyFilter) continue;
+    if (fromMonth && e.month < fromMonth) continue;
+    if (toMonth && e.month > toMonth) continue;
+    const postingDate = `${e.month}-01`;
+    const companyId = e.companyId === "all" ? (companyFilter !== "all" ? companyFilter : "all") : e.companyId;
+    synthetic.push({
+      id: `payroll-${e.source}-${e.companyId}-${e.month}`,
+      number: `${e.source.toUpperCase()}-PAYROLL-${e.month}`,
+      invoiceDate: postingDate,
+      postingDate,
+      dueDate: postingDate,
+      vendorNumber: "EASYPAY",
+      vendorName: `${e.source} (Payroll)`,
+      totalAmountExcludingTax: e.amount,
+      totalAmountIncludingTax: e.amount,
+      totalTaxAmount: 0,
+      status: "Paid",
+      currencyCode: "EUR",
+      companyId,
+      companyName: companyId,
+      costCategory: "IT Personnel",
+      lines: [],
+    });
+  }
+  return synthetic.length ? [...invoices, ...synthetic] : invoices;
+}
+
 // ---- Companies ----
 export async function getCompanies(): Promise<Company[]> {
   if (isDemoMode()) return demoCompanies;
@@ -87,14 +137,14 @@ export async function getInvoices(
     if (dateTo) {
       invoices = invoices.filter((inv) => inv.postingDate <= dateTo);
     }
-    return invoices;
+    return applyPayroll(invoices, companyFilter, dateFrom, dateTo);
   }
 
   const from = dateFrom ?? "2025-01-01";
   const to = dateTo ?? "2025-12-31";
   const cacheKey = `invoices-${companyFilter}-${from}-${to}`;
   const cached = getCache<PurchaseInvoice[]>(cacheKey);
-  if (cached) return cached;
+  if (cached) return applyPayroll(cached, companyFilter, from, to);
 
   try {
     const companies = await getCompanies();
@@ -148,7 +198,7 @@ export async function getInvoices(
     }
 
     setCache(cacheKey, allInvoices, 120); // 2h TTL
-    return allInvoices;
+    return applyPayroll(allInvoices, companyFilter, from, to);
   } catch (err) {
     console.warn("BC API error (invoices), falling back to demo data:", err);
     let invoices = demoInvoices;
@@ -161,7 +211,7 @@ export async function getInvoices(
     if (dateTo) {
       invoices = invoices.filter((inv) => inv.postingDate <= dateTo);
     }
-    return invoices;
+    return applyPayroll(invoices, companyFilter, from, to);
   }
 }
 

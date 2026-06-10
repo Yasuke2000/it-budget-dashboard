@@ -49,6 +49,8 @@ export function ContractTable({ contracts }: ContractTableProps) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [expiryFilter, setExpiryFilter] = useState("all");
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+  // Stable "now" captured once at mount — keeps the filter useMemo pure.
+  const [now] = useState(() => Date.now());
 
   const filtered = useMemo(() => {
     let result = [...contracts];
@@ -56,7 +58,6 @@ export function ContractTable({ contracts }: ContractTableProps) {
     if (statusFilter !== "all") result = result.filter((c) => c.status === statusFilter);
     if (expiryFilter !== "all") {
       const days = parseInt(expiryFilter);
-      const now = Date.now();
       result = result.filter((c) => {
         const daysLeft = (new Date(c.endDate).getTime() - now) / 86400000;
         return daysLeft > 0 && daysLeft <= days;
@@ -64,7 +65,7 @@ export function ContractTable({ contracts }: ContractTableProps) {
     }
     // Sort by days left ascending
     return result.sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime());
-  }, [contracts, categoryFilter, statusFilter, expiryFilter]);
+  }, [contracts, categoryFilter, statusFilter, expiryFilter, now]);
 
   return (
     <Card className="bg-slate-900 border-slate-800">

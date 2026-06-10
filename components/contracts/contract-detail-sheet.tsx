@@ -56,6 +56,13 @@ function getDaysLeft(endDate: string): number {
   return Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000);
 }
 
+// Days until the notice deadline (end date minus the notice period).
+function getNoticeDaysLeft(endDate: string, noticePeriodDays: number): number {
+  const noticeDate = new Date(endDate);
+  noticeDate.setDate(noticeDate.getDate() - noticePeriodDays);
+  return Math.ceil((noticeDate.getTime() - Date.now()) / 86400000);
+}
+
 function getDaysLeftColor(days: number): string {
   if (days < 0) return "text-slate-400";
   if (days <= 30) return "text-red-400";
@@ -144,9 +151,7 @@ export function ContractDetailSheet({ contract, open, onOpenChange }: ContractDe
                 <p className="text-xs text-slate-500">
                   {contract.noticePeriodDays} days before end date
                   {(() => {
-                    const noticeDate = new Date(contract.endDate);
-                    noticeDate.setDate(noticeDate.getDate() - contract.noticePeriodDays);
-                    const noticeDaysLeft = Math.ceil((noticeDate.getTime() - Date.now()) / 86400000);
+                    const noticeDaysLeft = getNoticeDaysLeft(contract.endDate, contract.noticePeriodDays);
                     if (noticeDaysLeft <= 0) {
                       return " — notice period has passed";
                     }

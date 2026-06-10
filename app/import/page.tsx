@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Download, Trash2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CsvImportCard } from "@/components/import/csv-import-card";
+import { EasyPayImportCard } from "@/components/import/easypay-import-card";
 import { clearAllImportedData } from "@/lib/imported-data";
 
 // ─── Template definitions ────────────────────────────────────────────────────
@@ -39,6 +40,14 @@ const TEMPLATES = {
       ["SPE_E3", "Microsoft 365 E3", "100", "87", "32.00"],
       ["ENTERPRISEPREMIUM", "Microsoft 365 E5", "50", "48", "54.80"],
       ["POWER_BI_PRO", "Power BI Pro", "30", "22", "9.40"],
+    ],
+  },
+  easypay: {
+    headers: ["month", "employer cost", "company"],
+    rows: [
+      ["2025-01", "18250.00", "all"],
+      ["2025-02", "18410.00", "all"],
+      ["2025-03", "18960.00", "all"],
     ],
   },
 } as const;
@@ -134,8 +143,8 @@ export default function ImportPage() {
         <div className="space-y-1">
           <p className="text-sm font-medium text-white">How it works</p>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Uploaded data is parsed in the browser and saved to <code className="bg-slate-700 rounded px-1 text-teal-300">localStorage</code>. Nothing is sent to a server.
-            Once imported, the dashboard uses your data in place of the built-in demo data. Clearing a data type reverts that section back to demo data.
+            Invoices, budget, devices and licenses are parsed in the browser and saved to <code className="bg-slate-700 rounded px-1 text-teal-300">localStorage</code> — nothing leaves your machine.
+            EasyPay payroll is stored on the server (so the automated drop and dashboard can read it). Once imported, the dashboard uses your data in place of the built-in demo data.
           </p>
         </div>
       </div>
@@ -151,6 +160,8 @@ export default function ImportPage() {
             expectedColumns={card.expectedColumns}
           />
         ))}
+        {/* EasyPay payroll — server-side import (no API; CSV/TXT export) */}
+        <EasyPayImportCard />
       </div>
 
       {/* Download templates section */}
@@ -180,6 +191,15 @@ export default function ImportPage() {
               {card.title}
             </Button>
           ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => downloadCSV("easypay-template.csv", "easypay")}
+            className="border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white text-xs h-8 gap-1.5"
+          >
+            <Download className="h-3.5 w-3.5" />
+            EasyPay
+          </Button>
         </div>
       </div>
 

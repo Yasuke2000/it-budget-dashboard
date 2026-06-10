@@ -11,6 +11,8 @@ import type { Contract } from "@/lib/types";
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
+  // Stable "now" captured once at mount — keeps the KPI useMemo pure.
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
     fetch("/api/contracts")
@@ -20,7 +22,6 @@ export default function ContractsPage() {
   }, []);
 
   const kpis = useMemo(() => {
-    const now = Date.now();
     const active = contracts.filter((c) => c.status === "active" || c.status === "expiring_soon");
     const expiringSoon = contracts.filter((c) => {
       const days = (new Date(c.endDate).getTime() - now) / 86400000;
@@ -35,7 +36,7 @@ export default function ContractsPage() {
         }, 0) / active.length
       : 0;
     return { activeCount: active.length, expiringCount: expiringSoon.length, totalAnnual, avgDuration };
-  }, [contracts]);
+  }, [contracts, now]);
 
   if (loading) {
     return (

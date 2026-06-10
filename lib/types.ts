@@ -37,6 +37,17 @@ export interface PurchaseInvoiceLine {
   accountNumber: string;
 }
 
+// Monthly IT-personnel cost imported from EasyPay (social secretariat) payroll
+// exports. EasyPay has no API, so this arrives as a CSV/TXT file via manual
+// upload or automated drop and is merged into spend as an "IT Personnel" line.
+export interface PayrollCostEntry {
+  month: string;       // "YYYY-MM"
+  companyId: string;   // "all" or "comp-*"
+  amount: number;      // employer cost in EUR
+  headcount?: number;
+  source: string;      // e.g. "EasyPay"
+}
+
 export interface GeneralLedgerEntry {
   id: number;
   postingDate: string;

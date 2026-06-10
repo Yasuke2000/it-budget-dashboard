@@ -1,4 +1,4 @@
-import type { PurchaseInvoice, BudgetEntry, ManagedDevice, M365License } from './types';
+import type { PurchaseInvoice, BudgetEntry, ManagedDevice, M365License, PayrollCostEntry } from './types';
 import { generateId } from './utils';
 
 // ─── Result types ─────────────────────────────────────────────────────────────
@@ -67,6 +67,47 @@ function isValidDate(value: string): boolean {
 function isValidNumber(value: string): boolean {
   if (value === '' || value === undefined) return false;
   return !isNaN(parseFloat(value));
+}
+
+// Pick the first non-empty value among a set of candidate header names,
+// matching case-insensitively (handles NL/FR/EN export column variants).
+function pickField(row: Record<string, string>, candidates: string[]): string {
+  const lower = new Map<string, string>();
+  for (const [k, v] of Object.entries(row)) lower.set(k.trim().toLowerCase(), v);
+  for (const c of candidates) {
+    const v = lower.get(c.toLowerCase());
+    if (v !== undefined && v.trim() !== '') return v.trim();
+  }
+  return '';
+}
+
+// Parse a European-formatted number: "1.234,56" or "1 234,56" or "1234.56".
+function parseEuroNumber(value: string): number {
+  if (!value) return 0;
+  let s = value.replace(/[€\s]/g, '');
+  if (s.includes(',') && s.includes('.')) {
+    // Both present: assume '.' thousands, ',' decimal (Belgian format)
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (s.includes(',')) {
+    s = s.replace(',', '.');
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+// Normalise many date/period spellings to "YYYY-MM".
+function toYearMonth(value: string): string {
+  if (!value) return '';
+  const v = value.trim();
+  let m = v.match(/^(\d{4})[-/](\d{1,2})/);            // 2025-03 / 2025/3 / 2025-03-01
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}`;
+  m = v.match(/^(\d{1,2})[-/](\d{4})$/);                // 03/2025
+  if (m) return `${m[2]}-${m[1].padStart(2, '0')}`;
+  m = v.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);   // 01/03/2025 (DD/MM/YYYY)
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}`;
+  const d = new Date(v);                                // "March 2025" etc.
+  if (!isNaN(d.getTime())) return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+  return '';
 }
 
 // ─── Deduplication helper ─────────────────────────────────────────────────────
@@ -377,4 +418,62 @@ export function importLicenseCSV(rows: Record<string, string>[]): ImportResult<M
     duplicatesRemoved: removed,
     totalRows: rows.length,
   };
+}
+
+// ─── EasyPay payroll mapper + validator ─────────────────────────────────────────
+//
+// EasyPay (social secretariat) payroll export → monthly IT-personnel cost.
+// Export ONLY your IT department's payroll from EASY online, then the whole file
+// rolls up to the "IT Personnel" cost line. Rows are aggregated per month (and
+// per company if a company column is present). Employer cost is preferred over
+// gross. Column names are matched flexibly across NL / FR / EN.
+
+const EASYPAY_MONTH_COLS = ['month', 'maand', 'mois', 'periode', 'période', 'period', 'date', 'datum'];
+const EASYPAY_COST_COLS = [
+  'employer cost', 'werkgeverskost', 'werkgeverskosten', 'totale kost', 'totale loonkost',
+  'coût total', 'cout total', 'coût patronal', 'cout patronal', 'total_cost', 'totalcost', 'kost', 'cost',
+];
+const EASYPAY_GROSS_COLS = ['gross', 'brutoloon', 'bruto', 'salaire brut', 'brut', 'gross_monthly'];
+const EASYPAY_COMPANY_COLS = ['companyid', 'company_id', 'company', 'onderneming', 'bedrijf', 'entité', 'entite', 'entity'];
+const EASYPAY_HEADCOUNT_COLS = ['headcount', 'aantal', 'nombre', 'fte', 'count'];
+
+export function mapEasyPayCSV(rows: Record<string, string>[]): PayrollCostEntry[] {
+  return importEasyPayCSV(rows).data;
+}
+
+export function importEasyPayCSV(rows: Record<string, string>[]): ImportResult<PayrollCostEntry> {
+  const errors: ValidationError[] = [];
+  const agg = new Map<string, PayrollCostEntry>();
+
+  rows.forEach((row, index) => {
+    const rowNum = index + 2;
+
+    const month = toYearMonth(pickField(row, EASYPAY_MONTH_COLS));
+    const costRaw = pickField(row, EASYPAY_COST_COLS) || pickField(row, EASYPAY_GROSS_COLS);
+    const companyId = pickField(row, EASYPAY_COMPANY_COLS) || 'all';
+    const headcountRaw = pickField(row, EASYPAY_HEADCOUNT_COLS);
+
+    if (!month) {
+      errors.push({ row: rowNum, field: 'month', message: 'Could not read a month/period column', value: pickField(row, EASYPAY_MONTH_COLS) });
+      return;
+    }
+    if (!costRaw) {
+      errors.push({ row: rowNum, field: 'amount', message: 'Could not read an employer-cost / gross column', value: '' });
+      return;
+    }
+
+    const amount = parseEuroNumber(costRaw);
+    const headcount = headcountRaw ? parseInt(headcountRaw.replace(/\D/g, ''), 10) || undefined : undefined;
+    const key = `${companyId}__${month}`;
+    const existing = agg.get(key);
+    if (existing) {
+      existing.amount += amount;
+      if (headcount) existing.headcount = (existing.headcount || 0) + headcount;
+    } else {
+      agg.set(key, { month, companyId, amount, headcount, source: 'EasyPay' });
+    }
+  });
+
+  const data = Array.from(agg.values()).sort((a, b) => a.month.localeCompare(b.month));
+  return { data, errors, duplicatesRemoved: 0, totalRows: rows.length };
 }
