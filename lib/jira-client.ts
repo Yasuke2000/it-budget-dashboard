@@ -116,7 +116,7 @@ async function fetchIssueWorklogs(
 }
 
 export async function fetchJiraWorklogs(
-  projectKeys: string[] = ["ITSUP", "INFRA", "SEC", "PROJ"],
+  projectKeys: string[] = ["IT", "GP"],
   dateFrom?: string,
   dateTo?: string
 ): Promise<JiraWorklog[]> {

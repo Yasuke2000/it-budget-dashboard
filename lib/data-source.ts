@@ -140,8 +140,9 @@ export async function getInvoices(
     return applyPayroll(invoices, companyFilter, dateFrom, dateTo);
   }
 
-  const from = dateFrom ?? "2025-01-01";
-  const to = dateTo ?? "2025-12-31";
+  const yr = new Date().getFullYear();
+  const from = dateFrom ?? `${yr}-01-01`;
+  const to = dateTo ?? `${yr}-12-31`;
   const cacheKey = `invoices-${companyFilter}-${from}-${to}`;
   const cached = getCache<PurchaseInvoice[]>(cacheKey);
   if (cached) return applyPayroll(cached, companyFilter, from, to);
@@ -237,8 +238,9 @@ export async function getGLEntries(
     return entries;
   }
 
-  const from = dateFrom ?? "2025-01-01";
-  const to = dateTo ?? "2025-12-31";
+  const yr = new Date().getFullYear();
+  const from = dateFrom ?? `${yr}-01-01`;
+  const to = dateTo ?? `${yr}-12-31`;
   const cacheKey = `gl-entries-${companyFilter}-${from}-${to}`;
   const cached = getCache<GeneralLedgerEntry[]>(cacheKey);
   if (cached) return cached;
@@ -375,8 +377,9 @@ export async function getDashboardKPIs(
   dateFrom?: string,
   dateTo?: string
 ): Promise<DashboardKPIs> {
-  const from = dateFrom ?? "2025-01-01";
-  const to = dateTo ?? "2025-12-31";
+  const yr = new Date().getFullYear();
+  const from = dateFrom ?? `${yr}-01-01`;
+  const to = dateTo ?? `${yr}-12-31`;
   const invoices = await getInvoices(companyFilter, from, to);
   const budget = await getBudgetEntries(companyFilter);
   const licenses = await getLicenses();
@@ -437,8 +440,9 @@ export async function getMonthlySpend(
   dateFrom?: string,
   dateTo?: string
 ): Promise<MonthlySpend[]> {
-  const from = dateFrom ?? "2025-01-01";
-  const to = dateTo ?? "2025-12-31";
+  const yr = new Date().getFullYear();
+  const from = dateFrom ?? `${yr}-01-01`;
+  const to = dateTo ?? `${yr}-12-31`;
   const budget = await getBudgetEntries(companyFilter);
 
   // Enumerate all year-months within the requested range
@@ -471,8 +475,9 @@ export async function getCategorySpend(
   dateFrom?: string,
   dateTo?: string
 ): Promise<CategorySpend[]> {
-  const from = dateFrom ?? "2025-01-01";
-  const to = dateTo ?? "2025-12-31";
+  const yr = new Date().getFullYear();
+  const from = dateFrom ?? `${yr}-01-01`;
+  const to = dateTo ?? `${yr}-12-31`;
   const invoices = await getInvoices(companyFilter, from, to);
   const budget = await getBudgetEntries(companyFilter);
 
@@ -608,10 +613,8 @@ export async function getJiraProjectCosts(): Promise<JiraProjectCost[]> {
   const worklogs = await getJiraWorklogs();
 
   const PROJECT_NAMES: Record<string, string> = {
-    ITSUP: "IT Support",
-    INFRA: "Infrastructure",
-    SEC: "Security",
-    PROJ: "Projects",
+    IT: "IT Support",
+    GP: "Development & Projects",
   };
 
   const projectMap = new Map<

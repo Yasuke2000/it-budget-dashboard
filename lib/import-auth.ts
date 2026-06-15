@@ -8,8 +8,11 @@ import { auth } from "./auth";
 export async function authorizeImport(request: Request): Promise<boolean> {
   const secret = process.env.SYNC_CRON_SECRET;
   const header = request.headers.get("authorization");
+  // Automated jobs (cron, SFTP-drop) use a static bearer token.
   if (secret && header === `Bearer ${secret}`) return true;
-  if (!process.env.AUTH_MICROSOFT_ENTRA_ID_ID) return true;
+  // Manual browser uploads require an active session.
+  // In homelab mode (Authelia gating, no NextAuth configured) this always
+  // returns null — import API is then only reachable via the cron secret.
   const session = await auth();
   return !!session;
 }
