@@ -118,35 +118,6 @@ const BCSetupContent = (
   </div>
 );
 
-const JiraSetupContent = (
-  <div className="space-y-4 text-sm">
-    <p className="text-slate-300">
-      Connect to Jira Cloud to pull worklogs, time tracking entries, and calculate project labor costs.
-    </p>
-    <div className="bg-slate-800 rounded-lg p-4 space-y-3">
-      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Required .env variables</p>
-      {[
-        { key: "JIRA_BASE_URL", example: "https://your-org.atlassian.net" },
-        { key: "JIRA_EMAIL", example: "admin@your-org.com" },
-        { key: "JIRA_API_TOKEN", example: "your-api-token" },
-      ].map(({ key, example }) => (
-        <div key={key}>
-          <code className="text-xs font-mono text-slate-200">{key}</code>
-          <p className="text-xs text-slate-500">e.g. {example}</p>
-        </div>
-      ))}
-    </div>
-    <a
-      href="https://id.atlassian.com/manage-profile/security/api-tokens"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 text-teal-400 hover:text-teal-300 text-xs transition-colors"
-    >
-      <ExternalLink className="h-3 w-3" /> Generate API token at id.atlassian.com
-    </a>
-  </div>
-);
-
 const OfficientSetupContent = (
   <div className="space-y-4 text-sm">
     <p className="text-slate-300">
@@ -439,15 +410,6 @@ const CONNECTORS: ConnectorDef[] = [
     provides: ["Invoices", "GL Entries", "Budget", "Chart of Accounts"],
     status: "not_connected",
     setupContent: BCSetupContent,
-  },
-  {
-    id: "jira",
-    name: "Jira Cloud",
-    icon: Plug,
-    iconColor: "text-blue-500",
-    provides: ["Worklogs", "Time Tracking", "Project Costs"],
-    status: "not_connected",
-    setupContent: JiraSetupContent,
   },
   {
     id: "officient",

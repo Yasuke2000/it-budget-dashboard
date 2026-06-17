@@ -157,7 +157,6 @@ interface ConnectionStatus {
   services: {
     bc: ServiceStatus;
     graph: ServiceStatus;
-    jira: ServiceStatus;
     dell: ServiceStatus;
     lenovo: ServiceStatus;
   };
@@ -300,7 +299,6 @@ function GeneralTab() {
   }> = [
     { label: "Business Central", key: "bc", description: "BC_CLIENT_ID + BC_CLIENT_SECRET" },
     { label: "Microsoft Graph", key: "graph", description: "Same app registration as BC" },
-    { label: "Jira Cloud", key: "jira", description: "JIRA_BASE_URL + JIRA_API_TOKEN" },
     { label: "Dell TechDirect", key: "dell", description: "DELL_CLIENT_ID + DELL_CLIENT_SECRET" },
     { label: "Lenovo eSupport", key: "lenovo", description: "LENOVO_CLIENT_ID" },
   ];

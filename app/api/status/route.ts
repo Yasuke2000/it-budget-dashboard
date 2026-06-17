@@ -13,7 +13,6 @@ export async function GET() {
   const status: Record<string, ServiceStatus> = {
     bc: { configured: false, connected: false, error: null },
     graph: { configured: false, connected: false, error: null },
-    jira: { configured: false, connected: false, error: null },
     dell: { configured: false, connected: false, error: null },
     lenovo: { configured: false, connected: false, error: null },
   };
@@ -30,12 +29,6 @@ export async function GET() {
     status.graph.configured = true;
     try { await getGraphToken(); status.graph.connected = true; }
     catch (e: unknown) { status.graph.error = e instanceof Error ? e.message : String(e); }
-  }
-
-  // Jira
-  if (process.env.JIRA_BASE_URL && process.env.JIRA_EMAIL && process.env.JIRA_API_TOKEN) {
-    status.jira.configured = true;
-    status.jira.connected = true; // no cheap auth test for Jira, assume OK if configured
   }
 
   // Dell

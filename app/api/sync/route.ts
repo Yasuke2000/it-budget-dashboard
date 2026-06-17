@@ -8,7 +8,6 @@ import {
   getGLEntries,
   getLicenses,
   getDevices,
-  getJiraWorklogs,
 } from "@/lib/data-source";
 
 // Daily cron-triggered sync. Refreshes the in-memory cache under the SAME keys
@@ -58,18 +57,6 @@ export async function POST(request: Request) {
     }
   } else {
     results.graph = "skipped (not configured)";
-  }
-
-  // 3. Jira worklogs.
-  if (process.env.JIRA_BASE_URL && process.env.JIRA_API_TOKEN) {
-    try {
-      const worklogs = await getJiraWorklogs();
-      results.jira = `OK — ${worklogs.length} worklogs`;
-    } catch (err: unknown) {
-      errors.jira = err instanceof Error ? err.message : String(err);
-    }
-  } else {
-    results.jira = "skipped (not configured)";
   }
 
   return NextResponse.json({

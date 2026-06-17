@@ -26,9 +26,6 @@ interface WizardSettings {
   clientId: string;
   clientSecret: string;
   bcEnvironment: string;
-  jiraEnabled: boolean;
-  jiraBaseUrl: string;
-  jiraApiToken: string;
   officientEnabled: boolean;
   officientClientId: string;
   knoxEnabled: boolean;
@@ -77,9 +74,6 @@ function loadWizardSettings(): WizardSettings {
     clientId: "",
     clientSecret: "",
     bcEnvironment: "",
-    jiraEnabled: false,
-    jiraBaseUrl: "",
-    jiraApiToken: "",
     officientEnabled: false,
     officientClientId: "",
     knoxEnabled: false,
@@ -402,43 +396,7 @@ function OptionalStep({
       </div>
 
       <div className="flex flex-col gap-4">
-        {/* Jira */}
-        <div className={cn(
-          "rounded-lg border px-4 py-3 flex flex-col gap-3 transition-colors",
-          settings.jiraEnabled ? "border-purple-500/30 bg-purple-500/5" : "border-slate-700 bg-slate-800/40"
-        )}>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={settings.jiraEnabled}
-              onChange={e => onChange({ jiraEnabled: e.target.checked })}
-              className="h-4 w-4 rounded border-slate-600 bg-slate-700 accent-purple-500"
-            />
-            <div>
-              <span className="text-sm font-semibold text-white">Jira Cloud</span>
-              <p className="text-xs text-slate-400">IT project costs and ticket data</p>
-            </div>
-          </label>
-          {settings.jiraEnabled && (
-            <div className="flex flex-col gap-2 pl-7">
-              <Input
-                placeholder="Base URL (e.g. https://yourorg.atlassian.net)"
-                value={settings.jiraBaseUrl}
-                onChange={e => onChange({ jiraBaseUrl: e.target.value })}
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 text-xs h-8"
-              />
-              <Input
-                type="password"
-                placeholder="API Token"
-                value={settings.jiraApiToken}
-                onChange={e => onChange({ jiraApiToken: e.target.value })}
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 text-xs h-8"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Officient HR */}
+          {/* Officient HR */}
         <div className={cn(
           "rounded-lg border px-4 py-3 flex flex-col gap-3 transition-colors",
           settings.officientEnabled ? "border-blue-500/30 bg-blue-500/5" : "border-slate-700 bg-slate-800/40"
@@ -520,7 +478,6 @@ function DoneStep({
   const connected: string[] = [];
   if (settings.tenantId && settings.clientId) connected.push("Microsoft 365 / Entra ID");
   if (settings.bcEnvironment) connected.push("Business Central");
-  if (settings.jiraEnabled && settings.jiraBaseUrl) connected.push("Jira Cloud");
   if (settings.officientEnabled && settings.officientClientId) connected.push("Officient HR");
   if (settings.knoxEnabled && settings.knoxClientId) connected.push("Samsung Knox");
 
