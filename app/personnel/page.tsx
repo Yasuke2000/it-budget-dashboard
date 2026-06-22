@@ -1,5 +1,6 @@
 import { PersonnelContent } from "@/components/personnel/personnel-content";
-import { getEmployees, getPersonnelKPIs } from "@/lib/data-source";
+import { SampleDataBanner } from "@/components/ui/sample-data-banner";
+import { getEmployees, getPersonnelKPIs, isDemoMode, sourceStatus } from "@/lib/data-source";
 
 export const dynamic = "force-dynamic";
 
@@ -9,14 +10,18 @@ export default async function PersonnelPage() {
     getPersonnelKPIs(),
   ]);
 
+  const isSample = !isDemoMode() && sourceStatus.employees === "demo";
+
   const employees = allEmployees.filter(
     (e) => e.status === "active" && e.department === "IT"
   );
 
   return (
-    <PersonnelContent
-      employees={employees}
-      kpis={kpis}
-    />
+    <div className="space-y-6">
+      {isSample && (
+        <SampleDataBanner message="Showing sample employees — live HR data from Officient is not connected yet (credentials pending). Headcount and cost figures are illustrative." />
+      )}
+      <PersonnelContent employees={employees} kpis={kpis} />
+    </div>
   );
 }

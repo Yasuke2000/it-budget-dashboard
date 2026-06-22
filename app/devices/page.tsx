@@ -3,12 +3,14 @@ import { DeviceTable } from "@/components/devices/device-table";
 import { AgeChart } from "@/components/devices/age-chart";
 import { ComplianceDonut } from "@/components/devices/compliance-donut";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getDevices } from "@/lib/data-source";
+import { SampleDataBanner } from "@/components/ui/sample-data-banner";
+import { getDevices, isDemoMode, sourceStatus } from "@/lib/data-source";
 
 export const dynamic = "force-dynamic";
 
 export default async function DevicesPage() {
   const devices = await getDevices();
+  const isSample = !isDemoMode() && sourceStatus.devices === "demo";
 
   const total = devices.length;
   const compliant = devices.filter((d) => d.complianceState === "compliant").length;
@@ -27,6 +29,10 @@ export default async function DevicesPage() {
           Managed device inventory, compliance, and lifecycle — Intune
         </p>
       </div>
+
+      {isSample && (
+        <SampleDataBanner message="Showing sample devices — live Intune access via Microsoft Graph is not yet granted (returns 403/401). Numbers below are illustrative, not your real fleet." />
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard

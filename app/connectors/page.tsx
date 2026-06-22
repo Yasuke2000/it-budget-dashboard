@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Key,
   Building2,
@@ -666,10 +666,44 @@ function ConnectorCard({ connector, onConnect }: ConnectorCardProps) {
 // Page
 // ---------------------------------------------------------------------------
 
+// Maps a connector id to the service key reported by /api/status.
+const STATUS_KEY: Record<string, string> = {
+  m365: "graph",
+  "business-central": "bc",
+  officient: "officient",
+  dell: "dell",
+  lenovo: "lenovo",
+};
+
+interface StatusResponse {
+  demoMode: boolean;
+  services: Record<string, { configured: boolean; connected: boolean; error: string | null }>;
+}
+
 export default function ConnectorsPage() {
   const [activeConnector, setActiveConnector] = useState<ConnectorDef | null>(null);
+  const [status, setStatus] = useState<StatusResponse | null>(null);
 
-  const connectedCount = CONNECTORS.filter((c) => c.status === "connected").length;
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/status")
+      .then((r) => r.json())
+      .then((d: StatusResponse) => { if (!cancelled) setStatus(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Overlay live status onto the static connector definitions.
+  const connectors: ConnectorDef[] = CONNECTORS.map((c) => {
+    const svc = status?.services?.[STATUS_KEY[c.id] ?? ""];
+    if (!svc) return c; // CSV / Citymesh / Peppol / Knox have no auto-detected status
+    if (svc.connected) return { ...c, status: "connected" as const };
+    if (svc.configured) return { ...c, status: "partial" as const, statusLabel: "Configured — check permissions" };
+    return { ...c, status: "not_connected" as const };
+  });
+
+  const connectedCount = connectors.filter((c) => c.status === "connected").length;
+  const demoMode = status?.demoMode ?? false;
 
   return (
     <div className="space-y-6">
@@ -687,10 +721,10 @@ export default function ConnectorsPage() {
           <Plug className="h-4 w-4 text-slate-500" />
           <span className="text-sm text-slate-400">
             <span className="font-semibold text-white">{connectedCount}</span> of{" "}
-            <span className="font-semibold text-white">{CONNECTORS.length}</span> connectors active
+            <span className="font-semibold text-white">{connectors.length}</span> connectors active
           </span>
         </div>
-        {connectedCount === 0 && (
+        {demoMode && (
           <Badge
             variant="outline"
             className="border-amber-500/40 bg-amber-500/10 text-amber-400 text-[10px] font-semibold tracking-wider uppercase"
@@ -702,7 +736,7 @@ export default function ConnectorsPage() {
 
       {/* Connector grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {CONNECTORS.map((connector) => (
+        {connectors.map((connector) => (
           <ConnectorCard
             key={connector.id}
             connector={connector}

@@ -11,7 +11,6 @@ import {
 import type {
   Company,
   PurchaseInvoice,
-  PurchaseInvoiceLine,
   GeneralLedgerEntry,
   M365License,
   ManagedDevice,
@@ -34,7 +33,7 @@ import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING, UNCL
 import { generateAllInsights } from "./cost-insights";
 import type { CostInsight } from "./cost-insights";
 import { getCache, setCache } from "./sync-cache";
-import { fetchBCCompanies, fetchBCInvoices, fetchBCGLEntries } from "./bc-client";
+import { fetchBCCompanies, fetchBCGLEntries, fetchBCITLedgerEntries, getBCToken } from "./bc-client";
 import {
   fetchSubscribedSkus,
   fetchManagedDevices,
@@ -46,6 +45,33 @@ import { fetchJiraWorklogs as fetchLiveJiraWorklogs } from "./jira-client";
 export function isDemoMode(): boolean {
   return process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
 }
+
+// Tracks whether the last fetch for a given domain returned LIVE data or fell
+// back to demo/sample data (e.g. Graph 401/403, Officient creds missing). Pages
+// read this after fetching to show an honest "sample data" banner instead of
+// silently presenting demo numbers as real. Module singleton — good enough for
+// a per-request banner hint.
+export type SourceState = "live" | "demo" | "unknown";
+export const sourceStatus: Record<string, SourceState> = {
+  invoices: "unknown",
+  licenses: "unknown",
+  devices: "unknown",
+  employees: "unknown",
+};
+
+// Business Central exposes several non-operating companies (setup/init copies
+// and test entities). They hold no real spend and only slow the sync down, so
+// we exclude them from the live company list.
+function isOperatingCompany(name: string): boolean {
+  return !/^_/.test(name) && !/test|copie|fleetmate/i.test(name);
+}
+
+// Single-flight dedup for the live invoice fetch. The dashboard API fans out to
+// five getters that each call getInvoices() with the same args on a cold cache;
+// without this they would trigger five concurrent BC syncs (the original cause
+// of the >60s dashboard timeout). Concurrent callers now share one in-flight
+// promise per cache key.
+const inflightInvoices = new Map<string, Promise<PurchaseInvoice[]>>();
 
 // Merge imported EasyPay payroll into the invoice list as an "IT Personnel" cost
 // line, so personnel cost appears in Total Spend, Category breakdown and Vendors.
@@ -107,11 +133,13 @@ export async function getCompanies(): Promise<Company[]> {
 
   try {
     const bcCompanies = await fetchBCCompanies();
-    const companies: Company[] = bcCompanies.map((c) => ({
-      id: (c.id as string) || "",
-      name: (c.name as string) || "",
-      displayName: (c.displayName as string) || (c.name as string) || "",
-    }));
+    const companies: Company[] = bcCompanies
+      .map((c) => ({
+        id: (c.id as string) || "",
+        name: (c.name as string) || "",
+        displayName: (c.displayName as string) || (c.name as string) || "",
+      }))
+      .filter((c) => isOperatingCompany(c.name));
     setCache(cacheKey, companies, 60 * 24); // 24h TTL
     return companies;
   } catch (err) {
@@ -147,73 +175,96 @@ export async function getInvoices(
   const cached = getCache<PurchaseInvoice[]>(cacheKey);
   if (cached) return applyPayroll(cached, companyFilter, from, to);
 
-  try {
-    const companies = await getCompanies();
-    const targetCompanies =
-      companyFilter === "all"
-        ? companies
-        : companies.filter((c) => c.id === companyFilter);
+  // Single-flight: share one in-flight fetch per cache key across concurrent callers.
+  let flight = inflightInvoices.get(cacheKey);
+  if (!flight) {
+    flight = (async () => {
+      // Surface BC auth/connectivity failure up-front so the caller's catch can
+      // fall back to demo data instead of returning an empty live result.
+      await getBCToken();
+      const companies = await getCompanies();
+      const targetCompanies =
+        companyFilter === "all"
+          ? companies
+          : companies.filter((c) => c.id === companyFilter);
 
-    // Fetch all companies in parallel — sequential was O(n * latency).
-    const perCompany = await Promise.all(
-      targetCompanies.map(async (company) => {
-        try {
-          return { company, bcInvoices: await fetchBCInvoices(company.id, from, to) };
-        } catch {
-          return { company, bcInvoices: [] as Record<string, unknown>[] };
+      // IT spend is read from posted G/L entries restricted to the IT accounts
+      // (see fetchBCITLedgerEntries). Each entry becomes a synthetic "invoice"
+      // so all downstream consumers (KPIs, category, monthly, vendors, budget)
+      // keep working — now with correctly-categorised, real data.
+      const perCompany = await Promise.all(
+        targetCompanies.map(async (company) => {
+          try {
+            return { company, glEntries: await fetchBCITLedgerEntries(company.id, from, to) };
+          } catch {
+            return { company, glEntries: [] as Record<string, unknown>[] };
+          }
+        })
+      );
+
+      const allInvoices: PurchaseInvoice[] = [];
+      for (const { company, glEntries } of perCompany) {
+        for (const g of glEntries) {
+          const accountNumber = (g.accountNumber as string) || "";
+          // Spend = debit − credit. This nets out correction/reversal pairs to
+          // zero, which we then skip.
+          const amount = ((g.debitAmount as number) || 0) - ((g.creditAmount as number) || 0);
+          if (!amount) continue;
+          const postingDate = (g.postingDate as string) || "";
+          const documentNumber = (g.documentNumber as string) || "";
+          const description = (g.description as string) || "";
+          const costCategory = DEFAULT_GL_MAPPING[accountNumber] || UNCLASSIFIED_CATEGORY;
+
+          allInvoices.push({
+            id: `gl-${company.id}-${(g.id as string) || `${documentNumber}-${accountNumber}-${postingDate}`}`,
+            number: documentNumber,
+            invoiceDate: postingDate,
+            postingDate,
+            dueDate: postingDate,
+            // G/L entries don't carry the vendor name; the booking description is
+            // the closest real attribution we have without the (very slow)
+            // per-invoice line join.
+            vendorNumber: accountNumber,
+            vendorName: description || accountNumber,
+            totalAmountExcludingTax: amount,
+            totalAmountIncludingTax: amount,
+            totalTaxAmount: 0,
+            status: "Paid",
+            currencyCode: "EUR",
+            companyId: company.id,
+            companyName: company.displayName,
+            costCategory,
+            lines: [
+              {
+                lineType: "Account",
+                description,
+                unitCost: amount,
+                quantity: 1,
+                netAmount: amount,
+                accountId: "",
+                accountNumber,
+              },
+            ],
+          });
         }
-      })
-    );
-
-    const allInvoices: PurchaseInvoice[] = [];
-    for (const { company, bcInvoices } of perCompany) {
-      for (const inv of bcInvoices) {
-        const lines = (
-          (inv.purchaseInvoiceLines as Array<Record<string, unknown>>) || []
-        ).map(
-          (line): PurchaseInvoiceLine => ({
-            lineType: (line.lineType as string) || "",
-            description: (line.description as string) || "",
-            unitCost: (line.unitCost as number) || 0,
-            quantity: (line.quantity as number) || 0,
-            netAmount: (line.netAmount as number) || 0,
-            accountId: (line.accountId as string) || "",
-            accountNumber: (line.accountNumber as string) || "",
-          })
-        );
-
-        // Derive cost category from GL account of first line. Accounts not in
-        // the IT mapping become "Unclassified" (not "Other IT") so non-IT
-        // company spend is never silently counted as IT.
-        const firstAccount = lines[0]?.accountNumber || "";
-        const costCategory =
-          DEFAULT_GL_MAPPING[firstAccount] || UNCLASSIFIED_CATEGORY;
-
-        allInvoices.push({
-          id: (inv.id as string) || "",
-          number: (inv.number as string) || "",
-          invoiceDate: (inv.invoiceDate as string) || "",
-          postingDate: (inv.postingDate as string) || "",
-          dueDate: (inv.dueDate as string) || "",
-          vendorNumber: (inv.buyFromVendorNumber as string) || (inv.vendorNumber as string) || "",
-          vendorName: (inv.buyFromVendorName as string) || (inv.vendorName as string) || "",
-          totalAmountExcludingTax: (inv.totalAmountExcludingTax as number) || 0,
-          totalAmountIncludingTax: (inv.totalAmountIncludingTax as number) || 0,
-          totalTaxAmount: (inv.totalTaxAmount as number) || 0,
-          status: ((inv.status as string) as PurchaseInvoice["status"]) || "Open",
-          currencyCode: (inv.currencyCode as string) || "EUR",
-          companyId: company.id,
-          companyName: company.displayName,
-          costCategory,
-          lines,
-        });
       }
-    }
 
-    setCache(cacheKey, allInvoices, 120); // 2h TTL
+      setCache(cacheKey, allInvoices, 120); // 2h TTL
+      sourceStatus.invoices = "live";
+      return allInvoices;
+    })();
+    inflightInvoices.set(cacheKey, flight);
+    void flight.catch(() => {}).finally(() => {
+      if (inflightInvoices.get(cacheKey) === flight) inflightInvoices.delete(cacheKey);
+    });
+  }
+
+  try {
+    const allInvoices = await flight;
     return applyPayroll(allInvoices, companyFilter, from, to);
   } catch (err) {
     console.warn("BC API error (invoices), falling back to demo data:", err);
+    sourceStatus.invoices = "demo";
     let invoices = demoInvoices;
     if (companyFilter !== "all") {
       invoices = invoices.filter((inv) => inv.companyId === companyFilter);
@@ -326,9 +377,11 @@ export async function getLicenses(): Promise<M365License[]> {
     const skus = await fetchSubscribedSkus();
     const licenses: M365License[] = skus.map(mapGraphLicenseToM365License);
     setCache(cacheKey, licenses, 240); // 4h TTL
+    sourceStatus.licenses = "live";
     return licenses;
   } catch (err) {
     console.warn("Graph API error (licenses), falling back to demo data:", err);
+    sourceStatus.licenses = "demo";
     return demoLicenses;
   }
 }
@@ -345,9 +398,11 @@ export async function getDevices(): Promise<ManagedDevice[]> {
     const rawDevices = await fetchManagedDevices();
     const devices: ManagedDevice[] = rawDevices.map(mapGraphDeviceToManagedDevice);
     setCache(cacheKey, devices, 240); // 4h TTL
+    sourceStatus.devices = "live";
     return devices;
   } catch (err) {
     console.warn("Graph API error (devices), falling back to demo data:", err);
+    sourceStatus.devices = "demo";
     return demoDevices;
   }
 }
@@ -400,7 +455,9 @@ export async function getDashboardKPIs(
   const from = dateFrom ?? `${yr}-01-01`;
   const to = dateTo ?? `${yr}-12-31`;
   const invoices = await getInvoices(companyFilter, from, to);
-  const budget = await getBudgetEntries(companyFilter);
+  // Budget only exists in demo mode — no live budget source is configured, so we
+  // don't surface fake budget/variance numbers on the live dashboard.
+  const budget = isDemoMode() ? await getBudgetEntries(companyFilter) : [];
   const licenses = await getLicenses();
   const devices = await getDevices();
 
@@ -462,7 +519,11 @@ export async function getMonthlySpend(
   const yr = new Date().getFullYear();
   const from = dateFrom ?? `${yr}-01-01`;
   const to = dateTo ?? `${yr}-12-31`;
-  const budget = await getBudgetEntries(companyFilter);
+  // Actual spend comes from real invoices (IT categories only). Budget only
+  // exists in demo mode — in live mode there is no configured budget source, so
+  // the budget line is omitted rather than showing fake numbers.
+  const invoices = await getInvoices(companyFilter, from, to);
+  const budget = isDemoMode() ? await getBudgetEntries(companyFilter) : [];
 
   // Enumerate all year-months within the requested range
   const fromDate = new Date(from);
@@ -476,12 +537,19 @@ export async function getMonthlySpend(
     cursor.setMonth(cursor.getMonth() + 1);
   }
 
+  const actualByMonth = new Map<string, number>();
+  for (const inv of invoices) {
+    if (!isITCategory(inv.costCategory)) continue;
+    const m = inv.postingDate.substring(0, 7);
+    actualByMonth.set(m, (actualByMonth.get(m) ?? 0) + inv.totalAmountExcludingTax);
+  }
+
   return months
     .map((month) => {
       const monthBudget = budget.filter((b) => b.month === month);
       return {
         month,
-        actual: monthBudget.reduce((s, b) => s + b.actualAmount, 0),
+        actual: actualByMonth.get(month) ?? 0,
         budget: monthBudget.reduce((s, b) => s + b.budgetAmount, 0),
       };
     })
@@ -535,8 +603,9 @@ export async function getEntitySpend(
   dateFrom?: string,
   dateTo?: string
 ): Promise<EntitySpend[]> {
-  const from = dateFrom ?? "2025-01-01";
-  const to = dateTo ?? "2025-12-31";
+  const yr = new Date().getFullYear();
+  const from = dateFrom ?? `${yr}-01-01`;
+  const to = dateTo ?? `${yr}-12-31`;
   const companies = await getCompanies();
   const invoices = await getInvoices("all", from, to);
 
@@ -568,41 +637,53 @@ export async function getEntitySpend(
 }
 
 // ---- Employees ----
+async function getDemoEmployees(): Promise<Employee[]> {
+  const mockData = await import("../data/mock/employees.json");
+  return mockData.default as Employee[];
+}
+
 export async function getEmployees(): Promise<Employee[]> {
-  if (isDemoMode()) {
-    const mockData = await import("../data/mock/employees.json");
-    return (mockData.default as Employee[]);
+  if (isDemoMode()) return getDemoEmployees();
+
+  // Live mode: fetch from Officient. If credentials are missing or the API
+  // errors, fall back to demo data instead of throwing — an unhandled throw
+  // here previously crashed the entire Personnel page (HTTP 500 / white screen).
+  try {
+    const { fetchEmployees, fetchAssets, fetchWagesForPeople } = await import("./officient-client");
+    const [officientEmployees, officientAssets] = await Promise.all([
+      fetchEmployees(),
+      fetchAssets(),
+    ]);
+
+    const assetsByPerson = new Map<number, { id: number; name: string; description: string; category: string }[]>();
+    officientAssets.forEach((a) => {
+      const list = assetsByPerson.get(a.person_id) || [];
+      list.push({ id: a.id, name: a.name, description: a.description, category: a.category });
+      assetsByPerson.set(a.person_id, list);
+    });
+
+    // Pull employer cost per person so personnel KPIs reflect real salary cost.
+    // Without this, monthlyCost stays undefined and itSalaryCost computes to 0.
+    const activeIds = officientEmployees.filter((e) => e.status === "active").map((e) => e.id);
+    const wagesByPerson = await fetchWagesForPeople(activeIds);
+
+    sourceStatus.employees = "live";
+    return officientEmployees.map((e) => ({
+      id: e.id,
+      name: e.name,
+      email: e.email,
+      department: e.department,
+      functionTitle: e.function_title,
+      startDate: e.start_date,
+      status: e.status,
+      monthlyCost: wagesByPerson.get(e.id) ?? 0,
+      assets: assetsByPerson.get(e.id) || [],
+    }));
+  } catch (err) {
+    console.warn("Officient API error (employees), falling back to demo data:", err);
+    sourceStatus.employees = "demo";
+    return getDemoEmployees();
   }
-  // Live mode: fetch from Officient
-  const { fetchEmployees, fetchAssets, fetchWagesForPeople } = await import("./officient-client");
-  const [officientEmployees, officientAssets] = await Promise.all([
-    fetchEmployees(),
-    fetchAssets(),
-  ]);
-
-  const assetsByPerson = new Map<number, { id: number; name: string; description: string; category: string }[]>();
-  officientAssets.forEach((a) => {
-    const list = assetsByPerson.get(a.person_id) || [];
-    list.push({ id: a.id, name: a.name, description: a.description, category: a.category });
-    assetsByPerson.set(a.person_id, list);
-  });
-
-  // Pull employer cost per person so personnel KPIs reflect real salary cost.
-  // Without this, monthlyCost stays undefined and itSalaryCost computes to 0.
-  const activeIds = officientEmployees.filter((e) => e.status === "active").map((e) => e.id);
-  const wagesByPerson = await fetchWagesForPeople(activeIds);
-
-  return officientEmployees.map((e) => ({
-    id: e.id,
-    name: e.name,
-    email: e.email,
-    department: e.department,
-    functionTitle: e.function_title,
-    startDate: e.start_date,
-    status: e.status,
-    monthlyCost: wagesByPerson.get(e.id) ?? 0,
-    assets: assetsByPerson.get(e.id) || [],
-  }));
 }
 
 // ---- Jira Worklogs ----
@@ -675,10 +756,20 @@ export async function getPersonnelKPIs(): Promise<PersonnelKPIs> {
   const totalPersonnelCost = itSalaryCost;
   const avgITCostPerEmployee = itTeam.length > 0 ? itSalaryCost / itTeam.length : 0;
 
-  // Estimate external IT services and tools/licenses from invoice data (monthly avg YTD)
-  // Using fixed estimates based on demo data — in live mode these would come from invoices
-  const externalServicesCost = 8_250; // e.g. consultants, MSP, external IT projects
-  const toolsLicensesCost = 4_180;   // e.g. M365, SaaS tools, antivirus
+  // External IT services and tools/licenses cost.
+  // Demo mode: fixed illustrative estimates. Live mode: real monthly-average
+  // spend derived from the IT invoice feed (no fabricated numbers).
+  let externalServicesCost = 8_250; // e.g. consultants, MSP, external IT projects
+  let toolsLicensesCost = 4_180;    // e.g. M365, SaaS tools, antivirus
+  if (!isDemoMode()) {
+    const yr = new Date().getFullYear();
+    const invoices = await getInvoices("all", `${yr}-01-01`, `${yr}-12-31`);
+    const monthsElapsed = new Date().getMonth() + 1;
+    const sumCat = (cat: string) =>
+      invoices.filter((i) => i.costCategory === cat).reduce((s, i) => s + i.totalAmountExcludingTax, 0);
+    externalServicesCost = Math.round(sumCat("External IT Services") / monthsElapsed);
+    toolsLicensesCost = Math.round(sumCat("Software & Licenses") / monthsElapsed);
+  }
 
   const itStaffRatio = active.length > 0
     ? Math.round((itTeam.length / active.length) * 100)
@@ -750,8 +841,9 @@ export async function getVendorSummary(
   dateFrom?: string,
   dateTo?: string
 ): Promise<VendorSummary[]> {
-  const from = dateFrom ?? "2025-01-01";
-  const to = dateTo ?? "2025-12-31";
+  const yr = new Date().getFullYear();
+  const from = dateFrom ?? `${yr}-01-01`;
+  const to = dateTo ?? `${yr}-12-31`;
   const invoices = await getInvoices(companyFilter, from, to);
   const totalSpend = invoices.reduce(
     (s, i) => s + i.totalAmountExcludingTax,

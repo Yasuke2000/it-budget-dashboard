@@ -1,7 +1,8 @@
-import { getLicenses, getSoftwareLicenses } from "@/lib/data-source";
+import { getLicenses, getSoftwareLicenses, isDemoMode, sourceStatus } from "@/lib/data-source";
 import { LicenseCard } from "@/components/licenses/license-card";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { Separator } from "@/components/ui/separator";
+import { SampleDataBanner } from "@/components/ui/sample-data-banner";
 import { formatCurrency } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ export default async function LicensesPage() {
     getLicenses(),
     getSoftwareLicenses(),
   ]);
+  const isSample = !isDemoMode() && sourceStatus.licenses === "demo";
   const otherAnnualCost = softwareLicenses.reduce((s, l) => s + l.annualCost, 0);
 
   const paidLicenses = licenses.filter((l) => l.pricePerUser > 0);
@@ -42,6 +44,10 @@ export default async function LicensesPage() {
         <h1 className="text-2xl font-bold text-white">Software Licenses</h1>
         <p className="text-slate-400">Microsoft 365 utilization from your tenant, plus other tracked licenses</p>
       </div>
+
+      {isSample && (
+        <SampleDataBanner message="Showing sample Microsoft 365 licenses — live tenant access requires the Organization.Read.All (or Directory.Read.All) Graph permission, which returns 403 today. Other tracked licenses below are still your imported data." />
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KPICard

@@ -13,7 +13,8 @@ interface LicenseCardProps {
 
 export function LicenseCard({ license }: LicenseCardProps) {
   const isFree = license.pricePerUser === 0;
-  const pct = license.utilizationRate * 100;
+  // utilizationRate is already a percentage (0–100), not a fraction.
+  const pct = license.utilizationRate;
 
   const utilizationLabel =
     isFree

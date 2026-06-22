@@ -5,7 +5,6 @@ import { clearCache } from "@/lib/sync-cache";
 import {
   getCompanies,
   getInvoices,
-  getGLEntries,
   getLicenses,
   getDevices,
 } from "@/lib/data-source";
@@ -36,8 +35,7 @@ export async function POST(request: Request) {
       await getBCToken(); // surfaces auth failures explicitly
       const companies = await getCompanies();
       const invoices = await getInvoices("all", yearStart, today);
-      await getGLEntries("all", yearStart, today);
-      results.bc = `OK — ${companies.length} companies, ${invoices.length} invoices`;
+      results.bc = `OK — ${companies.length} companies, ${invoices.length} IT ledger lines`;
     } catch (err: unknown) {
       errors.bc = err instanceof Error ? err.message : String(err);
     }

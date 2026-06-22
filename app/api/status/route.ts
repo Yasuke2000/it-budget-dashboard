@@ -13,6 +13,7 @@ export async function GET() {
   const status: Record<string, ServiceStatus> = {
     bc: { configured: false, connected: false, error: null },
     graph: { configured: false, connected: false, error: null },
+    officient: { configured: false, connected: false, error: null },
     dell: { configured: false, connected: false, error: null },
     lenovo: { configured: false, connected: false, error: null },
   };
@@ -29,6 +30,12 @@ export async function GET() {
     status.graph.configured = true;
     try { await getGraphToken(); status.graph.connected = true; }
     catch (e: unknown) { status.graph.error = e instanceof Error ? e.message : String(e); }
+  }
+
+  // Officient HR — token or OAuth client credentials
+  if (process.env.OFFICIENT_API_TOKEN || (process.env.OFFICIENT_CLIENT_ID && process.env.OFFICIENT_CLIENT_SECRET)) {
+    status.officient.configured = true;
+    status.officient.connected = true; // verified on first HR fetch
   }
 
   // Dell

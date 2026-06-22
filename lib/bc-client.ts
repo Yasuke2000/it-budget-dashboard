@@ -1,6 +1,7 @@
 import { ConfidentialClientApplication } from "@azure/msal-node";
 import type { PurchaseInvoice, PurchaseInvoiceLine } from "./types";
 import { fetchWithRetry } from "./http";
+import { IT_GL_ACCOUNTS } from "./constants";
 
 const msalConfig = {
   auth: {
@@ -20,6 +21,9 @@ function getMsalClient(): ConfidentialClientApplication {
 }
 
 export async function getBCToken(): Promise<string> {
+  if (!process.env.BC_CLIENT_ID || !process.env.BC_CLIENT_SECRET || !process.env.BC_TENANT_ID) {
+    throw new Error("Business Central credentials not configured");
+  }
   const client = getMsalClient();
   const result = await client.acquireTokenByClientCredential({
     scopes: ["https://api.businesscentral.dynamics.com/.default"],
@@ -101,6 +105,25 @@ export async function fetchBCGLEntries(
   const token = await getBCToken();
   const filter = `postingDate ge ${dateFrom} and postingDate le ${dateTo}`;
   const url = `${BC_BASE_URL}/companies(${companyId})/generalLedgerEntries?$filter=${encodeURIComponent(filter)}&$select=id,postingDate,accountNumber,description,debitAmount,creditAmount,documentType,documentNumber&$orderby=postingDate desc`;
+  return fetchAllPages<Record<string, unknown>>(url, token);
+}
+
+// IT spend source. Purchase-invoice lines can't be filtered server-side by
+// G/L account (the line endpoint requires a document id) and pulling every
+// purchase invoice with $expand is ~46k rows per sync — far too slow. Instead
+// we read posted generalLedgerEntries restricted to the handful of IT accounts.
+// This returns only a few thousand rows across all companies and runs in ~2s.
+export async function fetchBCITLedgerEntries(
+  companyId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<Record<string, unknown>[]> {
+  const token = await getBCToken();
+  const acctFilter = "(" + IT_GL_ACCOUNTS.map((a) => `accountNumber eq '${a}'`).join(" or ") + ")";
+  const filter = `postingDate ge ${dateFrom} and postingDate le ${dateTo} and ${acctFilter}`;
+  const url = `${BC_BASE_URL}/companies(${companyId})/generalLedgerEntries?$filter=${encodeURIComponent(
+    filter
+  )}&$select=id,postingDate,accountNumber,description,debitAmount,creditAmount,documentType,documentNumber&$orderby=postingDate desc`;
   return fetchAllPages<Record<string, unknown>>(url, token);
 }
 

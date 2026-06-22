@@ -1,18 +1,27 @@
+// Maps real Business Central G/L account numbers (Belgian PCMN, 6-digit) to IT
+// cost categories. Derived from the live Gheeraert chart of accounts — only the
+// accounts that genuinely carry IT spend are listed. Everything else is treated
+// as Unclassified (non-IT) and excluded from IT totals.
+//
+// Accumulated-depreciation contra accounts (…009) are deliberately NOT mapped:
+// they are non-cash balance-sheet entries, not IT spend.
 export const DEFAULT_GL_MAPPING: Record<string, string> = {
-  "61100": "Software & Licenses",
-  "61200": "Software & Licenses",
-  "62100": "Telecom",
-  "62200": "Telecom",
-  "63100": "External IT Services",
-  "63200": "External IT Services",
-  "64100": "IT Personnel",
-  "23100": "Hardware (Depreciation)",
-  "23200": "Hardware (Depreciation)",
-  "60100": "Cloud & Hosting",
-  "60200": "Cloud & Hosting",
-  "65100": "Security",
-  "65200": "Security",
+  // IT operating expense (P&L)
+  "611120": "Hardware (Purchases)",   // Onderhoud computer hardware
+  "611130": "Software & Licenses",    // Onderhoud computer software (maintenance / subscriptions)
+  "612350": "Hardware (Purchases)",   // Computerbenodigdheden (computer supplies)
+  "612400": "Telecom",                // Telefonie en internet
+  // IT capital expenditure (asset additions)
+  "240200": "Hardware (Purchases)",   // Computer hardware
+  "240500": "Software & Licenses",    // Computer software
+  "215000": "Software & Licenses",    // Software (intangible)
+  "211000": "Software & Licenses",    // Concessies, octrooien, licenties, know-how, merken
 };
+
+// G/L accounts queried from generalLedgerEntries to compute IT spend. Kept in
+// sync with DEFAULT_GL_MAPPING — these are the only accounts we pull, which is
+// what keeps the BC query fast (a few thousand rows instead of ~46k invoices).
+export const IT_GL_ACCOUNTS: string[] = Object.keys(DEFAULT_GL_MAPPING);
 
 export const IT_CATEGORIES: string[] = [
   "Software & Licenses",

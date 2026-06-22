@@ -1,17 +1,19 @@
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { VendorList } from "@/components/vendors/vendor-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getVendorSummary, getInvoices } from "@/lib/data-source";
+import { getVendorSummary, getInvoices, isDemoMode } from "@/lib/data-source";
 import { formatCurrencyCompact } from "@/lib/utils";
 import { VendorSpendChart } from "@/components/vendors/vendor-spend-chart";
 
 export const dynamic = "force-dynamic";
 
 export default async function VendorsPage() {
+  const currentYear = new Date().getFullYear();
   const [vendors, invoices] = await Promise.all([
     getVendorSummary(),
     getInvoices(),
   ]);
+  const live = !isDemoMode();
 
   const totalVendors = vendors.length;
   const highestConcentration = vendors[0]?.percentOfTotal ?? 0;
@@ -24,7 +26,17 @@ export default async function VendorsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">Vendors</h1>
-        <p className="text-slate-400">Vendor spend analysis and concentration risk — FY 2025</p>
+        <p className="text-slate-400">
+          {live
+            ? `IT spend by cost driver and concentration risk — ${currentYear}`
+            : `Vendor spend analysis and concentration risk — FY ${currentYear}`}
+        </p>
+        {live && (
+          <p className="text-xs text-slate-600 mt-1">
+            Grouped by G/L booking description. True vendor names aren&apos;t available from the
+            ledger feed — they require the per-invoice line join, which is omitted for performance.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

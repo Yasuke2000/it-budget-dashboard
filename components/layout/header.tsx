@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Sun, Moon, LogOut, Sparkles } from "lucide-react";
@@ -35,13 +36,12 @@ const PAGE_TITLES: Record<string, string> = {
   "/settings": "Settings",
 };
 
-const COMPANIES = [
-  { value: "all", label: "All Companies" },
-  { value: "GDI", label: "GDI" },
-  { value: "WHS", label: "WHS" },
-  { value: "GRE", label: "GRE" },
-  { value: "TDR", label: "TDR" },
-];
+interface CompanyOption {
+  value: string;
+  label: string;
+}
+
+const ALL_COMPANIES: CompanyOption = { value: "all", label: "All Companies" };
 
 function getPageTitle(pathname: string): string {
   if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
@@ -56,6 +56,21 @@ export function Header() {
   const { theme, setTheme } = useTheme();
   const { selectedCompany, setSelectedCompany } = useCompany();
   const { data: session } = useSession();
+  const [companies, setCompanies] = useState<CompanyOption[]>([ALL_COMPANIES]);
+
+  // Populate the company selector from real company IDs so per-company
+  // filtering actually matches the data layer (which filters by company.id).
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/companies")
+      .then((r) => r.json())
+      .then((data: { id: string; name: string }[]) => {
+        if (cancelled || !Array.isArray(data)) return;
+        setCompanies([ALL_COMPANIES, ...data.map((c) => ({ value: c.id, label: c.name }))]);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const pageTitle = getPageTitle(pathname);
 
@@ -96,7 +111,7 @@ export function Header() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {COMPANIES.map(({ value, label }) => (
+            {companies.map(({ value, label }) => (
               <SelectItem key={value} value={value}>
                 {label}
               </SelectItem>

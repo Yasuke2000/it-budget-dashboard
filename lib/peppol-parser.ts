@@ -32,87 +32,85 @@ export interface PeppolInvoiceLine {
   vatPercent: number;
 }
 
+// XML helpers — DOMParser is a browser API and is NOT available in the Node
+// server runtime (this POST route runs server-side), so we parse UBL with
+// namespace-aware string matching instead. UBL/Peppol XML is well structured,
+// so scoping by element name within parent blocks is reliable enough.
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&amp;/g, "&");
+}
+
+// Matches <ns:Name ...>inner</ns:Name> (optional namespace prefix, optional attrs).
+function tagPattern(name: string, flags: string): RegExp {
+  return new RegExp(`<(?:[\\w.-]+:)?${name}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/(?:[\\w.-]+:)?${name}>`, flags);
+}
+
+// First leaf-text value among the given element names within scope.
+function firstText(scope: string, ...names: string[]): string {
+  for (const n of names) {
+    const m = scope.match(tagPattern(n, ""));
+    if (m && m[1] != null) {
+      const text = decodeEntities(m[1].replace(/<[^>]+>/g, "")).trim();
+      if (text) return text;
+    }
+  }
+  return "";
+}
+
+function firstNum(scope: string, ...names: string[]): number {
+  return parseFloat(firstText(scope, ...names)) || 0;
+}
+
+// Inner XML of the first matching block element (e.g. a party or totals block).
+function firstBlock(scope: string, name: string): string {
+  const m = scope.match(tagPattern(name, ""));
+  return m ? m[1] : "";
+}
+
 export function parsePeppolXML(xml: string): PeppolInvoice | null {
   try {
-    // Use DOMParser (available in Node 18+ and browsers)
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(xml, "text/xml");
-
-    // Check for parse errors
-    const parseError = doc.querySelector("parsererror");
-    if (parseError) return null;
-
-    // Helper to get text content by tag name (handles namespaces)
-    const getText = (parent: Element | Document, ...tags: string[]): string => {
-      for (const tag of tags) {
-        const el =
-          parent.getElementsByTagName(tag)[0] ||
-          parent.getElementsByTagName(`cbc:${tag}`)[0] ||
-          parent.getElementsByTagName(`cac:${tag}`)[0];
-        if (el?.textContent) return el.textContent.trim();
-      }
-      return "";
-    };
-
-    const getNum = (parent: Element | Document, ...tags: string[]): number => {
-      const text = getText(parent, ...tags);
-      return parseFloat(text) || 0;
-    };
+    if (!xml || !/<(?:[\w.-]+:)?Invoice[\s>]/.test(xml)) return null;
 
     // Parse header
-    const invoiceNumber = getText(doc, "ID");
-    const issueDate = getText(doc, "IssueDate");
-    const dueDate =
-      getText(doc, "DueDate") || getText(doc, "PaymentDueDate");
-    const currency = getText(doc, "DocumentCurrencyCode") || "EUR";
+    const invoiceNumber = firstText(xml, "ID");
+    const issueDate = firstText(xml, "IssueDate");
+    const dueDate = firstText(xml, "DueDate", "PaymentDueDate");
+    const currency = firstText(xml, "DocumentCurrencyCode") || "EUR";
 
     // Supplier (AccountingSupplierParty)
-    const supplierParty =
-      doc.getElementsByTagName("AccountingSupplierParty")[0] ||
-      doc.getElementsByTagName("cac:AccountingSupplierParty")[0];
-    const supplierName = supplierParty
-      ? getText(supplierParty, "RegistrationName", "Name")
-      : "";
-    const supplierVAT = supplierParty
-      ? getText(supplierParty, "CompanyID", "EndpointID")
-      : "";
+    const supplierParty = firstBlock(xml, "AccountingSupplierParty");
+    const supplierName = supplierParty ? firstText(supplierParty, "RegistrationName", "Name") : "";
+    const supplierVAT = supplierParty ? firstText(supplierParty, "CompanyID", "EndpointID") : "";
 
     // Buyer (AccountingCustomerParty)
-    const buyerParty =
-      doc.getElementsByTagName("AccountingCustomerParty")[0] ||
-      doc.getElementsByTagName("cac:AccountingCustomerParty")[0];
-    const buyerName = buyerParty
-      ? getText(buyerParty, "RegistrationName", "Name")
-      : "";
-    const buyerVAT = buyerParty
-      ? getText(buyerParty, "CompanyID", "EndpointID")
-      : "";
+    const buyerParty = firstBlock(xml, "AccountingCustomerParty");
+    const buyerName = buyerParty ? firstText(buyerParty, "RegistrationName", "Name") : "";
+    const buyerVAT = buyerParty ? firstText(buyerParty, "CompanyID", "EndpointID") : "";
 
     // Totals (LegalMonetaryTotal)
-    const monetary =
-      doc.getElementsByTagName("LegalMonetaryTotal")[0] ||
-      doc.getElementsByTagName("cac:LegalMonetaryTotal")[0];
-    const totalExclVAT = monetary ? getNum(monetary, "TaxExclusiveAmount") : 0;
-    const totalInclVAT = monetary
-      ? getNum(monetary, "TaxInclusiveAmount", "PayableAmount")
-      : 0;
+    const monetary = firstBlock(xml, "LegalMonetaryTotal");
+    const totalExclVAT = monetary ? firstNum(monetary, "TaxExclusiveAmount") : 0;
+    const totalInclVAT = monetary ? firstNum(monetary, "TaxInclusiveAmount", "PayableAmount") : 0;
     const totalVAT = totalInclVAT - totalExclVAT;
 
     // Invoice lines
-    const lineElements =
-      doc.getElementsByTagName("InvoiceLine").length > 0
-        ? doc.getElementsByTagName("InvoiceLine")
-        : doc.getElementsByTagName("cac:InvoiceLine");
-
     const lines: PeppolInvoiceLine[] = [];
-    for (let i = 0; i < lineElements.length; i++) {
-      const line = lineElements[i];
+    const lineMatches = xml.matchAll(tagPattern("InvoiceLine", "g"));
+    for (const lm of lineMatches) {
+      const line = lm[1];
       lines.push({
-        description: getText(line, "Description", "Name"),
-        quantity: getNum(line, "InvoicedQuantity"),
-        unitPrice: getNum(line, "PriceAmount"),
-        lineTotal: getNum(line, "LineExtensionAmount"),
-        vatPercent: getNum(line, "Percent"),
+        description: firstText(line, "Description", "Name"),
+        quantity: firstNum(line, "InvoicedQuantity"),
+        unitPrice: firstNum(line, "PriceAmount"),
+        lineTotal: firstNum(line, "LineExtensionAmount"),
+        vatPercent: firstNum(line, "Percent"),
       });
     }
 
@@ -130,8 +128,8 @@ export function parsePeppolXML(xml: string): PeppolInvoice | null {
       totalVAT,
       totalInclVAT,
       lines,
-      peppolId: getText(doc, "EndpointID"),
-      processId: getText(doc, "ProfileID"),
+      peppolId: firstText(xml, "EndpointID"),
+      processId: firstText(xml, "ProfileID"),
       rawXml: xml,
       status: "received",
     };

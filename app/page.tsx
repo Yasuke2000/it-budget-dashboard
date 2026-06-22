@@ -47,10 +47,19 @@ export default function OverviewPage() {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30_000);
     fetch(`/api/dashboard?${params}`, { signal: controller.signal })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`dashboard ${res.status}`);
+        return res.json();
+      })
       .then((d) => {
         clearTimeout(timer);
-        if (!cancelled) { setData(d); setLoading(false); }
+        // Guard against an error payload that parses as a truthy object but
+        // lacks the expected shape — otherwise the render would destructure
+        // undefined and white-screen.
+        if (!cancelled) {
+          if (d && d.kpis && Array.isArray(d.monthly)) setData(d);
+          setLoading(false);
+        }
       })
       .catch(() => {
         clearTimeout(timer);

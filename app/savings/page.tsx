@@ -28,21 +28,57 @@ const STATUS_COLORS: Record<SavingsOpportunity["status"], string> = {
 export default function SavingsPage() {
   const [opportunities, setOpportunities] = useState<SavingsOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errored, setErrored] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    fetch("/api/savings")
-      .then((r) => r.json())
+    let cancelled = false;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000);
+    fetch("/api/savings", { signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) throw new Error(`savings ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
-        setOpportunities(data);
+        clearTimeout(timer);
+        if (cancelled) return;
+        setOpportunities(Array.isArray(data) ? data : []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
-  }, []);
+      .catch(() => {
+        clearTimeout(timer);
+        if (cancelled) return;
+        setErrored(true);
+        setLoading(false);
+      });
+    return () => { cancelled = true; controller.abort(); clearTimeout(timer); };
+  }, [retry]);
+
+  const handleRetry = () => {
+    setLoading(true);
+    setErrored(false);
+    setRetry((c) => c + 1);
+  };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <p className="text-slate-400">Loading savings pipeline...</p>
+      </div>
+    );
+  }
+
+  if (errored) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <p className="text-slate-400">Savings data could not be loaded.</p>
+        <button
+          onClick={handleRetry}
+          className="text-sm text-teal-400 hover:text-teal-300 underline underline-offset-2"
+        >
+          Retry
+        </button>
       </div>
     );
   }
