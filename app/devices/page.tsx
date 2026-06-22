@@ -5,6 +5,8 @@ import { ComplianceDonut } from "@/components/devices/compliance-donut";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDevices } from "@/lib/data-source";
 
+export const dynamic = "force-dynamic";
+
 export default async function DevicesPage() {
   const devices = await getDevices();
 

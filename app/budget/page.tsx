@@ -3,6 +3,8 @@ import { BudgetTable } from "@/components/budget/budget-table";
 import { getBudgetEntries } from "@/lib/data-source";
 import { formatCurrencyCompact, formatPercent } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export default async function BudgetPage() {
   const entries = await getBudgetEntries();
 

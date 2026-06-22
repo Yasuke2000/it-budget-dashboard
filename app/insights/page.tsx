@@ -3,6 +3,8 @@ import type { CostInsight } from "@/lib/cost-insights";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { InsightsClient } from "./insights-client";
 
+export const dynamic = "force-dynamic";
+
 function formatEur(amount: number): string {
   return new Intl.NumberFormat("en-BE", {
     style: "currency",

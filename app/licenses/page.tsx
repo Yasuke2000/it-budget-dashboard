@@ -4,6 +4,8 @@ import { KPICard } from "@/components/dashboard/kpi-card";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 // Days until a renewal date (negative if past). Module-level so the date read
 // isn't flagged as an impure call during render.
 function daysUntil(dateStr?: string): number | null {

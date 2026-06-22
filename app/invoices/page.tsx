@@ -1,6 +1,8 @@
 import { getInvoices } from "@/lib/data-source";
 import { InvoiceTable } from "@/components/invoices/invoice-table";
 
+export const dynamic = "force-dynamic";
+
 export default async function InvoicesPage() {
   const invoices = await getInvoices();
   return (

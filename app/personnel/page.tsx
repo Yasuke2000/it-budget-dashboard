@@ -1,6 +1,8 @@
 import { PersonnelContent } from "@/components/personnel/personnel-content";
 import { getEmployees, getPersonnelKPIs } from "@/lib/data-source";
 
+export const dynamic = "force-dynamic";
+
 export default async function PersonnelPage() {
   const [allEmployees, kpis] = await Promise.all([
     getEmployees(),

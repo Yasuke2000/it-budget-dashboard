@@ -5,6 +5,8 @@ import { getVendorSummary, getInvoices } from "@/lib/data-source";
 import { formatCurrencyCompact } from "@/lib/utils";
 import { VendorSpendChart } from "@/components/vendors/vendor-spend-chart";
 
+export const dynamic = "force-dynamic";
+
 export default async function VendorsPage() {
   const [vendors, invoices] = await Promise.all([
     getVendorSummary(),
