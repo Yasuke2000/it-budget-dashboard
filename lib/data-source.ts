@@ -437,12 +437,10 @@ export async function getBudgetEntries(
     return demoBudgetEntries;
   }
 
-  // No live API source for budget entries yet — return demo data
-  console.warn("getBudgetEntries: no live API source configured, returning demo data");
-  if (companyFilter !== "all") {
-    return demoBudgetEntries.filter((b) => b.companyId === companyFilter || b.companyId === "all");
-  }
-  return demoBudgetEntries;
+  // No budget has been configured and there is no live budget source, so we
+  // return nothing rather than presenting demo budget figures as real. The
+  // Budget page shows actual IT spend (from the ledger) instead.
+  return [];
 }
 
 // ---- Dashboard KPIs ----
@@ -566,7 +564,8 @@ export async function getCategorySpend(
   const from = dateFrom ?? `${yr}-01-01`;
   const to = dateTo ?? `${yr}-12-31`;
   const invoices = await getInvoices(companyFilter, from, to);
-  const budget = await getBudgetEntries(companyFilter);
+  // Budget exists only in demo mode; don't blend demo budget into live figures.
+  const budget = isDemoMode() ? await getBudgetEntries(companyFilter) : [];
 
   const categoryMap = new Map<string, { actual: number; budget: number }>();
 
