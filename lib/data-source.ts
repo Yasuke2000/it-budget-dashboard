@@ -43,7 +43,7 @@ import {
 } from "./graph-client";
 import { fetchJiraWorklogs as fetchLiveJiraWorklogs } from "./jira-client";
 
-function isDemoMode(): boolean {
+export function isDemoMode(): boolean {
   return process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
 }
 
