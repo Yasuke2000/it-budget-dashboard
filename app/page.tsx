@@ -19,6 +19,7 @@ export default function OverviewPage() {
   const { selectedRange } = useDateRange();
   const { selectedCompany } = useCompany();
   const [loading, setLoading] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
   const [showSetupBanner, setShowSetupBanner] = useState(() => {
     if (typeof window === "undefined") return false;
     try {
@@ -43,24 +44,27 @@ export default function OverviewPage() {
       dateFrom: selectedRange.from,
       dateTo: selectedRange.to,
     });
-    fetch(`/api/dashboard?${params}`)
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000);
+    fetch(`/api/dashboard?${params}`, { signal: controller.signal })
       .then((res) => res.json())
       .then((d) => {
-        if (!cancelled) {
-          setData(d);
-          setLoading(false);
-        }
+        clearTimeout(timer);
+        if (!cancelled) { setData(d); setLoading(false); }
       })
-      .catch(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [selectedRange, selectedCompany]);
+      .catch(() => {
+        clearTimeout(timer);
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; controller.abort(); clearTimeout(timer); };
+  }, [selectedRange, selectedCompany, retryCount]);
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Overview</h1>
-          <p className="text-slate-400">Loading dashboard data...</p>
+          <p className="text-slate-400">Loading dashboard data…</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
@@ -71,6 +75,27 @@ export default function OverviewPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Skeleton className="h-[300px] bg-slate-800 rounded-xl" />
           <Skeleton className="h-[300px] bg-slate-800 rounded-xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-bold text-white">Overview</h1>
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-4 flex items-center gap-4">
+          <p className="text-sm text-red-300 flex-1">
+            Dashboard data could not be loaded. The API may be temporarily unavailable.
+          </p>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-red-400 hover:text-red-300 shrink-0"
+            onClick={() => setRetryCount((c) => c + 1)}
+          >
+            Retry
+          </Button>
         </div>
       </div>
     );

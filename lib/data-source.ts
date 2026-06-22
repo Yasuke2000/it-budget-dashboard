@@ -154,9 +154,19 @@ export async function getInvoices(
         ? companies
         : companies.filter((c) => c.id === companyFilter);
 
+    // Fetch all companies in parallel — sequential was O(n * latency).
+    const perCompany = await Promise.all(
+      targetCompanies.map(async (company) => {
+        try {
+          return { company, bcInvoices: await fetchBCInvoices(company.id, from, to) };
+        } catch {
+          return { company, bcInvoices: [] as Record<string, unknown>[] };
+        }
+      })
+    );
+
     const allInvoices: PurchaseInvoice[] = [];
-    for (const company of targetCompanies) {
-      const bcInvoices = await fetchBCInvoices(company.id, from, to);
+    for (const { company, bcInvoices } of perCompany) {
       for (const inv of bcInvoices) {
         const lines = (
           (inv.purchaseInvoiceLines as Array<Record<string, unknown>>) || []
@@ -252,9 +262,18 @@ export async function getGLEntries(
         ? companies
         : companies.filter((c) => c.id === companyFilter);
 
+    const perCompanyGL = await Promise.all(
+      targetCompanies.map(async (company) => {
+        try {
+          return { company, bcEntries: await fetchBCGLEntries(company.id, from, to) };
+        } catch {
+          return { company, bcEntries: [] as Record<string, unknown>[] };
+        }
+      })
+    );
+
     const allEntries: GeneralLedgerEntry[] = [];
-    for (const company of targetCompanies) {
-      const bcEntries = await fetchBCGLEntries(company.id, from, to);
+    for (const { company, bcEntries } of perCompanyGL) {
       for (const entry of bcEntries) {
         const accountNumber = (entry.accountNumber as string) || "";
         const costCategory =
