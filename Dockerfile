@@ -10,6 +10,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Bake NEXT_PUBLIC_DEMO_MODE=false so the client bundle shows LIVE mode.
+# The K8s pod also sets this at runtime, but NEXT_PUBLIC_* vars must be
+# present at build time to be inlined into the client JS bundle.
+ARG NEXT_PUBLIC_DEMO_MODE=false
+ENV NEXT_PUBLIC_DEMO_MODE=$NEXT_PUBLIC_DEMO_MODE
 RUN npm run build
 
 FROM base AS runner
