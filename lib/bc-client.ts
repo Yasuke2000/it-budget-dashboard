@@ -44,7 +44,7 @@ async function fetchAllPages<T>(url: string, token: string): Promise<T[]> {
         "Data-Access-Intent": "ReadOnly",
         Accept: "application/json",
       },
-    });
+    }, { timeoutMs: 90_000, maxAttempts: 2 });
     if (!res.ok) throw new Error(`BC API ${res.status}: ${await res.text()}`);
     const data = await res.json();
     results.push(...(data.value || []));

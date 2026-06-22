@@ -28,7 +28,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-const IS_DEMO = true;
+const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
 
 const navItems = [
   { label: "Overview", icon: LayoutDashboard, href: "/" },

@@ -61,8 +61,9 @@ export async function fetchSubscribedSkus(): Promise<Record<string, unknown>[]> 
 
 export async function fetchManagedDevices(): Promise<Record<string, unknown>[]> {
   const token = await getGraphToken();
+  // chassisType is not a valid Graph v1.0 field — removed from $select
   return fetchAllGraphPages<Record<string, unknown>>(
-    "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?$select=id,deviceName,model,manufacturer,serialNumber,osVersion,enrolledDateTime,complianceState,managedDeviceOwnerType,chassisType,operatingSystem,userDisplayName",
+    "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?$select=id,deviceName,model,manufacturer,serialNumber,osVersion,enrolledDateTime,complianceState,managedDeviceOwnerType,operatingSystem,userDisplayName",
     token
   );
 }
@@ -119,18 +120,12 @@ export function mapGraphDeviceToManagedDevice(
   const ageYears =
     Math.round((ageMs / (365.25 * 24 * 60 * 60 * 1000)) * 10) / 10;
 
-  const chassisRaw = (device.chassisType as string) || "unknown";
-  const validChassis: ManagedDevice["chassisType"][] = [
-    "desktop",
-    "laptop",
-    "tablet",
-    "phone",
-    "unknown",
-  ];
-  const chassisType: ManagedDevice["chassisType"] = validChassis.includes(
-    chassisRaw as ManagedDevice["chassisType"]
-  )
-    ? (chassisRaw as ManagedDevice["chassisType"])
+  const os = ((device.operatingSystem as string) || "").toLowerCase();
+  const chassisType: ManagedDevice["chassisType"] =
+    os.includes("ios") || os.includes("iphone") ? "phone"
+    : os.includes("ipad") ? "tablet"
+    : os.includes("android") ? "phone"
+    : os.includes("mac") ? "laptop"
     : "unknown";
 
   const complianceRaw = (device.complianceState as string) || "unknown";
