@@ -12,7 +12,10 @@ import { DEFAULT_GL_MAPPING, DEFAULT_LICENSE_PRICES, IT_VENDOR_RULES, OPERATIONA
 // rule) and suspense/clearing accounts (49x — e.g. prepaid-card holding accounts,
 // not expenses). Stripped from the merged mapping defensively.
 function isForbiddenSpendAccount(acct: string): boolean {
-  return /^(63|49)/.test(acct) || IT_DEPRECIATION_ACCOUNTS.includes(acct);
+  // 63x = depreciation/amortisation expense; 49x = suspense/clearing; 2…09 =
+  // class-2 accumulated-depreciation contra accounts (e.g. 240209, 215009) — all
+  // would distort the spend total if mapped.
+  return /^(63|49)/.test(acct) || /^2\d*09$/.test(acct) || IT_DEPRECIATION_ACCOUNTS.includes(acct);
 }
 import { isDbEnabled, ensureSchema, withClient } from "./db/client";
 

@@ -14,6 +14,7 @@ export const DEFAULT_GL_MAPPING: Record<string, string> = {
   "612350": "Hardware (Purchases)",     // Computerbenodigdheden (computer supplies)
   "612400": "Telecom",                  // Telefonie en internet
   "613320": "External IT Services",     // Informaticadiensten (external IT services / consultancy)
+  "614400": "Security",                 // Verzekering cyber (cyber-insurance premium — IT-security cost)
   // IT capital purchases (fixed-asset additions — actual hardware/software buys)
   "240200": "Hardware (Purchases)",     // Computer hardware
   "240500": "Software & Licenses",      // Computer software
