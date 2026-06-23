@@ -84,6 +84,15 @@ const GRAPH_FAIL_TTL_MS = 30 * 60 * 1000; // 30 min
 let graphLicensesFailedUntil = 0;
 let graphDevicesFailedUntil = 0;
 
+// Shift an ISO "YYYY-MM-DD" date by N months (UTC; the pod runs UTC). Used to pad
+// the purchase-invoice-header window so boundary documents resolve their vendor.
+function shiftMonths(iso: string, delta: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  d.setUTCMonth(d.getUTCMonth() + delta);
+  return d.toISOString().slice(0, 10);
+}
+
 // Merge imported EasyPay payroll into the invoice list as an "IT Personnel" cost
 // line, so personnel cost appears in Total Spend, Category breakdown and Vendors.
 // Applied on every getInvoices() return path (incl. cache hits) so it's never
@@ -236,6 +245,15 @@ export async function getInvoices(
       const scanSet = new Set(scanAccounts);
       const pullAccounts = [...itAccounts, ...scanAccounts];
 
+      // Vendor names are resolved by matching a G/L entry's documentNumber to a
+      // posted purchase-invoice header. A header's postingDate can sit just across
+      // a period boundary from the G/L posting (invoice dated 31 Mar, booked 1
+      // Apr), so we fetch headers over a PADDED ±2-month window. Without this,
+      // boundary documents fail to resolve and their allowlist/intercompany
+      // classification flips — making period sums not reconcile (year ≠ Σ quarters).
+      const headerFrom = shiftMonths(from, -2);
+      const headerTo = shiftMonths(to, 2);
+
       // Track per-company fetch failures. A single company's GL/header fetch
       // failing (e.g. a transient BC 429/timeout) must NOT be silently treated as
       // "this company spent €0" and then cached as a complete result — that would
@@ -246,7 +264,7 @@ export async function getInvoices(
         targetCompanies.map(async (company) => {
           const [glEntries, headers] = await Promise.all([
             fetchBCLedgerByAccounts(company.id, from, to, pullAccounts).catch(() => { degraded = true; return [] as Record<string, unknown>[]; }),
-            fetchBCPurchaseInvoiceHeaders(company.id, from, to).catch(() => { degraded = true; return [] as Record<string, unknown>[]; }),
+            fetchBCPurchaseInvoiceHeaders(company.id, headerFrom, headerTo).catch(() => { degraded = true; return [] as Record<string, unknown>[]; }),
           ]);
           const vendorByDoc = new Map<string, { name: string; number: string }>();
           for (const h of headers) {
