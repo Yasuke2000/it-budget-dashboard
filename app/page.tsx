@@ -20,6 +20,7 @@ export default function OverviewPage() {
   const { selectedCompany } = useCompany();
   const [loading, setLoading] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showSetupBanner, setShowSetupBanner] = useState(() => {
     if (typeof window === "undefined") return false;
     try {
@@ -45,28 +46,39 @@ export default function OverviewPage() {
       dateTo: selectedRange.to,
     });
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30_000);
-    fetch(`/api/dashboard?${params}`, { signal: controller.signal })
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    const startedAt = Date.now();
+    fetch(`/api/dashboard?${params}`, { signal: controller.signal, cache: "no-store" })
       .then((res) => {
-        if (!res.ok) throw new Error(`dashboard ${res.status}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then((d) => {
         clearTimeout(timer);
+        if (cancelled) return;
         // Guard against an error payload that parses as a truthy object but
         // lacks the expected shape — otherwise the render would destructure
         // undefined and white-screen.
-        if (!cancelled) {
-          if (d && d.kpis && Array.isArray(d.monthly)) setData(d);
-          setLoading(false);
+        if (d && d.kpis && Array.isArray(d.monthly)) {
+          setData(d);
+        } else {
+          setErrorMsg("The server returned an unexpected response.");
         }
+        setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
         clearTimeout(timer);
-        if (!cancelled) setLoading(false);
+        if (cancelled) return;
+        const secs = Math.round((Date.now() - startedAt) / 1000);
+        setErrorMsg(
+          err?.name === "AbortError"
+            ? `Request timed out after ${secs}s — the dashboard API didn't respond.`
+            : `Couldn't reach the dashboard API (${err?.message || "network error"}).`
+        );
+        setLoading(false);
       });
     return () => { cancelled = true; controller.abort(); clearTimeout(timer); };
-  }, [selectedRange, selectedCompany, retryCount]);
+  }, [selectedCompany, selectedRange.from, selectedRange.to, retryCount]);
 
   if (loading) {
     return (
@@ -95,7 +107,7 @@ export default function OverviewPage() {
         <h1 className="text-2xl font-bold text-white">Overview</h1>
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-4 flex items-center gap-4">
           <p className="text-sm text-red-300 flex-1">
-            Dashboard data could not be loaded. The API may be temporarily unavailable.
+            {errorMsg ?? "Dashboard data could not be loaded. The API may be temporarily unavailable."}
           </p>
           <Button
             size="sm"
