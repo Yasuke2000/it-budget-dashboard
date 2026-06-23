@@ -189,7 +189,7 @@ export function OverviewClient() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         <KPICard
           title="Total IT Spend"
           value={formatCurrencyCompact(kpis.totalSpendYTD)}
@@ -198,6 +198,13 @@ export function OverviewClient() {
           iconName="DollarSign"
           description={selectedRange.label}
           sparklineData={spendSparkline}
+        />
+        <KPICard
+          title="Projected Full Year"
+          value={formatCurrencyCompact(kpis.projectedAnnualSpend)}
+          iconName="TrendingUp"
+          changeType="neutral"
+          description="Annualised run-rate (complete months)"
         />
         <KPICard
           title="IT Asset Depreciation"

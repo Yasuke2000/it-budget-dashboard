@@ -540,6 +540,22 @@ export async function getDashboardKPIs(
     .filter((inv) => isITCategory(inv.costCategory))
     .reduce((sum, inv) => sum + inv.totalAmountExcludingTax, 0);
 
+  // Year-end projection: annualised run-rate from COMPLETE months only (excludes
+  // the current partial month and any future-dated accruals), so a half-finished
+  // month doesn't drag the projection down.
+  const nowMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+  const itByMonth = new Map<string, number>();
+  for (const inv of invoices) {
+    if (!isITCategory(inv.costCategory)) continue;
+    const m = inv.postingDate.substring(0, 7);
+    itByMonth.set(m, (itByMonth.get(m) ?? 0) + inv.totalAmountExcludingTax);
+  }
+  const completeMonths = [...itByMonth.entries()].filter(([m]) => m < nowMonth);
+  const avgMonthly = completeMonths.length
+    ? completeMonths.reduce((s, [, v]) => s + v, 0) / completeMonths.length
+    : 0;
+  const projectedAnnualSpend = Math.round(avgMonthly * 12);
+
   // Filter budget entries to match the requested date range
   const fromMonth = from.substring(0, 7); // "2025-01"
   const toMonth = to.substring(0, 7);     // "2026-12"
@@ -579,6 +595,7 @@ export async function getDashboardKPIs(
     totalBudgetYTD,
     totalActualYTD,
     itDepreciationYTD,
+    projectedAnnualSpend,
     spendTrend: spendChangePercent > 2 ? "up" : spendChangePercent < -2 ? "down" : "flat",
     spendChangePercent,
   };
@@ -717,31 +734,23 @@ export async function getEntitySpend(
   const companies = await getCompanies();
   const invoices = await getInvoices("all", from, to);
 
-  // Approximate user counts per entity
-  const userCounts: Record<string, number> = {
-    "comp-gdi": 55,
-    "comp-whs": 30,
-    "comp-gre": 10,
-    "comp-tdr": 35,
-  };
-
-  return companies.map((company) => {
-    const companyInvoices = invoices.filter(
-      (inv) => inv.companyId === company.id
-    );
-    const totalSpend = companyInvoices.reduce(
-      (s, i) => s + i.totalAmountExcludingTax,
-      0
-    );
-    const users = userCounts[company.id] || 20;
-    return {
-      companyId: company.id,
-      companyName: company.displayName,
-      totalSpend,
-      perUserSpend: totalSpend / users,
-      userCount: users,
-    };
-  });
+  // Per-entity headcount isn't available from BC (and Officient HR isn't
+  // connected), so we do NOT fabricate user counts / per-user spend. Total spend
+  // per entity is real; per-user is reported as 0 (unknown) until HR is connected.
+  return companies
+    .map((company) => {
+      const companyInvoices = invoices.filter((inv) => inv.companyId === company.id);
+      const totalSpend = companyInvoices.reduce((s, i) => s + i.totalAmountExcludingTax, 0);
+      return {
+        companyId: company.id,
+        companyName: company.displayName,
+        totalSpend,
+        perUserSpend: 0,
+        userCount: 0,
+      };
+    })
+    .filter((e) => e.totalSpend > 0)
+    .sort((a, b) => b.totalSpend - a.totalSpend);
 }
 
 // ---- Employees ----

@@ -25,8 +25,12 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Entity
     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
       <p className="text-sm font-medium text-slate-300">{d.companyName}</p>
       <p className="text-sm font-mono text-teal-400">Total: {formatCurrency(d.totalSpend)}</p>
-      <p className="text-sm font-mono text-slate-400">Per user: {formatCurrency(d.perUserSpend)}</p>
-      <p className="text-xs text-slate-500">{d.userCount} users</p>
+      {d.userCount > 0 && (
+        <>
+          <p className="text-sm font-mono text-slate-400">Per user: {formatCurrency(d.perUserSpend)}</p>
+          <p className="text-xs text-slate-500">{d.userCount} users</p>
+        </>
+      )}
     </div>
   );
 }

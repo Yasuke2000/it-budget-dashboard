@@ -132,6 +132,7 @@ export interface DashboardKPIs {
   totalBudgetYTD: number;
   totalActualYTD: number;
   itDepreciationYTD: number;
+  projectedAnnualSpend: number;
   spendTrend: "up" | "down" | "flat";
   spendChangePercent: number;
 }
