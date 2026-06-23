@@ -73,6 +73,15 @@ function isOperatingCompany(name: string): boolean {
 // promise per cache key.
 const inflightInvoices = new Map<string, Promise<PurchaseInvoice[]>>();
 
+// Negative cache for Microsoft Graph. Licenses/devices currently 401/403
+// (permissions not yet granted) and the Intune endpoint can be slow to reject.
+// Without this, every dashboard load makes a fresh failing round-trip to Graph,
+// which is the main cause of slow/stuck Overview loads. After a failure we serve
+// the demo fallback for a while instead of re-hitting the broken endpoint.
+const GRAPH_FAIL_TTL_MS = 30 * 60 * 1000; // 30 min
+let graphLicensesFailedUntil = 0;
+let graphDevicesFailedUntil = 0;
+
 // Merge imported EasyPay payroll into the invoice list as an "IT Personnel" cost
 // line, so personnel cost appears in Total Spend, Category breakdown and Vendors.
 // Applied on every getInvoices() return path (incl. cache hits) so it's never
@@ -371,7 +380,8 @@ export async function getLicenses(): Promise<M365License[]> {
 
   const cacheKey = "licenses";
   const cached = getCache<M365License[]>(cacheKey);
-  if (cached) return cached;
+  if (cached) { sourceStatus.licenses = "live"; return cached; }
+  if (Date.now() < graphLicensesFailedUntil) { sourceStatus.licenses = "demo"; return demoLicenses; }
 
   try {
     const skus = await fetchSubscribedSkus();
@@ -382,6 +392,7 @@ export async function getLicenses(): Promise<M365License[]> {
   } catch (err) {
     console.warn("Graph API error (licenses), falling back to demo data:", err);
     sourceStatus.licenses = "demo";
+    graphLicensesFailedUntil = Date.now() + GRAPH_FAIL_TTL_MS;
     return demoLicenses;
   }
 }
@@ -392,7 +403,8 @@ export async function getDevices(): Promise<ManagedDevice[]> {
 
   const cacheKey = "devices";
   const cached = getCache<ManagedDevice[]>(cacheKey);
-  if (cached) return cached;
+  if (cached) { sourceStatus.devices = "live"; return cached; }
+  if (Date.now() < graphDevicesFailedUntil) { sourceStatus.devices = "demo"; return demoDevices; }
 
   try {
     const rawDevices = await fetchManagedDevices();
@@ -403,6 +415,7 @@ export async function getDevices(): Promise<ManagedDevice[]> {
   } catch (err) {
     console.warn("Graph API error (devices), falling back to demo data:", err);
     sourceStatus.devices = "demo";
+    graphDevicesFailedUntil = Date.now() + GRAPH_FAIL_TTL_MS;
     return demoDevices;
   }
 }
