@@ -1,21 +1,25 @@
 // Maps real Business Central G/L account numbers (Belgian PCMN, 6-digit) to IT
-// cost categories. Derived from the live Gheeraert chart of accounts — only the
-// accounts that genuinely carry IT spend are listed. Everything else is treated
-// as Unclassified (non-IT) and excluded from IT totals.
+// cost categories. Derived from the live Gheeraert chart of accounts and
+// confirmed with David — only accounts that genuinely carry IT spend are listed.
+// Everything else is Unclassified (non-IT) and excluded from IT totals.
 //
-// Accumulated-depreciation contra accounts (…009) are deliberately NOT mapped:
-// they are non-cash balance-sheet entries, not IT spend.
+// Cost model: FULL P&L COST. IT spend = operating expense + external IT services
+// + yearly depreciation of IT assets. The capitalised asset-purchase accounts
+// (240200/240500/215000/211000) are intentionally NOT mapped, because counting
+// both the purchase and its depreciation would double-count the asset.
+// Accumulated-depreciation contra accounts (…009) are also excluded.
 export const DEFAULT_GL_MAPPING: Record<string, string> = {
-  // IT operating expense (P&L)
-  "611120": "Hardware (Purchases)",   // Onderhoud computer hardware
-  "611130": "Software & Licenses",    // Onderhoud computer software (maintenance / subscriptions)
-  "612350": "Hardware (Purchases)",   // Computerbenodigdheden (computer supplies)
-  "612400": "Telecom",                // Telefonie en internet
-  // IT capital expenditure (asset additions)
-  "240200": "Hardware (Purchases)",   // Computer hardware
-  "240500": "Software & Licenses",    // Computer software
-  "215000": "Software & Licenses",    // Software (intangible)
-  "211000": "Software & Licenses",    // Concessies, octrooien, licenties, know-how, merken
+  // IT operating expense
+  "611120": "Hardware (Purchases)",     // Onderhoud computer hardware
+  "611130": "Software & Licenses",      // Onderhoud computer software (maintenance / subscriptions)
+  "612350": "Hardware (Purchases)",     // Computerbenodigdheden (computer supplies)
+  "612400": "Telecom",                  // Telefonie en internet
+  "613320": "External IT Services",     // Informaticadiensten (external IT services / consultancy)
+  // IT-asset depreciation (P&L expense — full-cost view)
+  "630000": "Software & Licenses",      // Afschr. concessies, octrooien, licenties
+  "630005": "Software & Licenses",      // Afschr. software
+  "630402": "Hardware (Depreciation)",  // Afschr. computer hardware
+  "630405": "Software & Licenses",      // Afschr. computer software
 };
 
 // G/L accounts queried from generalLedgerEntries to compute IT spend. Kept in
