@@ -739,6 +739,103 @@ function GLMappingTab() {
   );
 }
 
+// ─── Tab: Budget ───────────────────────────────────────────────────────────────
+
+function BudgetTab() {
+  const [budgets, setBudgets] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.budgets) {
+          const b: Record<string, string> = {};
+          for (const [k, v] of Object.entries(d.budgets as Record<string, number>)) b[k] = String(v);
+          setBudgets(b);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const update = (cat: string, raw: string) => {
+    setBudgets((b) => ({ ...b, [cat]: raw }));
+    setSaved(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const parsed: Record<string, number> = {};
+      for (const [cat, raw] of Object.entries(budgets)) {
+        const n = parseFloat(raw);
+        if (Number.isFinite(n) && n > 0) parsed[cat] = n;
+      }
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ budgets: parsed }),
+      });
+      setSaved(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+        <CardHeader>
+          <CardTitle className="text-white text-sm font-semibold">Monthly Budget by Category</CardTitle>
+          <CardDescription>
+            Enter a <strong>monthly</strong> budget (EUR, excl. VAT) per IT cost category. The Budget
+            page and dashboard then show variance vs your real spend. Leave blank/0 for no budget.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border border-slate-700 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-700 hover:bg-transparent">
+                  <TableHead className="text-slate-400 font-medium">Category</TableHead>
+                  <TableHead className="text-slate-400 font-medium w-56 text-right pr-6">
+                    Monthly Budget (EUR)
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {IT_CATEGORIES.map((cat) => (
+                  <TableRow key={cat} className="border-slate-700 hover:bg-slate-800/50">
+                    <TableCell className="py-2 text-sm text-slate-300">{cat}</TableCell>
+                    <TableCell className="py-2 text-right pr-4">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className="text-slate-400 text-sm">€</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={100}
+                          value={budgets[cat] ?? ""}
+                          onChange={(e) => update(cat, e.target.value)}
+                          placeholder="0"
+                          className="h-8 w-32 bg-slate-800 border-slate-700 text-white text-right focus:border-teal-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex items-center justify-end gap-4">
+            <SaveButton onClick={handleSave} saving={saving} saved={saved} />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Tab: IT Vendors (allowlist) ───────────────────────────────────────────────
 
 interface VendorRuleRow {
@@ -1217,6 +1314,12 @@ export default function SettingsPage() {
             GL Mapping
           </TabsTrigger>
           <TabsTrigger
+            value="budget"
+            className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
+          >
+            Budget
+          </TabsTrigger>
+          <TabsTrigger
             value="vendors"
             className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
           >
@@ -1242,6 +1345,9 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="gl-mapping">
             <GLMappingTab />
+          </TabsContent>
+          <TabsContent value="budget">
+            <BudgetTab />
           </TabsContent>
           <TabsContent value="vendors">
             <VendorRulesTab />

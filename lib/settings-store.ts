@@ -16,6 +16,8 @@ export interface AppSettings {
   glMappings: Record<string, string>;
   licensePrices: Record<string, number>;
   itVendorRules: Record<string, string>;
+  // Per-category MONTHLY budget (EUR). Empty until configured in Settings → Budget.
+  budgets: Record<string, number>;
 }
 
 async function getSetting<T>(key: string): Promise<T | null> {
@@ -65,15 +67,17 @@ async function setSetting(key: string, value: unknown): Promise<void> {
 
 /** Settings merged over the compiled defaults. */
 export async function getAppSettings(): Promise<AppSettings> {
-  const [gl, prices, vendors] = await Promise.all([
+  const [gl, prices, vendors, budgets] = await Promise.all([
     getSetting<Record<string, string>>("glMappings"),
     getSetting<Record<string, number>>("licensePrices"),
     getSetting<Record<string, string>>("itVendorRules"),
+    getSetting<Record<string, number>>("budgets"),
   ]);
   return {
     glMappings: { ...DEFAULT_GL_MAPPING, ...(gl ?? {}) },
     licensePrices: { ...DEFAULT_LICENSE_PRICES, ...(prices ?? {}) },
     itVendorRules: { ...IT_VENDOR_RULES, ...(vendors ?? {}) },
+    budgets: { ...(budgets ?? {}) },
   };
 }
 
@@ -81,5 +85,6 @@ export async function saveAppSettings(settings: Partial<AppSettings>): Promise<A
   if (settings.glMappings) await setSetting("glMappings", settings.glMappings);
   if (settings.licensePrices) await setSetting("licensePrices", settings.licensePrices);
   if (settings.itVendorRules) await setSetting("itVendorRules", settings.itVendorRules);
+  if (settings.budgets) await setSetting("budgets", settings.budgets);
   return getAppSettings();
 }

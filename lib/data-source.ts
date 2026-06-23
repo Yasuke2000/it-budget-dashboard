@@ -510,10 +510,35 @@ export async function getBudgetEntries(
     return demoBudgetEntries;
   }
 
-  // No budget has been configured and there is no live budget source, so we
-  // return nothing rather than presenting demo budget figures as real. The
-  // Budget page shows actual IT spend (from the ledger) instead.
-  return [];
+  // Live: per-category monthly budgets configured in Settings → Budget, expanded
+  // to one entry per category × month of the current year. Empty until set.
+  let budgets: Record<string, number> = {};
+  try {
+    budgets = (await getAppSettings()).budgets;
+  } catch {
+    return [];
+  }
+  const cats = Object.keys(budgets).filter((c) => (budgets[c] || 0) > 0);
+  if (!cats.length) return [];
+  const yr = new Date().getFullYear();
+  const entries: BudgetEntry[] = [];
+  for (const cat of cats) {
+    const monthly = budgets[cat];
+    for (let mo = 1; mo <= 12; mo++) {
+      const month = `${yr}-${String(mo).padStart(2, "0")}`;
+      entries.push({
+        id: `bud-${cat}-${month}`,
+        category: cat,
+        month,
+        budgetAmount: monthly,
+        actualAmount: 0, // actual is computed from invoices by the consumers
+        variance: 0,
+        variancePercent: 0,
+        companyId: "all",
+      });
+    }
+  }
+  return entries;
 }
 
 // ---- Dashboard KPIs ----
@@ -528,7 +553,7 @@ export async function getDashboardKPIs(
   const invoices = await getInvoices(companyFilter, from, to);
   // Budget only exists in demo mode — no live budget source is configured, so we
   // don't surface fake budget/variance numbers on the live dashboard.
-  const budget = isDemoMode() ? await getBudgetEntries(companyFilter) : [];
+  const budget = await getBudgetEntries(companyFilter);
   const licenses = await getLicenses();
   const devices = await getDevices();
   // Depreciation of IT assets — reported separately, never added to IT spend.
@@ -647,7 +672,7 @@ export async function getMonthlySpend(
   // exists in demo mode — in live mode there is no configured budget source, so
   // the budget line is omitted rather than showing fake numbers.
   const invoices = await getInvoices(companyFilter, from, to);
-  const budget = isDemoMode() ? await getBudgetEntries(companyFilter) : [];
+  const budget = await getBudgetEntries(companyFilter);
 
   // Enumerate all year-months within the requested range
   const fromDate = new Date(from);
@@ -691,7 +716,7 @@ export async function getCategorySpend(
   const to = dateTo ?? `${yr}-12-31`;
   const invoices = await getInvoices(companyFilter, from, to);
   // Budget exists only in demo mode; don't blend demo budget into live figures.
-  const budget = isDemoMode() ? await getBudgetEntries(companyFilter) : [];
+  const budget = await getBudgetEntries(companyFilter);
 
   const categoryMap = new Map<string, { actual: number; budget: number }>();
 

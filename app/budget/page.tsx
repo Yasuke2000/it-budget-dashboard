@@ -25,8 +25,14 @@ export default async function BudgetPage({
   if (demo) {
     entries = await getBudgetEntries();
   } else {
-    // No budget configured — build actual spend from real BC invoices
-    const invoices = await getInvoices(company, from, to);
+    // Actual spend from real BC invoices, overlaid with any configured budget
+    // (Settings → Budget). Budget-only categories still show (actual 0).
+    const [invoices, budgetEntries] = await Promise.all([
+      getInvoices(company, from, to),
+      getBudgetEntries(company),
+    ]);
+    const budgetByKey = new Map<string, number>();
+    for (const b of budgetEntries) budgetByKey.set(`${b.category}:${b.month}`, b.budgetAmount);
     const actualByKey = new Map<string, number>();
     for (const inv of invoices) {
       if (!isITCategory(inv.costCategory)) continue;
@@ -35,23 +41,29 @@ export default async function BudgetPage({
       const key = `${inv.costCategory}:${month}`;
       actualByKey.set(key, (actualByKey.get(key) ?? 0) + inv.totalAmountExcludingTax);
     }
-    entries = Array.from(actualByKey.entries()).map(([key, actualAmount]) => {
+    const keys = new Set<string>([...actualByKey.keys(), ...budgetByKey.keys()]);
+    entries = Array.from(keys).map((key) => {
       const sep = key.indexOf(":");
       const category = key.substring(0, sep);
       const month = key.substring(sep + 1);
+      const actualAmount = actualByKey.get(key) ?? 0;
+      const budgetAmount = budgetByKey.get(key) ?? 0;
+      const variance = actualAmount - budgetAmount;
       return {
         id: key,
         category,
         month,
-        budgetAmount: 0,
+        budgetAmount,
         actualAmount,
-        variance: actualAmount,
-        variancePercent: 0,
+        variance,
+        variancePercent: budgetAmount > 0 ? (variance / budgetAmount) * 100 : 0,
         companyId: "all",
       };
     });
   }
 
+  // Budget columns/variance show when a budget is actually configured.
+  const hasBudget = entries.some((e) => e.budgetAmount > 0);
   const ytdActual = entries.reduce((s, e) => s + e.actualAmount, 0);
   const ytdBudget = entries.reduce((s, e) => s + e.budgetAmount, 0);
   const overallVariancePct = ytdBudget > 0 ? ((ytdActual - ytdBudget) / ytdBudget) * 100 : 0;
@@ -67,17 +79,18 @@ export default async function BudgetPage({
       <div>
         <h1 className="text-2xl font-bold text-white">Budget</h1>
         <p className="text-slate-400">
-          {demo
+          {hasBudget
             ? `Budget vs actual spend by category — FY ${currentYear}`
             : `IT spend by category — ${currentYear}`}
         </p>
       </div>
 
-      {!demo && (
+      {!hasBudget && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
           <AlertCircle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
           <p className="text-sm text-amber-300">
-            No budget configured yet — showing actual IT spend from Business Central only.
+            No budget configured yet — showing actual IT spend only. Set per-category budgets in
+            Settings → Budget to see variance.
           </p>
         </div>
       )}
@@ -89,7 +102,7 @@ export default async function BudgetPage({
           iconName="DollarSign"
           description={`Total IT spend ${currentYear}`}
         />
-        {demo && (
+        {hasBudget && (
           <>
             <KPICard
               title="YTD Budget"
@@ -113,7 +126,7 @@ export default async function BudgetPage({
         )}
       </div>
 
-      {demo && (
+      {hasBudget && (
         <div className="flex items-center gap-6 px-1">
           <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
             Variance legend
@@ -136,7 +149,7 @@ export default async function BudgetPage({
         </div>
       )}
 
-      <BudgetTable entries={entries} hasBudget={demo} year={currentYear} />
+      <BudgetTable entries={entries} hasBudget={hasBudget} year={currentYear} />
     </div>
   );
 }
