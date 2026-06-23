@@ -4,7 +4,16 @@
 
 import { promises as fs } from "fs";
 import path from "path";
-import { DEFAULT_GL_MAPPING, DEFAULT_LICENSE_PRICES, IT_VENDOR_RULES, OPERATIONAL_SOFTWARE_VENDORS } from "./constants";
+import { DEFAULT_GL_MAPPING, DEFAULT_LICENSE_PRICES, IT_VENDOR_RULES, OPERATIONAL_SOFTWARE_VENDORS, IT_DEPRECIATION_ACCOUNTS } from "./constants";
+
+// Accounts that must NEVER be counted as IT spend, even if a mis-edit in Settings
+// adds them to the GL mapping: depreciation/amortisation (class 63 — would
+// double-count the asset + its write-down, breaching the Belgian-GAAP matching
+// rule) and suspense/clearing accounts (49x — e.g. prepaid-card holding accounts,
+// not expenses). Stripped from the merged mapping defensively.
+function isForbiddenSpendAccount(acct: string): boolean {
+  return /^(63|49)/.test(acct) || IT_DEPRECIATION_ACCOUNTS.includes(acct);
+}
 import { isDbEnabled, ensureSchema, withClient } from "./db/client";
 
 const DATA_DIR = process.env.PAYROLL_DATA_DIR || path.join(process.cwd(), "data");
@@ -87,8 +96,14 @@ export async function getAppSettings(): Promise<AppSettings> {
     getSetting<number>("consolidatedRevenue"),
     getSetting<number>("revenueBenchmarkPercent"),
   ]);
+  // Merge stored GL overrides over defaults, then strip any forbidden account
+  // (depreciation 63x / suspense 49x) so it can never leak into the spend total.
+  const mergedGl: Record<string, string> = { ...DEFAULT_GL_MAPPING, ...(gl ?? {}) };
+  for (const acct of Object.keys(mergedGl)) {
+    if (isForbiddenSpendAccount(acct)) delete mergedGl[acct];
+  }
   return {
-    glMappings: { ...DEFAULT_GL_MAPPING, ...(gl ?? {}) },
+    glMappings: mergedGl,
     licensePrices: { ...DEFAULT_LICENSE_PRICES, ...(prices ?? {}) },
     itVendorRules: { ...IT_VENDOR_RULES, ...(vendors ?? {}) },
     budgets: { ...(budgets ?? {}) },

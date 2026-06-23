@@ -3,8 +3,17 @@ import { getAppSettings, saveAppSettings } from "@/lib/settings-store";
 import { clearCache } from "@/lib/sync-cache";
 
 export async function GET() {
-  const { glMappings, licensePrices, itVendorRules, budgets, operationalSoftwareVendors, includeOperationalSoftware } = await getAppSettings();
-  return NextResponse.json({ glMappings, licensePrices, itVendorRules, budgets, operationalSoftwareVendors, includeOperationalSoftware });
+  const s = await getAppSettings();
+  return NextResponse.json({
+    glMappings: s.glMappings,
+    licensePrices: s.licensePrices,
+    itVendorRules: s.itVendorRules,
+    budgets: s.budgets,
+    operationalSoftwareVendors: s.operationalSoftwareVendors,
+    includeOperationalSoftware: s.includeOperationalSoftware,
+    consolidatedRevenue: s.consolidatedRevenue,
+    revenueBenchmarkPercent: s.revenueBenchmarkPercent,
+  });
 }
 
 export async function POST(request: Request) {
@@ -16,6 +25,8 @@ export async function POST(request: Request) {
       budgets?: Record<string, number>;
       operationalSoftwareVendors?: string[];
       includeOperationalSoftware?: boolean;
+      consolidatedRevenue?: number;
+      revenueBenchmarkPercent?: number;
     };
     const settings = await saveAppSettings({
       glMappings: body.glMappings,
@@ -24,6 +35,8 @@ export async function POST(request: Request) {
       budgets: body.budgets,
       operationalSoftwareVendors: body.operationalSoftwareVendors,
       includeOperationalSoftware: body.includeOperationalSoftware,
+      consolidatedRevenue: body.consolidatedRevenue,
+      revenueBenchmarkPercent: body.revenueBenchmarkPercent,
     });
     // Invalidate cached spend/licenses so the new mapping/prices take effect now
     // (instead of after the 2–4h TTL).
