@@ -164,7 +164,8 @@ export function OverviewClient() {
           size="sm"
           className="text-teal-400 hover:text-teal-300 hover:bg-teal-500/10 gap-2"
           onClick={async () => {
-            const res = await fetch(`/api/report?company=${selectedCompany}`);
+            const qs = `company=${selectedCompany}&dateFrom=${selectedRange.from}&dateTo=${selectedRange.to}`;
+            const res = await fetch(`/api/report?${qs}`);
             const reportData = await res.json();
             const { generateExecutiveReport } = await import("@/lib/pdf-report");
             const doc = generateExecutiveReport(reportData);
@@ -179,7 +180,7 @@ export function OverviewClient() {
           size="sm"
           className="text-slate-400 hover:text-slate-300 hover:bg-slate-500/10 gap-2"
           onClick={() => {
-            window.open(`/api/export?company=${selectedCompany}`, "_blank");
+            window.open(`/api/export?company=${selectedCompany}&dateFrom=${selectedRange.from}&dateTo=${selectedRange.to}`, "_blank");
           }}
         >
           <Share2 className="h-4 w-4" />

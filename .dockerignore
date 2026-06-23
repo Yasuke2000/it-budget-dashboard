@@ -6,3 +6,9 @@ node_modules
 *.md
 LICENSE
 scripts/
+# Never bake secrets or local runtime data into the image
+.env
+.env.*
+*.env
+data/
+templates/

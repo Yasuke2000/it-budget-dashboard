@@ -15,10 +15,12 @@ export async function GET(request: Request) {
   const company = searchParams.get("company") || "all";
   const format = searchParams.get("format") || "markdown";
 
-  // Use full date range including current year
-  const currentYear = new Date().getFullYear();
-  const fullFrom = "2025-01-01";
-  const fullTo = `${currentYear}-12-31`;
+  // Honour the date range chosen on screen; default to the last 12 months.
+  const now0 = new Date();
+  const from12 = new Date(now0);
+  from12.setMonth(from12.getMonth() - 12);
+  const fullFrom = searchParams.get("dateFrom") || from12.toISOString().split("T")[0];
+  const fullTo = searchParams.get("dateTo") || now0.toISOString().split("T")[0];
 
   const [kpis, licenses, vendors, categories, monthly, contracts, entities, insights, devices] =
     await Promise.all([
@@ -89,7 +91,8 @@ export async function GET(request: Request) {
 
   const md = `# IT Finance Status Export
 > Generated: ${dateStr} | Currency: EUR | Fiscal Year: Jan–Dec
-> Entity scope: ${company === "all" ? "Consolidated (GDI, WHS, GRE, TDR)" : company}
+> Entity scope: ${company === "all" ? "Consolidated (all entities)" : company}
+> Period: ${fullFrom} to ${fullTo}
 > Data coverage: ${firstMonth} to ${lastMonth} (${monthsWithData.length} months with actuals)
 > Data sources: Microsoft Business Central, Microsoft Graph (licenses), Intune (devices)
 > Purpose: LLM-ready financial context for IT cost analysis

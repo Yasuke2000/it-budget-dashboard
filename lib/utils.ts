@@ -7,33 +7,37 @@ export function cn(...inputs: ClassValue[]) {
 
 // Currency formatting — Belgian EUR format (€ 1.234,56)
 export function formatCurrency(amount: number): string {
+  const safe = Number.isFinite(amount) ? amount : 0;
   return new Intl.NumberFormat("nl-BE", {
     style: "currency",
     currency: "EUR",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(safe);
 }
 
 // Compact currency for KPI cards (€ 12.3K, € 1.2M)
 export function formatCurrencyCompact(amount: number): string {
-  if (Math.abs(amount) >= 1_000_000) {
-    return `€ ${(amount / 1_000_000).toFixed(1)}M`;
+  const safe = Number.isFinite(amount) ? amount : 0;
+  if (Math.abs(safe) >= 1_000_000) {
+    return `€ ${(safe / 1_000_000).toFixed(1)}M`;
   }
-  if (Math.abs(amount) >= 1_000) {
-    return `€ ${(amount / 1_000).toFixed(1)}K`;
+  if (Math.abs(safe) >= 1_000) {
+    return `€ ${(safe / 1_000).toFixed(1)}K`;
   }
-  return formatCurrency(amount);
+  return formatCurrency(safe);
 }
 
 // Format percentage
 export function formatPercent(value: number, decimals = 1): string {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)}%`;
+  const safe = Number.isFinite(value) ? value : 0;
+  return `${safe >= 0 ? "+" : ""}${safe.toFixed(decimals)}%`;
 }
 
 // Format date in Belgian format
 export function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("nl-BE", {
     day: "2-digit",
     month: "2-digit",
@@ -43,8 +47,10 @@ export function formatDate(dateStr: string): string {
 
 // Get month name from "2025-01" format
 export function getMonthName(monthStr: string): string {
-  const [year, month] = monthStr.split("-");
-  const date = new Date(parseInt(year), parseInt(month) - 1);
+  const [year, month] = (monthStr || "").split("-");
+  const y = parseInt(year), m = parseInt(month);
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return monthStr || "—";
+  const date = new Date(y, m - 1);
   return date.toLocaleDateString("en-US", { month: "short" });
 }
 
