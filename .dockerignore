@@ -6,9 +6,11 @@ node_modules
 *.md
 LICENSE
 scripts/
-# Never bake secrets or local runtime data into the image
+# Never bake secrets or local runtime data into the image.
+# NOTE: keep data/mock/ (build-time demo data imported by lib/demo-data.ts);
+# only the top-level runtime store JSON is excluded.
 .env
 .env.*
 *.env
-data/
+data/*.json
 templates/
