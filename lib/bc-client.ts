@@ -159,7 +159,7 @@ export async function fetchBCPurchaseInvoiceHeaders(
   const filter = `postingDate ge ${dateFrom} and postingDate le ${dateTo}`;
   const url = `${BC_BASE_URL}/companies(${companyId})/purchaseInvoices?$filter=${encodeURIComponent(
     filter
-  )}&$select=number,vendorName,vendorNumber`;
+  )}&$select=number,vendorName,vendorNumber,totalAmountExcludingTax,postingDate`;
   return fetchAllPages<Record<string, unknown>>(url, token);
 }
 

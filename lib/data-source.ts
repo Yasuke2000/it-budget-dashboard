@@ -29,7 +29,7 @@ import type {
   DepartmentSummary,
 } from "./types";
 import type { PeppolInvoice } from "./peppol-parser";
-import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING, UNCLASSIFIED_CATEGORY, isITCategory } from "./constants";
+import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING, IT_VENDOR_RULES, UNCLASSIFIED_CATEGORY, isITCategory } from "./constants";
 import { generateAllInsights } from "./cost-insights";
 import type { CostInsight } from "./cost-insights";
 import { getCache, setCache } from "./sync-cache";
@@ -210,12 +210,17 @@ export async function getInvoices(
       // Fall back to compiled defaults if the settings store is unavailable —
       // never empty the dashboard over a settings read.
       let glMapping: Record<string, string>;
+      let vendorRules: Record<string, string>;
       try {
-        glMapping = (await getAppSettings()).glMappings;
+        const settings = await getAppSettings();
+        glMapping = settings.glMappings;
+        vendorRules = settings.itVendorRules;
       } catch {
         glMapping = DEFAULT_GL_MAPPING;
+        vendorRules = IT_VENDOR_RULES;
       }
       const itAccounts = Object.keys(glMapping);
+      const vendorPatterns = Object.keys(vendorRules);
       const perCompany = await Promise.all(
         targetCompanies.map(async (company) => {
           const [glEntries, headers] = await Promise.all([
@@ -227,12 +232,13 @@ export async function getInvoices(
             const num = (h.number as string) || "";
             if (num) vendorByDoc.set(num, { name: (h.vendorName as string) || "", number: (h.vendorNumber as string) || "" });
           }
-          return { company, glEntries, vendorByDoc };
+          return { company, glEntries, vendorByDoc, headers };
         })
       );
 
       const allInvoices: PurchaseInvoice[] = [];
-      for (const { company, glEntries, vendorByDoc } of perCompany) {
+      for (const { company, glEntries, vendorByDoc, headers } of perCompany) {
+        const countedDocs = new Set<string>();
         for (const g of glEntries) {
           const accountNumber = (g.accountNumber as string) || "";
           // Spend = debit − credit. This nets out correction/reversal pairs to
@@ -244,6 +250,7 @@ export async function getInvoices(
           const description = (g.description as string) || "";
           const costCategory = glMapping[accountNumber] || UNCLASSIFIED_CATEGORY;
           const vendor = vendorByDoc.get(documentNumber);
+          if (documentNumber) countedDocs.add(documentNumber);
 
           allInvoices.push({
             id: `gl-${company.id}-${(g.id as string) || `${documentNumber}-${accountNumber}-${postingDate}`}`,
@@ -275,6 +282,41 @@ export async function getInvoices(
               },
             ],
           });
+        }
+
+        // Vendor allowlist: count allowlisted IT vendors (e.g. iDocta, Canon
+        // printers) even when their invoice landed on a non-IT account — but
+        // only invoices NOT already counted above, so nothing double-counts.
+        if (vendorPatterns.length) {
+          for (const h of headers) {
+            const vname = (h.vendorName as string) || "";
+            const vlow = vname.toLowerCase();
+            const matched = vendorPatterns.find((p) => p && vlow.includes(p.toLowerCase()));
+            if (!matched) continue;
+            const num = (h.number as string) || "";
+            if (num && countedDocs.has(num)) continue;
+            const amt = (h.totalAmountExcludingTax as number) || 0;
+            if (!amt) continue;
+            const postingDate = (h.postingDate as string) || from;
+            allInvoices.push({
+              id: `vw-${company.id}-${num || vname}`,
+              number: num,
+              invoiceDate: postingDate,
+              postingDate,
+              dueDate: postingDate,
+              vendorNumber: (h.vendorNumber as string) || "",
+              vendorName: vname,
+              totalAmountExcludingTax: amt,
+              totalAmountIncludingTax: amt,
+              totalTaxAmount: 0,
+              status: "Paid",
+              currencyCode: "EUR",
+              companyId: company.id,
+              companyName: company.displayName,
+              costCategory: vendorRules[matched] || "External IT Services",
+              lines: [],
+            });
+          }
         }
       }
 

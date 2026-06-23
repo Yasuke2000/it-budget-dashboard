@@ -11,7 +11,6 @@ export const DEFAULT_GL_MAPPING: Record<string, string> = {
   // IT operating expense
   "611120": "Hardware (Purchases)",     // Onderhoud computer hardware
   "611130": "Software & Licenses",      // Onderhoud computer software (maintenance / subscriptions)
-  "612300": "Hardware (Purchases)",     // Kantoorbenodigdheden (printers/copiers — Canon, iDocta — + IT supplies)
   "612350": "Hardware (Purchases)",     // Computerbenodigdheden (computer supplies)
   "612400": "Telecom",                  // Telefonie en internet
   "613320": "External IT Services",     // Informaticadiensten (external IT services / consultancy)
@@ -26,6 +25,17 @@ export const DEFAULT_GL_MAPPING: Record<string, string> = {
 // sync with DEFAULT_GL_MAPPING — these are the only accounts we pull, which is
 // what keeps the BC query fast (a few thousand rows instead of ~46k invoices).
 export const IT_GL_ACCOUNTS: string[] = Object.keys(DEFAULT_GL_MAPPING);
+
+// IT vendor allowlist — captures spend from these vendors EVEN when it lands on
+// a non-IT account (e.g. iDocta and Canon printers booked to office-supplies
+// 612300). Matched case-insensitively on the posted-invoice vendor name. Only
+// invoices NOT already counted via an IT account are added (no double-count).
+// Keyed pattern → category. Editable/persisted via settings-store (merged over
+// these defaults).
+export const IT_VENDOR_RULES: Record<string, string> = {
+  idocta: "External IT Services",
+  canon: "Hardware (Purchases)",
+};
 
 // Depreciation/amortisation of IT assets (P&L). Reported as a SEPARATE figure,
 // never added to IT spend (the asset purchase is already counted as capex above).

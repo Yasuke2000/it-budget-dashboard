@@ -4,7 +4,7 @@
 
 import { promises as fs } from "fs";
 import path from "path";
-import { DEFAULT_GL_MAPPING, DEFAULT_LICENSE_PRICES } from "./constants";
+import { DEFAULT_GL_MAPPING, DEFAULT_LICENSE_PRICES, IT_VENDOR_RULES } from "./constants";
 import { isDbEnabled, ensureSchema, withClient } from "./db/client";
 
 const DATA_DIR = process.env.PAYROLL_DATA_DIR || path.join(process.cwd(), "data");
@@ -15,6 +15,7 @@ let memoryStore: Record<string, unknown> = {};
 export interface AppSettings {
   glMappings: Record<string, string>;
   licensePrices: Record<string, number>;
+  itVendorRules: Record<string, string>;
 }
 
 async function getSetting<T>(key: string): Promise<T | null> {
@@ -64,18 +65,21 @@ async function setSetting(key: string, value: unknown): Promise<void> {
 
 /** Settings merged over the compiled defaults. */
 export async function getAppSettings(): Promise<AppSettings> {
-  const [gl, prices] = await Promise.all([
+  const [gl, prices, vendors] = await Promise.all([
     getSetting<Record<string, string>>("glMappings"),
     getSetting<Record<string, number>>("licensePrices"),
+    getSetting<Record<string, string>>("itVendorRules"),
   ]);
   return {
     glMappings: { ...DEFAULT_GL_MAPPING, ...(gl ?? {}) },
     licensePrices: { ...DEFAULT_LICENSE_PRICES, ...(prices ?? {}) },
+    itVendorRules: { ...IT_VENDOR_RULES, ...(vendors ?? {}) },
   };
 }
 
 export async function saveAppSettings(settings: Partial<AppSettings>): Promise<AppSettings> {
   if (settings.glMappings) await setSetting("glMappings", settings.glMappings);
   if (settings.licensePrices) await setSetting("licensePrices", settings.licensePrices);
+  if (settings.itVendorRules) await setSetting("itVendorRules", settings.itVendorRules);
   return getAppSettings();
 }
