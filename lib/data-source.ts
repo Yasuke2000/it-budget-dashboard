@@ -33,7 +33,7 @@ import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING, UNCL
 import { generateAllInsights } from "./cost-insights";
 import type { CostInsight } from "./cost-insights";
 import { getCache, setCache } from "./sync-cache";
-import { fetchBCCompanies, fetchBCGLEntries, fetchBCITLedgerEntries, fetchBCPurchaseInvoiceHeaders, getBCToken } from "./bc-client";
+import { fetchBCCompanies, fetchBCGLEntries, fetchBCITLedgerEntries, fetchBCDepreciationEntries, fetchBCPurchaseInvoiceHeaders, getBCToken } from "./bc-client";
 import {
   fetchSubscribedSkus,
   fetchManagedDevices,
@@ -467,6 +467,8 @@ export async function getDashboardKPIs(
   const budget = isDemoMode() ? await getBudgetEntries(companyFilter) : [];
   const licenses = await getLicenses();
   const devices = await getDevices();
+  // Depreciation of IT assets — reported separately, never added to IT spend.
+  const itDepreciationYTD = await getITDepreciation(companyFilter, from, to);
 
   // Headline IT spend excludes "Unclassified" (non-IT GL accounts the BC feed
   // may include) so the KPI is trustworthy IT-only spend.
@@ -512,9 +514,43 @@ export async function getDashboardKPIs(
     deviceCount: devices.length,
     totalBudgetYTD,
     totalActualYTD,
+    itDepreciationYTD,
     spendTrend: spendChangePercent > 2 ? "up" : spendChangePercent < -2 ? "down" : "flat",
     spendChangePercent,
   };
+}
+
+// ---- IT asset depreciation (separate from spend) ----
+export async function getITDepreciation(
+  companyFilter: CompanyFilter = "all",
+  dateFrom?: string,
+  dateTo?: string
+): Promise<number> {
+  if (isDemoMode()) return 0;
+  const yr = new Date().getFullYear();
+  const from = dateFrom ?? `${yr}-01-01`;
+  const to = dateTo ?? `${yr}-12-31`;
+  const cacheKey = `it-depreciation-${companyFilter}-${from}-${to}`;
+  const cached = getCache<number>(cacheKey);
+  if (cached != null) return cached;
+  try {
+    await getBCToken();
+    const companies = await getCompanies();
+    const targets = companyFilter === "all" ? companies : companies.filter((c) => c.id === companyFilter);
+    const per = await Promise.all(
+      targets.map((c) => fetchBCDepreciationEntries(c.id, from, to).catch(() => [] as Record<string, unknown>[]))
+    );
+    let total = 0;
+    for (const entries of per) {
+      for (const g of entries) {
+        total += ((g.debitAmount as number) || 0) - ((g.creditAmount as number) || 0);
+      }
+    }
+    setCache(cacheKey, total, 120);
+    return total;
+  } catch {
+    return 0;
+  }
 }
 
 // ---- Monthly Spend Trend ----

@@ -3,11 +3,10 @@
 // confirmed with David — only accounts that genuinely carry IT spend are listed.
 // Everything else is Unclassified (non-IT) and excluded from IT totals.
 //
-// Cost model: FULL P&L COST. IT spend = operating expense + external IT services
-// + yearly depreciation of IT assets. The capitalised asset-purchase accounts
-// (240200/240500/215000/211000) are intentionally NOT mapped, because counting
-// both the purchase and its depreciation would double-count the asset.
-// Accumulated-depreciation contra accounts (…009) are also excluded.
+// Cost model: IT SPEND = operating expense + capitalised purchases (capex).
+// Depreciation of IT assets is tracked SEPARATELY (IT_DEPRECIATION_ACCOUNTS) and
+// surfaced as its own figure, so the purchase and its depreciation are never
+// double-counted. Accumulated-depreciation contra accounts (…009) are excluded.
 export const DEFAULT_GL_MAPPING: Record<string, string> = {
   // IT operating expense
   "611120": "Hardware (Purchases)",     // Onderhoud computer hardware
@@ -15,17 +14,26 @@ export const DEFAULT_GL_MAPPING: Record<string, string> = {
   "612350": "Hardware (Purchases)",     // Computerbenodigdheden (computer supplies)
   "612400": "Telecom",                  // Telefonie en internet
   "613320": "External IT Services",     // Informaticadiensten (external IT services / consultancy)
-  // IT-asset depreciation (P&L expense — full-cost view)
-  "630000": "Software & Licenses",      // Afschr. concessies, octrooien, licenties
-  "630005": "Software & Licenses",      // Afschr. software
-  "630402": "Hardware (Depreciation)",  // Afschr. computer hardware
-  "630405": "Software & Licenses",      // Afschr. computer software
+  // IT capital purchases (fixed-asset additions — actual hardware/software buys)
+  "240200": "Hardware (Purchases)",     // Computer hardware
+  "240500": "Software & Licenses",      // Computer software
+  "215000": "Software & Licenses",      // Software (intangible)
+  "211000": "Software & Licenses",      // Concessies, octrooien, licenties, know-how, merken
 };
 
 // G/L accounts queried from generalLedgerEntries to compute IT spend. Kept in
 // sync with DEFAULT_GL_MAPPING — these are the only accounts we pull, which is
 // what keeps the BC query fast (a few thousand rows instead of ~46k invoices).
 export const IT_GL_ACCOUNTS: string[] = Object.keys(DEFAULT_GL_MAPPING);
+
+// Depreciation/amortisation of IT assets (P&L). Reported as a SEPARATE figure,
+// never added to IT spend (the asset purchase is already counted as capex above).
+export const IT_DEPRECIATION_ACCOUNTS: string[] = [
+  "630000", // Afschr. concessies, octrooien, licenties
+  "630005", // Afschr. software
+  "630402", // Afschr. computer hardware
+  "630405", // Afschr. computer software
+];
 
 export const IT_CATEGORIES: string[] = [
   "Software & Licenses",

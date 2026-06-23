@@ -199,11 +199,11 @@ export function OverviewClient() {
           sparklineData={spendSparkline}
         />
         <KPICard
-          title="Budget Variance"
-          value={formatPercent(kpis.budgetVariancePercent)}
-          changeType={Math.abs(kpis.budgetVariancePercent) <= 5 ? "positive" : Math.abs(kpis.budgetVariancePercent) <= 10 ? "neutral" : "negative"}
-          iconName="TrendingUp"
-          description={`Budget: ${formatCurrencyCompact(kpis.totalBudgetYTD)}`}
+          title="IT Asset Depreciation"
+          value={formatCurrencyCompact(kpis.itDepreciationYTD)}
+          changeType="neutral"
+          iconName="BarChart2"
+          description="Separate from spend — write-down of IT assets"
         />
         <KPICard
           title="License Utilization"

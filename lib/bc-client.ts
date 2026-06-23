@@ -1,7 +1,7 @@
 import { ConfidentialClientApplication } from "@azure/msal-node";
 import type { PurchaseInvoice, PurchaseInvoiceLine } from "./types";
 import { fetchWithRetry } from "./http";
-import { IT_GL_ACCOUNTS } from "./constants";
+import { IT_GL_ACCOUNTS, IT_DEPRECIATION_ACCOUNTS } from "./constants";
 
 const msalConfig = {
   auth: {
@@ -113,18 +113,36 @@ export async function fetchBCGLEntries(
 // purchase invoice with $expand is ~46k rows per sync — far too slow. Instead
 // we read posted generalLedgerEntries restricted to the handful of IT accounts.
 // This returns only a few thousand rows across all companies and runs in ~2s.
-export async function fetchBCITLedgerEntries(
+async function fetchBCLedgerByAccounts(
   companyId: string,
   dateFrom: string,
-  dateTo: string
+  dateTo: string,
+  accounts: string[]
 ): Promise<Record<string, unknown>[]> {
   const token = await getBCToken();
-  const acctFilter = "(" + IT_GL_ACCOUNTS.map((a) => `accountNumber eq '${a}'`).join(" or ") + ")";
+  const acctFilter = "(" + accounts.map((a) => `accountNumber eq '${a}'`).join(" or ") + ")";
   const filter = `postingDate ge ${dateFrom} and postingDate le ${dateTo} and ${acctFilter}`;
   const url = `${BC_BASE_URL}/companies(${companyId})/generalLedgerEntries?$filter=${encodeURIComponent(
     filter
   )}&$select=id,postingDate,accountNumber,description,debitAmount,creditAmount,documentType,documentNumber&$orderby=postingDate desc`;
   return fetchAllPages<Record<string, unknown>>(url, token);
+}
+
+export async function fetchBCITLedgerEntries(
+  companyId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<Record<string, unknown>[]> {
+  return fetchBCLedgerByAccounts(companyId, dateFrom, dateTo, IT_GL_ACCOUNTS);
+}
+
+// Depreciation of IT assets — reported separately from IT spend.
+export async function fetchBCDepreciationEntries(
+  companyId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<Record<string, unknown>[]> {
+  return fetchBCLedgerByAccounts(companyId, dateFrom, dateTo, IT_DEPRECIATION_ACCOUNTS);
 }
 
 // Posted purchase-invoice headers (no lines) for a date range. Used to map a

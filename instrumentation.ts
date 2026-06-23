@@ -23,6 +23,8 @@ export async function register() {
         await Promise.allSettled([
           ds.getInvoices("all", `${yr}-01-01`, `${yr}-12-31`),
           ds.getInvoices("all", iso(from12), iso(now)),
+          ds.getITDepreciation("all", `${yr}-01-01`, `${yr}-12-31`),
+          ds.getITDepreciation("all", iso(from12), iso(now)),
           ds.getLicenses(),
           ds.getDevices(),
         ]);

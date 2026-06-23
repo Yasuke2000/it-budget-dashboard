@@ -131,6 +131,7 @@ export interface DashboardKPIs {
   deviceCount: number;
   totalBudgetYTD: number;
   totalActualYTD: number;
+  itDepreciationYTD: number;
   spendTrend: "up" | "down" | "flat";
   spendChangePercent: number;
 }
