@@ -95,7 +95,10 @@ export function mapGraphLicenseToM365License(
     prepaidUnits > 0 ? (consumedUnits / prepaidUnits) * 100 : 0;
   const wastedUnits = Math.max(0, prepaidUnits - consumedUnits);
   const wastedCost = wastedUnits * pricePerUser;
-  const monthlyCost = consumedUnits * pricePerUser;
+  // Recurring bill = what's COMMITTED (purchased seats), not just what's in use —
+  // you pay for the whole prepaid pool. monthlyCost = prepaidUnits × price; the
+  // unused portion is captured separately as wastedCost.
+  const monthlyCost = prepaidUnits * pricePerUser;
 
   return {
     skuId,

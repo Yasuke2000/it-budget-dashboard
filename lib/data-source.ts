@@ -439,7 +439,9 @@ export async function getLicenses(): Promise<M365License[]> {
       const p = prices[lic.skuPartNumber];
       if (p != null && p !== lic.pricePerUser) {
         lic.pricePerUser = p;
-        lic.monthlyCost = lic.consumedUnits * p;
+        // Bill the committed (prepaid) pool, not just consumed seats — matches
+        // the Microsoft invoice; the unused portion shows up in wastedCost.
+        lic.monthlyCost = lic.prepaidUnits * p;
         lic.wastedCost = lic.wastedUnits * p;
       }
       return lic;
@@ -519,9 +521,26 @@ export async function getContracts(): Promise<Contract[]> {
   }
 }
 
+// Enumerate "YYYY-MM" month keys from `from` to `to` inclusive.
+function monthsBetween(from: string, to: string): string[] {
+  const out: string[] = [];
+  let y = Number(from.substring(0, 4));
+  let m = Number(from.substring(5, 7));
+  const endY = Number(to.substring(0, 4));
+  const endM = Number(to.substring(5, 7));
+  while (y < endY || (y === endY && m <= endM)) {
+    out.push(`${y}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m > 12) { m = 1; y += 1; }
+  }
+  return out;
+}
+
 // ---- Budget ----
 export async function getBudgetEntries(
-  companyFilter: CompanyFilter = "all"
+  companyFilter: CompanyFilter = "all",
+  dateFrom?: string,
+  dateTo?: string
 ): Promise<BudgetEntry[]> {
   if (isDemoMode()) {
     if (companyFilter !== "all") {
@@ -531,7 +550,9 @@ export async function getBudgetEntries(
   }
 
   // Live: per-category monthly budgets configured in Settings → Budget, expanded
-  // to one entry per category × month of the current year. Empty until set.
+  // to one entry per category × month of the requested window (defaults to the
+  // current calendar year). Empty until set. The window MUST match the date range
+  // the KPIs use, or budget vs actual would compare different spans.
   let budgets: Record<string, number> = {};
   try {
     budgets = (await getAppSettings()).budgets;
@@ -541,11 +562,13 @@ export async function getBudgetEntries(
   const cats = Object.keys(budgets).filter((c) => (budgets[c] || 0) > 0);
   if (!cats.length) return [];
   const yr = new Date().getFullYear();
+  const from = dateFrom ?? `${yr}-01-01`;
+  const to = dateTo ?? `${yr}-12-31`;
+  const months = monthsBetween(from, to);
   const entries: BudgetEntry[] = [];
   for (const cat of cats) {
     const monthly = budgets[cat];
-    for (let mo = 1; mo <= 12; mo++) {
-      const month = `${yr}-${String(mo).padStart(2, "0")}`;
+    for (const month of months) {
       entries.push({
         id: `bud-${cat}-${month}`,
         category: cat,
@@ -561,6 +584,16 @@ export async function getBudgetEntries(
   return entries;
 }
 
+// True when an ISO date "YYYY-MM-DD" is the last calendar day of its month.
+function isMonthEnd(d: string): boolean {
+  if (!d || d.length < 10) return false;
+  const dt = new Date(`${d}T00:00:00Z`);
+  if (Number.isNaN(dt.getTime())) return false;
+  const next = new Date(dt);
+  next.setUTCDate(dt.getUTCDate() + 1);
+  return next.getUTCMonth() !== dt.getUTCMonth();
+}
+
 // ---- Dashboard KPIs ----
 export async function getDashboardKPIs(
   companyFilter: CompanyFilter = "all",
@@ -571,9 +604,9 @@ export async function getDashboardKPIs(
   const from = dateFrom ?? `${yr}-01-01`;
   const to = dateTo ?? `${yr}-12-31`;
   const invoices = await getInvoices(companyFilter, from, to);
-  // Budget only exists in demo mode — no live budget source is configured, so we
-  // don't surface fake budget/variance numbers on the live dashboard.
-  const budget = await getBudgetEntries(companyFilter);
+  // Per-category budgets over the SAME window as the spend (so budget vs actual
+  // compare like-for-like). Empty until configured in Settings → Budget.
+  const budget = await getBudgetEntries(companyFilter, from, to);
   const licenses = await getLicenses();
   const devices = await getDevices();
   // Depreciation of IT assets — reported separately, never added to IT spend.
@@ -585,31 +618,50 @@ export async function getDashboardKPIs(
     .filter((inv) => isITCategory(inv.costCategory))
     .reduce((sum, inv) => sum + inv.totalAmountExcludingTax, 0);
 
-  // Year-end projection: annualised run-rate from COMPLETE months only (excludes
-  // the current partial month and any future-dated accruals), so a half-finished
-  // month doesn't drag the projection down.
+  // Year-end projection: annualised run-rate from COMPLETE months only. A month
+  // is complete when it is (a) not the in-progress current month, and (b) not a
+  // partial boundary month — i.e. not the start month when the window begins
+  // mid-month, nor the end month when the window ends before month-end. Otherwise
+  // an 8-day boundary bucket would be averaged as if it were a whole month and
+  // drag the run-rate off (it understated the projection by ~€35k / 4.3%).
   const nowMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+  const fromMonthKey = from.substring(0, 7);
+  const toMonthKey = to.substring(0, 7);
+  const startsMidMonth = from.substring(8, 10) !== "01";
+  const endsBeforeMonthEnd = !isMonthEnd(to);
+  const isCompleteMonth = (m: string): boolean =>
+    m < nowMonth &&
+    !(startsMidMonth && m === fromMonthKey) &&
+    !(endsBeforeMonthEnd && m === toMonthKey);
+
   const itByMonth = new Map<string, number>();
   for (const inv of invoices) {
     if (!isITCategory(inv.costCategory)) continue;
     const m = inv.postingDate.substring(0, 7);
     itByMonth.set(m, (itByMonth.get(m) ?? 0) + inv.totalAmountExcludingTax);
   }
-  const completeMonths = [...itByMonth.entries()].filter(([m]) => m < nowMonth);
+  const completeMonths = [...itByMonth.entries()].filter(([m]) => isCompleteMonth(m));
   const avgMonthly = completeMonths.length
     ? completeMonths.reduce((s, [, v]) => s + v, 0) / completeMonths.length
     : 0;
   const projectedAnnualSpend = Math.round(avgMonthly * 12);
 
-  // Filter budget entries to match the requested date range
-  const fromMonth = from.substring(0, 7); // "2025-01"
-  const toMonth = to.substring(0, 7);     // "2026-12"
+  // Budget vs actual must be SCOPE-MATCHED: compare budget only against spend in
+  // the budgeted categories (not the whole IT total), over the same window.
+  const fromMonth = from.substring(0, 7);
+  const toMonth = to.substring(0, 7);
   const budgetInRange = budget.filter((b) => b.month >= fromMonth && b.month <= toMonth);
   const totalBudgetYTD = budgetInRange.reduce((sum, b) => sum + b.budgetAmount, 0);
-  const totalActualYTD = budgetInRange.reduce((sum, b) => sum + b.actualAmount, 0);
+  const budgetedCategories = new Set(budgetInRange.map((b) => b.category));
+  // Actual = IT spend in the budgeted categories only (matches the denominator).
+  const totalActualYTD = budgetedCategories.size
+    ? invoices
+        .filter((inv) => isITCategory(inv.costCategory) && budgetedCategories.has(inv.costCategory))
+        .reduce((sum, inv) => sum + inv.totalAmountExcludingTax, 0)
+    : 0;
   const budgetVariancePercent =
     totalBudgetYTD > 0
-      ? ((totalSpendYTD - totalBudgetYTD) / totalBudgetYTD) * 100
+      ? ((totalActualYTD - totalBudgetYTD) / totalBudgetYTD) * 100
       : 0;
 
   const paidLicenses = licenses.filter((l) => l.pricePerUser > 0);
@@ -618,18 +670,17 @@ export async function getDashboardKPIs(
   const licenseUtilizationPercent =
     totalPrepaid > 0 ? (totalConsumed / totalPrepaid) * 100 : 0;
 
-  // Spend trend: compare last 3 months vs prior 3 months (rolling)
-  const sortedInvoices = [...invoices].sort((a, b) => a.postingDate.localeCompare(b.postingDate));
-  const allMonths = [...new Set(sortedInvoices.map(i => i.postingDate.substring(0, 7)))].sort();
-  const recentMonths = allMonths.slice(-3);
-  const priorMonths = allMonths.slice(-6, -3);
-
-  const recent = invoices
-    .filter((i) => recentMonths.includes(i.postingDate.substring(0, 7)))
-    .reduce((s, i) => s + i.totalAmountExcludingTax, 0);
-  const prior = invoices
-    .filter((i) => priorMonths.includes(i.postingDate.substring(0, 7)))
-    .reduce((s, i) => s + i.totalAmountExcludingTax, 0);
+  // Spend trend: last 3 COMPLETE months vs the prior 3 complete months (rolling),
+  // IT-only. Excluding partial boundary months is essential — including the
+  // in-progress month made the trend read "down 21%" when complete-month spend is
+  // actually up ~21%. Reuses the itByMonth (IT-only) series + isCompleteMonth.
+  const completeMonthsSorted = [...itByMonth.entries()]
+    .filter(([m]) => isCompleteMonth(m))
+    .sort((a, b) => a[0].localeCompare(b[0]));
+  const recentMonths = completeMonthsSorted.slice(-3);
+  const priorMonths = completeMonthsSorted.slice(-6, -3);
+  const recent = recentMonths.reduce((s, [, v]) => s + v, 0);
+  const prior = priorMonths.reduce((s, [, v]) => s + v, 0);
   const spendChangePercent = prior > 0 ? ((recent - prior) / prior) * 100 : 0;
 
   return {
@@ -784,7 +835,11 @@ export async function getEntitySpend(
   // per entity is real; per-user is reported as 0 (unknown) until HR is connected.
   return companies
     .map((company) => {
-      const companyInvoices = invoices.filter((inv) => inv.companyId === company.id);
+      // IT-only, so per-entity spend always ties to the headline KPI (even when
+      // the operational-software toggle reclassifies that spend to Unclassified).
+      const companyInvoices = invoices.filter(
+        (inv) => inv.companyId === company.id && isITCategory(inv.costCategory)
+      );
       const totalSpend = companyInvoices.reduce((s, i) => s + i.totalAmountExcludingTax, 0);
       return {
         companyId: company.id,
@@ -1020,7 +1075,11 @@ export async function getVendorSummary(
   const yr = new Date().getFullYear();
   const from = dateFrom ?? `${yr}-01-01`;
   const to = dateTo ?? `${yr}-12-31`;
-  const invoices = await getInvoices(companyFilter, from, to);
+  // IT-only, so vendor totals and percent-of-total share the same denominator as
+  // the headline KPI (and Unclassified spend never appears as a "vendor").
+  const invoices = (await getInvoices(companyFilter, from, to)).filter((i) =>
+    isITCategory(i.costCategory)
+  );
   const totalSpend = invoices.reduce(
     (s, i) => s + i.totalAmountExcludingTax,
     0
