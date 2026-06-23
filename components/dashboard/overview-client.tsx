@@ -231,8 +231,8 @@ export function OverviewClient() {
       {/* Spend Trend */}
       <SpendTrendChart data={monthly} />
 
-      {/* Category breakdown — full width */}
-      <CategoryBreakdown data={categories} />
+      {/* Category breakdown — full width (rows drill into filtered invoices) */}
+      <CategoryBreakdown data={categories} company={selectedCompany} from={selectedRange.from} to={selectedRange.to} />
 
       {/* Entity comparison + Top vendors */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

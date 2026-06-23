@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ShieldCheck, AlertTriangle } from "lucide-react";
+import Link from "next/link";
+import { ShieldCheck, AlertTriangle, ArrowUpRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import type { CategorySpend } from "@/lib/types";
@@ -10,6 +11,9 @@ import { isITCategory } from "@/lib/constants";
 
 interface CategoryBreakdownProps {
   data: CategorySpend[];
+  company?: string;
+  from?: string;
+  to?: string;
 }
 
 interface CategoryTooltipPayloadEntry {
@@ -32,7 +36,15 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Catego
   );
 }
 
-export function CategoryBreakdown({ data }: CategoryBreakdownProps) {
+export function CategoryBreakdown({ data, company, from, to }: CategoryBreakdownProps) {
+  const drillHref = (category: string) => {
+    const p = new URLSearchParams();
+    p.set("category", category);
+    if (company && company !== "all") p.set("company", company);
+    if (from) p.set("from", from);
+    if (to) p.set("to", to);
+    return `/invoices?${p.toString()}`;
+  };
   // Per-page customizable scope. Defaults to IT-only: any non-IT ("Unclassified")
   // spend the BC feed pulled in is excluded up front, so the headline total is
   // trustworthy IT spend. Click a legend row to include/exclude any category.
@@ -136,16 +148,18 @@ export function CategoryBreakdown({ data }: CategoryBreakdownProps) {
           </figure>
           <div className="flex-1 space-y-1.5 pt-1 w-full">
             {enriched.map((cat) => (
-              <button
+              <div
                 key={cat.category}
-                type="button"
-                onClick={() => toggle(cat.category)}
-                aria-pressed={cat.selected}
-                title={cat.selected ? "Click to exclude from total" : "Click to include in total"}
-                className="group w-full text-left rounded px-1 -mx-1 hover:bg-slate-800/50 transition-colors"
+                className="group w-full rounded px-1 -mx-1 hover:bg-slate-800/50 transition-colors"
               >
                 <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => toggle(cat.category)}
+                    aria-pressed={cat.selected}
+                    title={cat.selected ? "Click to exclude from total" : "Click to include in total"}
+                    className="flex items-center gap-2 min-w-0 flex-1 text-left"
+                  >
                     <div
                       className="w-2.5 h-2.5 rounded-full shrink-0 transition-opacity"
                       style={{ backgroundColor: cat.color, opacity: cat.selected ? 1 : 0.3 }}
@@ -153,7 +167,7 @@ export function CategoryBreakdown({ data }: CategoryBreakdownProps) {
                     <span className={`truncate text-xs ${cat.selected ? "text-slate-400" : "text-slate-600 line-through"}`}>
                       {cat.category}
                     </span>
-                  </div>
+                  </button>
                   <div className="flex items-center gap-3 shrink-0 ml-2">
                     <span className="text-xs font-mono tabular-nums text-slate-500 w-12 text-right">
                       {cat.selected ? `${cat.percent.toFixed(1)}%` : "—"}
@@ -161,6 +175,13 @@ export function CategoryBreakdown({ data }: CategoryBreakdownProps) {
                     <span className={`font-mono tabular-nums text-xs w-20 text-right ${cat.selected ? "text-slate-300" : "text-slate-600"}`}>
                       {formatCurrency(cat.amount)}
                     </span>
+                    <Link
+                      href={drillHref(cat.category)}
+                      title={`View ${cat.category} invoices`}
+                      className="text-slate-600 opacity-0 group-hover:opacity-100 hover:text-teal-400 transition-all"
+                    >
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </Link>
                   </div>
                 </div>
                 <div className="ml-[18px] mt-0.5">
@@ -175,7 +196,7 @@ export function CategoryBreakdown({ data }: CategoryBreakdownProps) {
                     />
                   </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>
