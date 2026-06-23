@@ -10,8 +10,17 @@ export interface DateRangeOption {
   to: string;
 }
 
+// Format a Date as "YYYY-MM-DD" from its LOCAL components. We must NOT use
+// toISOString() here: the preset boundaries are constructed in local time
+// (new Date(year, month, day)), and toISOString() converts to UTC — so in a
+// positive-offset zone like Belgium (UTC+1/+2), local midnight 1 Jan becomes
+// "2024-12-31", shifting every quarter/month/year boundary back by a day and
+// pulling the wrong day's bookings into the range.
 function getDateStr(d: Date): string {
-  return d.toISOString().split("T")[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function buildPresets(): DateRangeOption[] {

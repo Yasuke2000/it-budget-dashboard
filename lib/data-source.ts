@@ -236,11 +236,17 @@ export async function getInvoices(
       const scanSet = new Set(scanAccounts);
       const pullAccounts = [...itAccounts, ...scanAccounts];
 
+      // Track per-company fetch failures. A single company's GL/header fetch
+      // failing (e.g. a transient BC 429/timeout) must NOT be silently treated as
+      // "this company spent €0" and then cached as a complete result — that would
+      // undercount the total and poison the 2h cache. We still return the partial
+      // figure for this request, but refuse to cache it so the next call retries.
+      let degraded = false;
       const perCompany = await Promise.all(
         targetCompanies.map(async (company) => {
           const [glEntries, headers] = await Promise.all([
-            fetchBCLedgerByAccounts(company.id, from, to, pullAccounts).catch(() => [] as Record<string, unknown>[]),
-            fetchBCPurchaseInvoiceHeaders(company.id, from, to).catch(() => [] as Record<string, unknown>[]),
+            fetchBCLedgerByAccounts(company.id, from, to, pullAccounts).catch(() => { degraded = true; return [] as Record<string, unknown>[]; }),
+            fetchBCPurchaseInvoiceHeaders(company.id, from, to).catch(() => { degraded = true; return [] as Record<string, unknown>[]; }),
           ]);
           const vendorByDoc = new Map<string, { name: string; number: string }>();
           for (const h of headers) {
@@ -323,8 +329,15 @@ export async function getInvoices(
         }
       }
 
-      setCache(cacheKey, allInvoices, 120); // 2h TTL
-      sourceStatus.invoices = "live";
+      // Only cache COMPLETE results. A partial (degraded) fetch is returned to
+      // this caller but not cached, so the next request re-fetches rather than
+      // serving an undercounted total for the next 2 hours.
+      if (!degraded) {
+        setCache(cacheKey, allInvoices, 120); // 2h TTL
+      } else {
+        console.warn(`BC invoices partial fetch (${cacheKey}) — not caching to avoid undercount`);
+      }
+      sourceStatus.invoices = degraded ? "empty" : "live";
       return allInvoices;
     })();
     inflightInvoices.set(cacheKey, flight);
@@ -761,8 +774,9 @@ export async function getITDepreciation(
     await getBCToken();
     const companies = await getCompanies();
     const targets = companyFilter === "all" ? companies : companies.filter((c) => c.id === companyFilter);
+    let degraded = false;
     const per = await Promise.all(
-      targets.map((c) => fetchBCDepreciationEntries(c.id, from, to).catch(() => [] as Record<string, unknown>[]))
+      targets.map((c) => fetchBCDepreciationEntries(c.id, from, to).catch(() => { degraded = true; return [] as Record<string, unknown>[]; }))
     );
     let total = 0;
     for (const entries of per) {
@@ -770,7 +784,7 @@ export async function getITDepreciation(
         total += ((g.debitAmount as number) || 0) - ((g.creditAmount as number) || 0);
       }
     }
-    setCache(cacheKey, total, 120);
+    if (!degraded) setCache(cacheKey, total, 120); // don't cache a partial sum
     return total;
   } catch {
     return 0;
@@ -796,11 +810,12 @@ export async function getGroupRevenue(
     await getBCToken();
     const companies = await getCompanies();
     const targets = companyFilter === "all" ? companies : companies.filter((c) => c.id === companyFilter);
+    let degraded = false;
     const per = await Promise.all(
-      targets.map((c) => fetchBCRevenue(c.id, from, to).catch(() => 0))
+      targets.map((c) => fetchBCRevenue(c.id, from, to).catch(() => { degraded = true; return 0; }))
     );
     const total = per.reduce((s, v) => s + v, 0);
-    setCache(cacheKey, total, 120);
+    if (!degraded) setCache(cacheKey, total, 120); // don't cache a partial sum
     return total;
   } catch {
     return 0;
