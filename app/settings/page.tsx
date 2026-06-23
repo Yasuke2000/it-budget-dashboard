@@ -739,6 +739,161 @@ function GLMappingTab() {
   );
 }
 
+// ─── Tab: IT Vendors (allowlist) ───────────────────────────────────────────────
+
+interface VendorRuleRow {
+  id: string;
+  pattern: string;
+  category: string;
+}
+
+function VendorRulesTab() {
+  const [rows, setRows] = useState<VendorRuleRow[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.itVendorRules) {
+          setRows(
+            Object.entries(d.itVendorRules as Record<string, string>).map(([pattern, category]) => ({
+              id: uid(),
+              pattern,
+              category,
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const addRow = () => {
+    setRows((r) => [...r, { id: uid(), pattern: "", category: IT_CATEGORIES[0] }]);
+    setSaved(false);
+  };
+  const removeRow = (id: string) => {
+    setRows((r) => r.filter((row) => row.id !== id));
+    setSaved(false);
+  };
+  const updatePattern = (id: string, value: string) => {
+    setRows((r) => r.map((row) => (row.id === id ? { ...row, pattern: value } : row)));
+    setSaved(false);
+  };
+  const updateCategory = (id: string, value: string) => {
+    setRows((r) => r.map((row) => (row.id === id ? { ...row, category: value } : row)));
+    setSaved(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itVendorRules: Object.fromEntries(
+            rows
+              .filter((r) => r.pattern.trim())
+              .map((r) => [r.pattern.trim().toLowerCase(), r.category])
+          ),
+        }),
+      });
+      setSaved(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+        <CardHeader>
+          <CardTitle className="text-white text-sm font-semibold">IT Vendor Allowlist</CardTitle>
+          <CardDescription>
+            Vendors whose spend should count as IT <em>regardless of which G/L account it lands on</em>
+            (e.g. iDocta, or Canon printers booked to office supplies). Matching is case-insensitive on
+            the supplier name — &ldquo;canon&rdquo; matches &ldquo;CANON BELGIUM NV/SA&rdquo;. Only
+            invoices not already counted via an IT account are added, so nothing double-counts.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border border-slate-700 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-700 hover:bg-transparent">
+                  <TableHead className="text-slate-400 font-medium w-64">Vendor name contains…</TableHead>
+                  <TableHead className="text-slate-400 font-medium">Cost Category</TableHead>
+                  <TableHead className="w-12" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.id} className="border-slate-700 hover:bg-slate-800/50">
+                    <TableCell className="py-2">
+                      <Input
+                        value={row.pattern}
+                        onChange={(e) => updatePattern(row.id, e.target.value)}
+                        placeholder="e.g. idocta"
+                        className="h-8 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-teal-500 w-56"
+                      />
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <Select value={row.category} onValueChange={(val) => val && updateCategory(row.id, val)}>
+                        <SelectTrigger className="h-8 bg-slate-800 border-slate-700 text-white w-56 focus:border-teal-500">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                          {IT_CATEGORIES.map((cat) => (
+                            <SelectItem key={cat} value={cat} className="focus:bg-slate-700 focus:text-white">
+                              {cat}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeRow(row.id)}
+                        className="size-8 p-0 text-slate-500 hover:text-red-400 hover:bg-red-400/10"
+                      >
+                        <Trash2 className="size-4" />
+                        <span className="sr-only">Remove</span>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {rows.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center text-slate-500 py-8 text-sm">
+                      No vendor rules. Add one below.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={addRow}
+              className="border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+            >
+              <Plus className="size-4 mr-2" />
+              Add Vendor
+            </Button>
+            <SaveButton onClick={handleSave} saving={saving} saved={saved} />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Tab 3: License Prices ────────────────────────────────────────────────────
 
 function LicensePricesTab() {
@@ -1062,6 +1217,12 @@ export default function SettingsPage() {
             GL Mapping
           </TabsTrigger>
           <TabsTrigger
+            value="vendors"
+            className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
+          >
+            IT Vendors
+          </TabsTrigger>
+          <TabsTrigger
             value="license-prices"
             className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
           >
@@ -1081,6 +1242,9 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="gl-mapping">
             <GLMappingTab />
+          </TabsContent>
+          <TabsContent value="vendors">
+            <VendorRulesTab />
           </TabsContent>
           <TabsContent value="license-prices">
             <LicensePricesTab />
