@@ -11,43 +11,15 @@ import {
 export async function POST(req: Request) {
   const { messages } = await req.json();
 
-  // Demo mode: return canned responses when no API key is configured
+  // No API key configured \u2192 say so plainly. We must NEVER return invented figures
+  // (the old canned replies showed stale/fake numbers that contradict the live
+  // dashboard \u2014 dangerous in front of finance).
   if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-    const q =
-      messages[messages.length - 1]?.content?.toLowerCase() || "";
-    let response: string;
-
-    if (q.includes("license") || q.includes("licentie")) {
-      response =
-        "Based on the data, you have 46 unused paid licenses costing \u20AC589.60/month (\u20AC7,075/year). The biggest waste is in M365 Business Premium (18 unused at \u20AC20.60/user) and Entra ID P1 (19 unused at \u20AC6.00/user). I recommend a license reclamation review with HR.";
-    } else if (q.includes("vendor") || q.includes("easi")) {
-      response =
-        "EASI is your largest vendor at \u20AC42,365 YTD (29.1% of total spend). Microsoft is at 30.4% \u2014 above the 30% concentration threshold. Consider negotiating multi-year pricing.";
-    } else if (q.includes("budget")) {
-      response =
-        "Overall budget variance is +0.1% (\u20AC172.6K actual vs \u20AC172.5K budget). Hardware Purchases is the biggest overspend at +22.0%. Software & Licenses is well-controlled at +0.6%.";
-    } else if (
-      q.includes("bespar") ||
-      q.includes("saving") ||
-      q.includes("optim") ||
-      q.includes("cost") ||
-      q.includes("cut")
-    ) {
-      response =
-        "Top savings opportunities: 1) License reclamation: \u20AC7,075/year, 2) E5\u2192E3 downgrade for non-power users: \u20AC504/year, 3) Consolidate hardware vendors. Total addressable savings: ~\u20AC10,000/year.";
-    } else if (
-      q.includes("contract") ||
-      q.includes("expir") ||
-      q.includes("renew")
-    ) {
-      response =
-        "You have 2 contracts expiring within 90 days: Sectigo SSL certificates (45 days, \u20AC180/yr \u2014 manual renewal required) and Dell ProSupport (48 days, \u20AC900/yr). Both need action soon. Total annual commitment across 20 contracts is \u20AC143,910.";
-    } else {
-      response =
-        "I can analyze your IT spending data. Try asking about license waste, vendor concentration, budget variance, contract renewals, or savings opportunities.";
-    }
-
-    return Response.json({ role: "assistant", content: response });
+    return Response.json({
+      role: "assistant",
+      content:
+        "The AI assistant isn't configured yet (no Gemini API key set on this environment). All figures are available on the dashboard pages and via the Export button \u2014 I just can't answer free-text questions until the key is added.",
+    });
   }
 
   // Live mode: generate response using Gemini
@@ -56,7 +28,7 @@ export async function POST(req: Request) {
 
     const result = await generateText({
       model: google("gemini-2.5-flash"),
-      system: `You are an IT Finance Analyst for a Belgian logistics company (4 entities: GDI, WHS, GRE, TDR). Answer questions using ONLY the data below. Be specific with EUR amounts. Keep answers concise (max 200 words). If asked about something not in the data, say so.\n\n${context}`,
+      system: `You are an IT Finance Analyst for a Belgian transport & logistics group. Answer questions using ONLY the data below. Be specific with EUR amounts. Keep answers concise (max 200 words). If asked about something not in the data, say so.\n\n${context}`,
       messages,
     });
 

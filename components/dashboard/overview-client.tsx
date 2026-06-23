@@ -196,7 +196,7 @@ export function OverviewClient() {
           change={formatPercent(kpis.spendChangePercent)}
           changeType={kpis.spendTrend === "up" ? "negative" : kpis.spendTrend === "down" ? "positive" : "neutral"}
           iconName="DollarSign"
-          description={`${selectedRange.label} · cash/outlay basis`}
+          description={`${selectedRange.label} · booked, ex-VAT`}
           sparklineData={spendSparkline}
         />
         <KPICard
