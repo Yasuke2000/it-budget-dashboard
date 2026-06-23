@@ -33,7 +33,8 @@ import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING, UNCL
 import { generateAllInsights } from "./cost-insights";
 import type { CostInsight } from "./cost-insights";
 import { getCache, setCache } from "./sync-cache";
-import { fetchBCCompanies, fetchBCGLEntries, fetchBCITLedgerEntries, fetchBCDepreciationEntries, fetchBCPurchaseInvoiceHeaders, getBCToken } from "./bc-client";
+import { fetchBCCompanies, fetchBCGLEntries, fetchBCLedgerByAccounts, fetchBCDepreciationEntries, fetchBCPurchaseInvoiceHeaders, getBCToken } from "./bc-client";
+import { getAppSettings } from "./settings-store";
 import {
   fetchSubscribedSkus,
   fetchManagedDevices,
@@ -199,18 +200,26 @@ export async function getInvoices(
           ? companies
           : companies.filter((c) => c.id === companyFilter);
 
-      // IT spend is read from posted G/L entries restricted to the IT accounts
-      // (see fetchBCITLedgerEntries). Each entry becomes a synthetic "invoice"
-      // so all downstream consumers (KPIs, category, monthly, vendors, budget)
-      // keep working — now with correctly-categorised, real data.
-      // Per company, fetch the IT G/L entries AND the posted-invoice headers in
-      // parallel. The headers give us the real vendor name for each document
-      // (G/L entries don't carry it), so vendor analysis shows e.g. "NTS
-      // Computers Technology BV" instead of the booking description.
+      // The IT account→category map is now EDITABLE in Settings (persisted in
+      // settings-store, merged over the compiled defaults). We query exactly the
+      // mapped accounts and classify by the same map, so adding/removing an
+      // account in the UI immediately changes both what's pulled and how it's
+      // categorised. Each G/L entry becomes a synthetic "invoice" so all
+      // downstream consumers (KPIs, category, monthly, vendors, budget) keep
+      // working. Posted-invoice headers give the real vendor name per document.
+      // Fall back to compiled defaults if the settings store is unavailable —
+      // never empty the dashboard over a settings read.
+      let glMapping: Record<string, string>;
+      try {
+        glMapping = (await getAppSettings()).glMappings;
+      } catch {
+        glMapping = DEFAULT_GL_MAPPING;
+      }
+      const itAccounts = Object.keys(glMapping);
       const perCompany = await Promise.all(
         targetCompanies.map(async (company) => {
           const [glEntries, headers] = await Promise.all([
-            fetchBCITLedgerEntries(company.id, from, to).catch(() => [] as Record<string, unknown>[]),
+            fetchBCLedgerByAccounts(company.id, from, to, itAccounts).catch(() => [] as Record<string, unknown>[]),
             fetchBCPurchaseInvoiceHeaders(company.id, from, to).catch(() => [] as Record<string, unknown>[]),
           ]);
           const vendorByDoc = new Map<string, { name: string; number: string }>();
@@ -233,7 +242,7 @@ export async function getInvoices(
           const postingDate = (g.postingDate as string) || "";
           const documentNumber = (g.documentNumber as string) || "";
           const description = (g.description as string) || "";
-          const costCategory = DEFAULT_GL_MAPPING[accountNumber] || UNCLASSIFIED_CATEGORY;
+          const costCategory = glMapping[accountNumber] || UNCLASSIFIED_CATEGORY;
           const vendor = vendorByDoc.get(documentNumber);
 
           allInvoices.push({
@@ -377,7 +386,20 @@ export async function getLicenses(): Promise<M365License[]> {
 
   try {
     const skus = await fetchSubscribedSkus();
-    const licenses: M365License[] = skus.map(mapGraphLicenseToM365License);
+    // Apply per-seat prices entered in Settings (Graph doesn't expose contracted
+    // prices), overriding the compiled defaults so cost/waste reflect reality.
+    let prices: Record<string, number> = {};
+    try { prices = (await getAppSettings()).licensePrices; } catch { /* keep mapper defaults */ }
+    const licenses: M365License[] = skus.map((sku) => {
+      const lic = mapGraphLicenseToM365License(sku);
+      const p = prices[lic.skuPartNumber];
+      if (p != null && p !== lic.pricePerUser) {
+        lic.pricePerUser = p;
+        lic.monthlyCost = lic.consumedUnits * p;
+        lic.wastedCost = lic.wastedUnits * p;
+      }
+      return lic;
+    });
     setCache(cacheKey, licenses, 240); // 4h TTL
     sourceStatus.licenses = "live";
     return licenses;

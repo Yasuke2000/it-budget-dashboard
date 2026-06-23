@@ -563,6 +563,25 @@ function GLMappingTab() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Hydrate from the persisted, server-side mapping (defaults + saved overrides)
+  // so edits round-trip and the live dashboard reflects exactly this list.
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.glMappings) {
+          setRows(
+            Object.entries(d.glMappings as Record<string, string>).map(([accountNumber, category]) => ({
+              id: uid(),
+              accountNumber,
+              category,
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const addRow = () => {
     setRows((r) => [
       ...r,
@@ -597,7 +616,7 @@ function GLMappingTab() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          glMapping: Object.fromEntries(
+          glMappings: Object.fromEntries(
             rows
               .filter((r) => r.accountNumber.trim())
               .map((r) => [r.accountNumber.trim(), r.category])
@@ -727,6 +746,23 @@ function LicensePricesTab() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Hydrate persisted per-seat prices over the defaults.
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.licensePrices) {
+          setRows((prev) =>
+            prev.map((row) => {
+              const p = (d.licensePrices as Record<string, number>)[row.skuPartNumber];
+              return p != null ? { ...row, pricePerUser: p } : row;
+            })
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const updatePrice = (id: string, raw: string) => {
     const parsed = parseFloat(raw);
     const pricePerUser = isNaN(parsed) ? 0 : parsed;
@@ -818,8 +854,8 @@ function LicensePricesTab() {
 
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <p className="text-xs text-slate-500 max-w-md">
-              Prices are stored locally in browser storage and applied at
-              render time. They are not sent to Microsoft.
+              Prices are stored on the server and applied to license cost/waste
+              calculations. They are never sent to Microsoft.
             </p>
             <SaveButton onClick={handleSave} saving={saving} saved={saved} />
           </div>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAppSettings, saveAppSettings } from "@/lib/settings-store";
+import { clearCache } from "@/lib/sync-cache";
 
 export async function GET() {
   const { glMappings, licensePrices } = await getAppSettings();
@@ -16,6 +17,9 @@ export async function POST(request: Request) {
       glMappings: body.glMappings,
       licensePrices: body.licensePrices,
     });
+    // Invalidate cached spend/licenses so the new mapping/prices take effect now
+    // (instead of after the 2–4h TTL).
+    clearCache();
     return NextResponse.json({
       status: "ok",
       message: "Settings saved",

@@ -11,6 +11,7 @@ export const DEFAULT_GL_MAPPING: Record<string, string> = {
   // IT operating expense
   "611120": "Hardware (Purchases)",     // Onderhoud computer hardware
   "611130": "Software & Licenses",      // Onderhoud computer software (maintenance / subscriptions)
+  "612300": "Hardware (Purchases)",     // Kantoorbenodigdheden (printers/copiers — Canon, iDocta — + IT supplies)
   "612350": "Hardware (Purchases)",     // Computerbenodigdheden (computer supplies)
   "612400": "Telecom",                  // Telefonie en internet
   "613320": "External IT Services",     // Informaticadiensten (external IT services / consultancy)

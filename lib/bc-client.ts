@@ -113,12 +113,13 @@ export async function fetchBCGLEntries(
 // purchase invoice with $expand is ~46k rows per sync — far too slow. Instead
 // we read posted generalLedgerEntries restricted to the handful of IT accounts.
 // This returns only a few thousand rows across all companies and runs in ~2s.
-async function fetchBCLedgerByAccounts(
+export async function fetchBCLedgerByAccounts(
   companyId: string,
   dateFrom: string,
   dateTo: string,
   accounts: string[]
 ): Promise<Record<string, unknown>[]> {
+  if (!accounts.length) return [];
   const token = await getBCToken();
   const acctFilter = "(" + accounts.map((a) => `accountNumber eq '${a}'`).join(" or ") + ")";
   const filter = `postingDate ge ${dateFrom} and postingDate le ${dateTo} and ${acctFilter}`;
