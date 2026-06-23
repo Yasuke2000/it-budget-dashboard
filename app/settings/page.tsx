@@ -991,6 +991,122 @@ function VendorRulesTab() {
   );
 }
 
+// ─── Tab: Operational Software ────────────────────────────────────────────────
+
+function OperationalSoftwareTab() {
+  const [vendors, setVendors] = useState<{ id: string; pattern: string }[]>([]);
+  const [include, setInclude] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d?.operationalSoftwareVendors)) {
+          setVendors(d.operationalSoftwareVendors.map((p: string) => ({ id: uid(), pattern: p })));
+        }
+        if (typeof d?.includeOperationalSoftware === "boolean") setInclude(d.includeOperationalSoftware);
+      })
+      .catch(() => {});
+  }, []);
+
+  const addRow = () => { setVendors((v) => [...v, { id: uid(), pattern: "" }]); setSaved(false); };
+  const removeRow = (id: string) => { setVendors((v) => v.filter((r) => r.id !== id)); setSaved(false); };
+  const updateRow = (id: string, value: string) => { setVendors((v) => v.map((r) => (r.id === id ? { ...r, pattern: value } : r))); setSaved(false); };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operationalSoftwareVendors: vendors.map((v) => v.pattern.trim().toLowerCase()).filter(Boolean),
+          includeOperationalSoftware: include,
+        }),
+      });
+      setSaved(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+        <CardHeader>
+          <CardTitle className="text-white text-sm font-semibold">Operational / Business-System Software</CardTitle>
+          <CardDescription>
+            Transport software that runs the <em>business</em> rather than the IT estate — TMS, telematics,
+            route &amp; port platforms (Transics, PTV, Trimble, Eurotracs, Transporeon…). These are tagged
+            as a separate &ldquo;Operational Software&rdquo; category. Use the toggle to decide whether they
+            count toward your IT total. Matching is case-insensitive on the supplier name.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-white">Count operational software in the IT total</p>
+              <p className="text-xs text-slate-500">
+                {include
+                  ? "On — shown as its own “Operational Software” category and included in IT spend."
+                  : "Off — excluded from IT spend (treated as non-IT business cost)."}
+              </p>
+            </div>
+            <Switch checked={include} onCheckedChange={(v) => { setInclude(Boolean(v)); setSaved(false); }} />
+          </div>
+
+          <div className="rounded-lg border border-slate-700 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-700 hover:bg-transparent">
+                  <TableHead className="text-slate-400 font-medium">Vendor name contains…</TableHead>
+                  <TableHead className="w-12" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {vendors.map((row) => (
+                  <TableRow key={row.id} className="border-slate-700 hover:bg-slate-800/50">
+                    <TableCell className="py-2">
+                      <Input
+                        value={row.pattern}
+                        onChange={(e) => updateRow(row.id, e.target.value)}
+                        placeholder="e.g. transics"
+                        className="h-8 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-teal-500 w-64"
+                      />
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <Button variant="ghost" size="sm" onClick={() => removeRow(row.id)} className="size-8 p-0 text-slate-500 hover:text-red-400 hover:bg-red-400/10">
+                        <Trash2 className="size-4" />
+                        <span className="sr-only">Remove</span>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {vendors.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-center text-slate-500 py-8 text-sm">
+                      No operational-software vendors. Add one below.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <Button variant="outline" size="sm" onClick={addRow} className="border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white">
+              <Plus className="size-4 mr-2" />
+              Add Vendor
+            </Button>
+            <SaveButton onClick={handleSave} saving={saving} saved={saved} />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Tab 3: License Prices ────────────────────────────────────────────────────
 
 function LicensePricesTab() {
@@ -1326,6 +1442,12 @@ export default function SettingsPage() {
             IT Vendors
           </TabsTrigger>
           <TabsTrigger
+            value="operational"
+            className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
+          >
+            Operational SW
+          </TabsTrigger>
+          <TabsTrigger
             value="license-prices"
             className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
           >
@@ -1351,6 +1473,9 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="vendors">
             <VendorRulesTab />
+          </TabsContent>
+          <TabsContent value="operational">
+            <OperationalSoftwareTab />
           </TabsContent>
           <TabsContent value="license-prices">
             <LicensePricesTab />

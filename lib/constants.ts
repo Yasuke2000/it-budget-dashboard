@@ -26,6 +26,18 @@ export const DEFAULT_GL_MAPPING: Record<string, string> = {
 // what keeps the BC query fast (a few thousand rows instead of ~46k invoices).
 export const IT_GL_ACCOUNTS: string[] = Object.keys(DEFAULT_GL_MAPPING);
 
+// Non-IT accounts that nonetheless carry some IT spend from allowlisted vendors
+// (ALLPHI/iDocta/GMI on external-services, Canon printers on office-supplies /
+// recharge). We pull GL for these too, but ONLY count entries whose vendor is on
+// the IT_VENDOR_RULES allowlist — and we count the actual G/L posting
+// (debit − credit), NOT the invoice-header total. This is the accurate measure:
+// it nets credit notes and only reflects what truly hit the expense account.
+export const ALLOWLIST_SCAN_ACCOUNTS: string[] = [
+  "613300", // Externe dienstverlening (ALLPHI, JUST-FIX-IT, GMI, iDocta land here)
+  "612300", // Kantoorbenodigdheden (Canon, iDocta)
+  "615800", // Andere door te rekenen kosten (Canon)
+];
+
 // IT vendor allowlist — captures spend from these vendors EVEN when it lands on
 // a non-IT account (e.g. iDocta and Canon printers booked to office-supplies
 // 612300). Matched case-insensitively on the posted-invoice vendor name. Only
@@ -63,6 +75,12 @@ export function isIntercompanyVendor(vendorName: string): boolean {
   return INTERCOMPANY_VENDORS.some((p) => v.includes(p));
 }
 
+/** True when the vendor is operational/business-system software (TMS/telematics). */
+export function isOperationalSoftwareVendor(vendorName: string, patterns: string[] = OPERATIONAL_SOFTWARE_VENDORS): boolean {
+  const v = (vendorName || "").toLowerCase();
+  return patterns.some((p) => p && v.includes(p.toLowerCase()));
+}
+
 // Depreciation/amortisation of IT assets (P&L). Reported as a SEPARATE figure,
 // never added to IT spend (the asset purchase is already counted as capex above).
 export const IT_DEPRECIATION_ACCOUNTS: string[] = [
@@ -81,8 +99,24 @@ export const IT_CATEGORIES: string[] = [
   "Telecom",
   "Security",
   "IT Personnel",
+  "Operational Software",
   "Other IT",
 ];
+
+// Operational / business-system software (transport TMS, telematics, port/route
+// platforms). These run the transport business rather than the IT estate, so
+// they're tagged separately and can be toggled in/out of the IT total
+// (Settings → "includeOperationalSoftware"). Matched on vendor name. Editable
+// and persisted via settings-store (operationalSoftwareVendors), merged over
+// these defaults.
+export const OPERATIONAL_SOFTWARE_VENDORS: string[] = [
+  "transics", "transporeon", "ptv", "eurotracs", "fleetgo", "trimble",
+  "punch telematic", "ion logistics", "t-mining", "alpega", "timocom",
+  "transline", "axitra", "shift logistics", "peripass", "alfapass",
+  "secure logistics", "avantida", "cinvio",
+];
+
+export const OPERATIONAL_SOFTWARE_CATEGORY = "Operational Software";
 
 export const CATEGORY_COLORS: Record<string, string> = {
   "Software & Licenses": "#0072B2",
@@ -93,6 +127,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   "Telecom": "#CC79A7",
   "Security": "#F5C710",
   "IT Personnel": "#882255",
+  "Operational Software": "#7B68EE",
   "Other IT": "#999999",
   // Spend on GL accounts not in the IT mapping — NOT counted as IT by default.
   "Unclassified": "#4b5563",

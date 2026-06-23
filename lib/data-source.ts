@@ -29,7 +29,7 @@ import type {
   DepartmentSummary,
 } from "./types";
 import type { PeppolInvoice } from "./peppol-parser";
-import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING, IT_VENDOR_RULES, UNCLASSIFIED_CATEGORY, isITCategory, isIntercompanyVendor } from "./constants";
+import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING, IT_VENDOR_RULES, UNCLASSIFIED_CATEGORY, ALLOWLIST_SCAN_ACCOUNTS, OPERATIONAL_SOFTWARE_VENDORS, OPERATIONAL_SOFTWARE_CATEGORY, isITCategory, isIntercompanyVendor, isOperationalSoftwareVendor } from "./constants";
 import { generateAllInsights } from "./cost-insights";
 import type { CostInsight } from "./cost-insights";
 import { getCache, setCache } from "./sync-cache";
@@ -211,20 +211,34 @@ export async function getInvoices(
       // never empty the dashboard over a settings read.
       let glMapping: Record<string, string>;
       let vendorRules: Record<string, string>;
+      let opVendors: string[];
+      let includeOp: boolean;
       try {
         const settings = await getAppSettings();
         glMapping = settings.glMappings;
         vendorRules = settings.itVendorRules;
+        opVendors = settings.operationalSoftwareVendors;
+        includeOp = settings.includeOperationalSoftware;
       } catch {
         glMapping = DEFAULT_GL_MAPPING;
         vendorRules = IT_VENDOR_RULES;
+        opVendors = OPERATIONAL_SOFTWARE_VENDORS;
+        includeOp = true;
       }
       const itAccounts = Object.keys(glMapping);
       const vendorPatterns = Object.keys(vendorRules);
+      // Also pull the "leak" accounts where allowlisted IT vendors (ALLPHI, Canon,
+      // iDocta, GMI) land. We count their ACTUAL G/L posting (debit − credit), not
+      // the invoice-header total — that's the accurate measure and nets credit
+      // notes. Exclude any scan account that's also a mapped IT account.
+      const scanAccounts = ALLOWLIST_SCAN_ACCOUNTS.filter((a) => !glMapping[a]);
+      const scanSet = new Set(scanAccounts);
+      const pullAccounts = [...itAccounts, ...scanAccounts];
+
       const perCompany = await Promise.all(
         targetCompanies.map(async (company) => {
           const [glEntries, headers] = await Promise.all([
-            fetchBCLedgerByAccounts(company.id, from, to, itAccounts).catch(() => [] as Record<string, unknown>[]),
+            fetchBCLedgerByAccounts(company.id, from, to, pullAccounts).catch(() => [] as Record<string, unknown>[]),
             fetchBCPurchaseInvoiceHeaders(company.id, from, to).catch(() => [] as Record<string, unknown>[]),
           ]);
           const vendorByDoc = new Map<string, { name: string; number: string }>();
@@ -232,29 +246,48 @@ export async function getInvoices(
             const num = (h.number as string) || "";
             if (num) vendorByDoc.set(num, { name: (h.vendorName as string) || "", number: (h.vendorNumber as string) || "" });
           }
-          return { company, glEntries, vendorByDoc, headers };
+          return { company, glEntries, vendorByDoc };
         })
       );
 
       const allInvoices: PurchaseInvoice[] = [];
-      for (const { company, glEntries, vendorByDoc, headers } of perCompany) {
-        const countedDocs = new Set<string>();
+      for (const { company, glEntries, vendorByDoc } of perCompany) {
         for (const g of glEntries) {
           const accountNumber = (g.accountNumber as string) || "";
           // Spend = debit − credit. This nets out correction/reversal pairs to
-          // zero, which we then skip.
+          // zero (which we skip) and correctly handles credit notes.
           const amount = ((g.debitAmount as number) || 0) - ((g.creditAmount as number) || 0);
           if (!amount) continue;
           const postingDate = (g.postingDate as string) || "";
           const documentNumber = (g.documentNumber as string) || "";
           const description = (g.description as string) || "";
-          const costCategory = glMapping[accountNumber] || UNCLASSIFIED_CATEGORY;
           const vendor = vendorByDoc.get(documentNumber);
-          if (documentNumber) countedDocs.add(documentNumber);
+          const vendorName = vendor?.name || description || accountNumber;
 
-          // Skip intercompany recharges (vendor is a Gheeraert-group entity) —
-          // internal cross-charges aren't third-party IT spend.
-          if (isIntercompanyVendor(vendor?.name || "")) continue;
+          // Skip intercompany recharges (vendor is a Gheeraert-group entity).
+          if (isIntercompanyVendor(vendorName)) continue;
+
+          // Classify. Mapped accounts → their IT category. Scan ("leak") accounts
+          // → only counted when the vendor is on the allowlist (else it's the
+          // non-IT bulk of that account — intercompany, management fees, etc.).
+          let costCategory: string;
+          if (glMapping[accountNumber]) {
+            costCategory = glMapping[accountNumber];
+          } else if (scanSet.has(accountNumber)) {
+            const vlow = vendorName.toLowerCase();
+            const matched = vendorPatterns.find((p) => p && vlow.includes(p.toLowerCase()));
+            if (!matched) continue; // non-IT spend on a leak account — ignore
+            costCategory = vendorRules[matched] || "External IT Services";
+          } else {
+            continue;
+          }
+
+          // Operational/business-system software (TMS/telematics) gets its own
+          // category, and is dropped from the IT total entirely when the toggle
+          // is off (reclassified to Unclassified, which IT totals exclude).
+          if (isOperationalSoftwareVendor(vendorName, opVendors)) {
+            costCategory = includeOp ? OPERATIONAL_SOFTWARE_CATEGORY : UNCLASSIFIED_CATEGORY;
+          }
 
           allInvoices.push({
             id: `gl-${company.id}-${(g.id as string) || `${documentNumber}-${accountNumber}-${postingDate}`}`,
@@ -265,7 +298,7 @@ export async function getInvoices(
             // Real vendor from the posted-invoice header; fall back to the
             // booking description only if the document can't be matched.
             vendorNumber: vendor?.number || accountNumber,
-            vendorName: vendor?.name || description || accountNumber,
+            vendorName,
             totalAmountExcludingTax: amount,
             totalAmountIncludingTax: amount,
             totalTaxAmount: 0,
@@ -286,42 +319,6 @@ export async function getInvoices(
               },
             ],
           });
-        }
-
-        // Vendor allowlist: count allowlisted IT vendors (e.g. iDocta, Canon
-        // printers) even when their invoice landed on a non-IT account — but
-        // only invoices NOT already counted above, so nothing double-counts.
-        if (vendorPatterns.length) {
-          for (const h of headers) {
-            const vname = (h.vendorName as string) || "";
-            const vlow = vname.toLowerCase();
-            const matched = vendorPatterns.find((p) => p && vlow.includes(p.toLowerCase()));
-            if (!matched) continue;
-            if (isIntercompanyVendor(vname)) continue;
-            const num = (h.number as string) || "";
-            if (num && countedDocs.has(num)) continue;
-            const amt = (h.totalAmountExcludingTax as number) || 0;
-            if (!amt) continue;
-            const postingDate = (h.postingDate as string) || from;
-            allInvoices.push({
-              id: `vw-${company.id}-${num || vname}`,
-              number: num,
-              invoiceDate: postingDate,
-              postingDate,
-              dueDate: postingDate,
-              vendorNumber: (h.vendorNumber as string) || "",
-              vendorName: vname,
-              totalAmountExcludingTax: amt,
-              totalAmountIncludingTax: amt,
-              totalTaxAmount: 0,
-              status: "Paid",
-              currencyCode: "EUR",
-              companyId: company.id,
-              companyName: company.displayName,
-              costCategory: vendorRules[matched] || "External IT Services",
-              lines: [],
-            });
-          }
         }
       }
 

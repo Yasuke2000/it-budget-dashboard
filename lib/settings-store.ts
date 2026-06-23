@@ -4,7 +4,7 @@
 
 import { promises as fs } from "fs";
 import path from "path";
-import { DEFAULT_GL_MAPPING, DEFAULT_LICENSE_PRICES, IT_VENDOR_RULES } from "./constants";
+import { DEFAULT_GL_MAPPING, DEFAULT_LICENSE_PRICES, IT_VENDOR_RULES, OPERATIONAL_SOFTWARE_VENDORS } from "./constants";
 import { isDbEnabled, ensureSchema, withClient } from "./db/client";
 
 const DATA_DIR = process.env.PAYROLL_DATA_DIR || path.join(process.cwd(), "data");
@@ -18,6 +18,10 @@ export interface AppSettings {
   itVendorRules: Record<string, string>;
   // Per-category MONTHLY budget (EUR). Empty until configured in Settings → Budget.
   budgets: Record<string, number>;
+  // Operational/business-system software (TMS/telematics) vendor patterns, and
+  // whether their spend counts toward the IT total.
+  operationalSoftwareVendors: string[];
+  includeOperationalSoftware: boolean;
 }
 
 async function getSetting<T>(key: string): Promise<T | null> {
@@ -67,17 +71,22 @@ async function setSetting(key: string, value: unknown): Promise<void> {
 
 /** Settings merged over the compiled defaults. */
 export async function getAppSettings(): Promise<AppSettings> {
-  const [gl, prices, vendors, budgets] = await Promise.all([
+  const [gl, prices, vendors, budgets, opVendors, includeOp] = await Promise.all([
     getSetting<Record<string, string>>("glMappings"),
     getSetting<Record<string, number>>("licensePrices"),
     getSetting<Record<string, string>>("itVendorRules"),
     getSetting<Record<string, number>>("budgets"),
+    getSetting<string[]>("operationalSoftwareVendors"),
+    getSetting<boolean>("includeOperationalSoftware"),
   ]);
   return {
     glMappings: { ...DEFAULT_GL_MAPPING, ...(gl ?? {}) },
     licensePrices: { ...DEFAULT_LICENSE_PRICES, ...(prices ?? {}) },
     itVendorRules: { ...IT_VENDOR_RULES, ...(vendors ?? {}) },
     budgets: { ...(budgets ?? {}) },
+    operationalSoftwareVendors: opVendors ?? OPERATIONAL_SOFTWARE_VENDORS,
+    // Default: count operational software in the IT total (true) unless told otherwise.
+    includeOperationalSoftware: includeOp ?? true,
   };
 }
 
@@ -86,5 +95,7 @@ export async function saveAppSettings(settings: Partial<AppSettings>): Promise<A
   if (settings.licensePrices) await setSetting("licensePrices", settings.licensePrices);
   if (settings.itVendorRules) await setSetting("itVendorRules", settings.itVendorRules);
   if (settings.budgets) await setSetting("budgets", settings.budgets);
+  if (settings.operationalSoftwareVendors) await setSetting("operationalSoftwareVendors", settings.operationalSoftwareVendors);
+  if (settings.includeOperationalSoftware !== undefined) await setSetting("includeOperationalSoftware", settings.includeOperationalSoftware);
   return getAppSettings();
 }

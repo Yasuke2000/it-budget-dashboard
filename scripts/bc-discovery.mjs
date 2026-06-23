@@ -1,4 +1,4 @@
-// BC discovery v4 — card transactions + AI/SaaS keyword scan. Read-only.
+// BC discovery v5 — ALLPHI breakdown + group-wide hunt for MISSED IT vendors. Read-only.
 const T = process.env.BC_TENANT_ID, C = process.env.BC_CLIENT_ID, S = process.env.BC_CLIENT_SECRET;
 const ENV = process.env.BC_ENVIRONMENT || "Production";
 const BASE = `https://api.businesscentral.dynamics.com/v2.0/${T}/${ENV}/api/v2.0`;
@@ -8,61 +8,67 @@ async function token() {
 }
 async function getAll(url, tok) {
   const out = []; let next = url;
-  while (next) { const r = await fetch(next, { headers: { Authorization: `Bearer ${tok}`, "Data-Access-Intent": "ReadOnly", Accept: "application/json" } }); if (!r.ok) throw new Error(`${r.status}: ${(await r.text()).slice(0,200)}`); const j = await r.json(); out.push(...(j.value || [])); next = j["@odata.nextLink"] || null; } return out;
+  while (next) { const r = await fetch(next, { headers: { Authorization: `Bearer ${tok}`, "Data-Access-Intent": "ReadOnly", Accept: "application/json" } }); if (!r.ok) throw new Error(`${r.status}: ${(await r.text()).slice(0,150)}`); const j = await r.json(); out.push(...(j.value || [])); next = j["@odata.nextLink"] || null; } return out;
 }
 const tok = await token();
 const companies = (await getAll(`${BASE}/companies?$select=id,name,displayName`, tok)).filter((c) => !/^_|TEST|test|INIT|OPSTART|FLEETMATE|2025 test/.test(c.displayName));
+const names = new Map();
+for (const co of companies) { try { for (const a of await getAll(`${BASE}/companies(${co.id})/accounts?$select=number,displayName`, tok)) if (!names.has(a.number)) names.set(a.number, a.displayName); } catch {} }
+const nm = (n) => names.get(n) || "(n/a)";
+
+const MAPPED = new Set(["611120","611130","612350","612400","613320","240200","240500","215000","211000"]);
+const ALLOWLIST = ["idocta","canon","allphi","just-fix-it","gmi group"];
+const INTERCOMPANY = ["gheeraert","marcel lamberts","de rudder","trans-form","warehouse bv"];
+const isInter = (v) => INTERCOMPANY.some((p) => (v||"").toLowerCase().includes(p));
+const isAllow = (v) => ALLOWLIST.some((p) => (v||"").toLowerCase().includes(p));
+// IT-looking vendor name patterns (broad; agents will judge)
+const ITNAME = /\b(it|ict|software|hardware|cloud|host|server|data ?cent|cyber|secur|network|telecom|digit|syste|techno|comput|informatic|develop|\bdev\b|consult|saas|webdesign|web ?dev|microsoft|google|aws|azure|cisco|fortinet|sophos|veeam|backup|domain|hosting)\b/i;
+
 const from = "2025-06-01", to = "2026-06-23";
 
-// 1) Every transaction on the prepaid MasterCard / fuel-card suspense accounts — full descriptions
-const CARD_ACCTS = ["499002", "499003", "499004"];
-const cardTx = [];
+// Pull all 61x + 64x expense GL group-wide, join to PI vendor, aggregate by vendor.
+const vendorAgg = {}; // vendorLower -> {display, mappedNet, unmappedNet, accts:{acct:net}, months:Set}
+const allphi = {}; // company -> {total, byMonth:{}}
 for (const co of companies) {
   let headers = [];
   try { headers = await getAll(`${BASE}/companies(${co.id})/purchaseInvoices?$filter=postingDate ge ${from} and postingDate le ${to}&$select=number,vendorName`, tok); } catch {}
   const vmap = new Map(headers.map((h) => [h.number, h.vendorName]));
-  for (const acct of CARD_ACCTS) {
-    let gl = [];
-    try { gl = await getAll(`${BASE}/companies(${co.id})/generalLedgerEntries?$filter=postingDate ge ${from} and postingDate le ${to} and accountNumber eq '${acct}'&$select=postingDate,description,debitAmount,creditAmount,documentNumber`, tok); } catch {}
-    for (const e of gl) {
-      const debit = Number(e.debitAmount || 0), credit = Number(e.creditAmount || 0);
-      cardTx.push({ company: co.displayName, acct, date: e.postingDate, desc: e.description, debit, credit, vendor: vmap.get(e.documentNumber) || "" });
-    }
-  }
-}
-// charges = debit (money spent on the card); group identical descriptions
-const charges = cardTx.filter((t) => t.debit > 0).sort((a, b) => b.debit - a.debit);
-const descRoll = {};
-for (const t of cardTx) { const k = (t.desc || "(blank)").replace(/\d{2,}/g, "#").trim().slice(0, 40); const d = (descRoll[k] = descRoll[k] || { net: 0, n: 0 }); d.net += t.debit - t.credit; d.n += 1; }
-const cardDescriptions = Object.entries(descRoll).map(([k, v]) => ({ descPattern: k, net: Math.round(v.net), n: v.n })).sort((a, b) => Math.abs(b.net) - Math.abs(a.net)).slice(0, 60);
-
-// 2) AI / SaaS / cloud keyword scan across ALL GL descriptions (and vendor names)
-const SAAS = /anthropic|openai|chatgpt|\bclaude\b|cursor|copilot|github|gitlab|adobe|figma|notion|vercel|netlify|cloudflare|\baws\b|amazon web|google\s?(cloud|workspace|ads)|gcp|azure|microsoft|office ?365|m365|dropbox|\bzoom\b|slack|atlassian|jira|confluence|canva|hubspot|mailchimp|stripe|twilio|sendgrid|digitalocean|hetzner|ovh|godaddy|namecheap|wix|squarespace|shopify|datadog|sentry|openrouter|midjourney|elevenlabs|perplexity|grok|gemini|huggingface|replicate|\bapi\b|subscription|abonnement|licen/i;
-const STRICT_AI = /anthropic|openai|chatgpt|\bclaude\b|cursor|copilot|midjourney|elevenlabs|perplexity|huggingface|replicate|openrouter|gemini|\bgrok\b/i;
-const saasHits = {}; const aiHits = [];
-for (const co of companies) {
   let gl = [];
-  try {
-    // pull only 6xx (expense) + 49xx (card/suspense) to keep it bounded, with descriptions
-    gl = await getAll(`${BASE}/companies(${co.id})/generalLedgerEntries?$filter=postingDate ge ${from} and postingDate le ${to} and (startswith(accountNumber,'6') or startswith(accountNumber,'499'))&$select=accountNumber,description,debitAmount,creditAmount,documentNumber`, tok);
-  } catch (e) { saasHits["_err_" + co.displayName] = String(e).slice(0, 120); continue; }
+  try { gl = await getAll(`${BASE}/companies(${co.id})/generalLedgerEntries?$filter=postingDate ge ${from} and postingDate le ${to} and (startswith(accountNumber,'61') or startswith(accountNumber,'64'))&$select=accountNumber,documentNumber,description,debitAmount,creditAmount,postingDate`, tok); } catch {}
   for (const e of gl) {
-    const d = e.description || "";
-    if (SAAS.test(d)) {
-      const m = (d.match(SAAS) || ["?"])[0].toLowerCase();
-      const h = (saasHits[m] = saasHits[m] || { net: 0, n: 0, accts: new Set(), sample: d.slice(0, 60) });
-      h.net += Number(e.debitAmount || 0) - Number(e.creditAmount || 0); h.n += 1; h.accts.add(e.accountNumber);
+    const amt = Number(e.debitAmount || 0) - Number(e.creditAmount || 0);
+    if (!amt) continue;
+    const acct = e.accountNumber;
+    const vRaw = vmap.get(e.documentNumber) || e.description || "(journal)";
+    if (isInter(vRaw)) continue;
+    const vk = vRaw.toLowerCase();
+    const a = (vendorAgg[vk] = vendorAgg[vk] || { display: vRaw, mappedNet: 0, unmappedNet: 0, accts: {}, months: new Set() });
+    if (MAPPED.has(acct)) a.mappedNet += amt; else a.unmappedNet += amt;
+    a.accts[acct] = (a.accts[acct] || 0) + amt;
+    if (e.postingDate) a.months.add(e.postingDate.slice(0, 7));
+    if (/allphi/i.test(vRaw)) {
+      const c2 = (allphi[co.displayName] = allphi[co.displayName] || { total: 0, byMonth: {} });
+      c2.total += amt; const m = (e.postingDate || "").slice(0, 7); c2.byMonth[m] = (c2.byMonth[m] || 0) + amt;
     }
-    if (STRICT_AI.test(d)) aiHits.push({ company: co.displayName, acct: e.accountNumber, desc: d.slice(0, 80), amt: Math.round(Number(e.debitAmount || 0) - Number(e.creditAmount || 0)) });
   }
 }
-const saasSummary = Object.entries(saasHits).filter(([k]) => !k.startsWith("_err_")).map(([k, v]) => ({ keyword: k, net: Math.round(v.net), entries: v.n, accounts: [...v.accts], sample: v.sample })).sort((a, b) => b.entries - a.entries);
+
+// MISSED IT vendors: IT-looking name, spend mostly on UNMAPPED accounts, NOT allowlisted, NOT intercompany.
+const missed = Object.values(vendorAgg)
+  .filter((a) => ITNAME.test(a.display) && !isAllow(a.display) && a.unmappedNet > 1000 && a.unmappedNet > a.mappedNet)
+  .map((a) => ({ vendor: a.display, unmappedNet: Math.round(a.unmappedNet), mappedNet: Math.round(a.mappedNet), months: a.months.size,
+    topAccounts: Object.entries(a.accts).sort((x,y)=>Math.abs(y[1])-Math.abs(x[1])).slice(0,3).map(([ac,v])=>`${ac} ${nm(ac)}: ${Math.round(v)}`) }))
+  .sort((a, b) => b.unmappedNet - a.unmappedNet).slice(0, 40);
+
+// What's now CAPTURED via allowlist (sanity): allowlisted vendors total
+const allowCaptured = Object.values(vendorAgg).filter((a) => isAllow(a.display))
+  .map((a) => ({ vendor: a.display, total: Math.round(a.mappedNet + a.unmappedNet), months: a.months.size,
+    accounts: Object.keys(a.accts).map((ac)=>`${ac}`).slice(0,5) }))
+  .sort((a,b)=>b.total-a.total);
 
 console.log(JSON.stringify({
-  cardChargeCount: charges.length,
-  cardTopCharges: charges.slice(0, 30).map((t) => ({ company: t.company, acct: t.acct, date: t.date, desc: (t.desc || "").slice(0, 60), debit: Math.round(t.debit), vendor: t.vendor })),
-  cardDescriptionPatterns: cardDescriptions,
-  saasKeywordSummary: saasSummary,
-  strictAImatches: aiHits.slice(0, 40),
-  errors: Object.entries(saasHits).filter(([k]) => k.startsWith("_err_")),
+  allphiByCompany: Object.entries(allphi).map(([co, v]) => ({ company: co, total: Math.round(v.total), monthsBilled: Object.keys(v.byMonth).length, avgPerMonth: Math.round(v.total / Math.max(1, Object.keys(v.byMonth).length)), byMonth: Object.fromEntries(Object.entries(v.byMonth).map(([m, x]) => [m, Math.round(x)])) })),
+  allphiGroupTotal: Math.round(Object.values(allphi).reduce((s, v) => s + v.total, 0)),
+  allowlistCaptured: allowCaptured,
+  potentiallyMissedITVendors: missed,
 }, null, 2));
