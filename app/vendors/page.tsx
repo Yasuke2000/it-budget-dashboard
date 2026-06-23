@@ -24,7 +24,15 @@ export default async function VendorsPage({
   const totalVendors = vendors.length;
   const highestConcentration = vendors[0]?.percentOfTotal ?? 0;
   const totalSpend = vendors.reduce((s, v) => s + v.totalSpend, 0);
-  const concentrationRiskCount = vendors.filter((v) => v.isConcentrationRisk).length;
+  const riskCount = vendors.filter((v) => v.concentrationLevel === "risk").length;
+  const watchCount = vendors.filter((v) => v.concentrationLevel === "watch").length;
+
+  // Herfindahl-Hirschman Index (Σ share²) + 5-firm concentration ratio, as
+  // distribution-shape indicators (NOT a pass/fail — DOJ bands assume competitive
+  // markets; a small healthy vendor mix can legitimately read "concentrated").
+  const hhi = Math.round(vendors.reduce((s, v) => s + v.percentOfTotal ** 2, 0));
+  const cr5 = vendors.slice(0, 5).reduce((s, v) => s + v.percentOfTotal, 0);
+  const hhiBand = hhi > 2500 ? "Concentrated" : hhi >= 1500 ? "Moderate" : "Diversified";
 
   const top10 = vendors.slice(0, 10);
 
@@ -44,22 +52,28 @@ export default async function VendorsPage({
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="Total Vendors"
           value={totalVendors.toString()}
           iconName="Building2"
-          description={`${concentrationRiskCount} with concentration risk`}
-          changeType={concentrationRiskCount > 0 ? "negative" : "positive"}
-          change={concentrationRiskCount > 0 ? `${concentrationRiskCount} vendor${concentrationRiskCount > 1 ? "s" : ""} >30% share` : "No concentration risk"}
+          description={riskCount > 0 ? `${riskCount} over 30% · ${watchCount} on watch` : watchCount > 0 ? `${watchCount} on watch (25–30%)` : "No concentration risk"}
+          changeType={riskCount > 0 ? "negative" : watchCount > 0 ? "neutral" : "positive"}
         />
         <KPICard
           title="Highest Concentration"
           value={`${highestConcentration.toFixed(1)}%`}
           iconName="AlertTriangle"
-          changeType={highestConcentration > 30 ? "negative" : highestConcentration > 20 ? "neutral" : "positive"}
+          changeType={highestConcentration > 30 ? "negative" : highestConcentration >= 25 ? "neutral" : "positive"}
           description={vendors[0]?.vendorName ?? "—"}
-          change={highestConcentration > 30 ? "Above 30% threshold" : "Within acceptable range"}
+          change={highestConcentration > 30 ? "Above 30% — risk" : highestConcentration >= 25 ? "25–30% — watch" : "Within range"}
+        />
+        <KPICard
+          title="Portfolio Concentration"
+          value={`HHI ${hhi.toLocaleString()}`}
+          iconName="BarChart2"
+          changeType="neutral"
+          description={`${hhiBand} · top-5 = ${cr5.toFixed(0)}% (trend, not pass/fail)`}
         />
         <KPICard
           title="Total IT Spend"

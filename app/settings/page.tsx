@@ -743,6 +743,8 @@ function GLMappingTab() {
 
 function BudgetTab() {
   const [budgets, setBudgets] = useState<Record<string, string>>({});
+  const [consolidatedRevenue, setConsolidatedRevenue] = useState("");
+  const [benchmarkPct, setBenchmarkPct] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -755,6 +757,8 @@ function BudgetTab() {
           for (const [k, v] of Object.entries(d.budgets as Record<string, number>)) b[k] = String(v);
           setBudgets(b);
         }
+        if (d && typeof d.consolidatedRevenue === "number" && d.consolidatedRevenue > 0) setConsolidatedRevenue(String(d.consolidatedRevenue));
+        if (d && typeof d.revenueBenchmarkPercent === "number") setBenchmarkPct(String(d.revenueBenchmarkPercent));
       })
       .catch(() => {});
   }, []);
@@ -772,10 +776,16 @@ function BudgetTab() {
         const n = parseFloat(raw);
         if (Number.isFinite(n) && n > 0) parsed[cat] = n;
       }
+      const rev = parseFloat(consolidatedRevenue);
+      const bench = parseFloat(benchmarkPct);
       await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ budgets: parsed }),
+        body: JSON.stringify({
+          budgets: parsed,
+          consolidatedRevenue: Number.isFinite(rev) && rev > 0 ? rev : 0,
+          revenueBenchmarkPercent: Number.isFinite(bench) && bench > 0 ? bench : 3.3,
+        }),
       });
       setSaved(true);
     } finally {
@@ -785,6 +795,42 @@ function BudgetTab() {
 
   return (
     <div className="space-y-6">
+      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+        <CardHeader>
+          <CardTitle className="text-white text-sm font-semibold">Revenue & IT-Spend Benchmark</CardTitle>
+          <CardDescription>
+            IT spend as a % of revenue is the key economic benchmark. We use gross BC turnover by default,
+            but that&apos;s inflated by intercompany — enter your <strong>audited consolidated revenue</strong>
+            (after eliminations) for an accurate ratio. The benchmark % is the industry median to compare
+            against (transport &amp; logistics ≈ 3.3%, Gartner IT Key Metrics 2025).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-400">Consolidated annual revenue (EUR) — optional</label>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 text-sm">€</span>
+                <Input type="number" min={0} step={100000} value={consolidatedRevenue}
+                  onChange={(e) => { setConsolidatedRevenue(e.target.value); setSaved(false); }}
+                  placeholder="leave blank to use gross BC turnover"
+                  className="h-8 bg-slate-800 border-slate-700 text-white focus:border-teal-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-400">Benchmark IT-spend % of revenue</label>
+              <div className="flex items-center gap-1.5">
+                <Input type="number" min={0} step={0.1} value={benchmarkPct}
+                  onChange={(e) => { setBenchmarkPct(e.target.value); setSaved(false); }}
+                  placeholder="3.3"
+                  className="h-8 w-28 bg-slate-800 border-slate-700 text-white focus:border-teal-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                <span className="text-slate-400 text-sm">%</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="bg-slate-900 border-slate-700 ring-slate-700">
         <CardHeader>
           <CardTitle className="text-white text-sm font-semibold">Monthly Budget by Category</CardTitle>

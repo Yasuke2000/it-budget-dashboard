@@ -163,6 +163,26 @@ export async function fetchBCPurchaseInvoiceHeaders(
   return fetchAllPages<Record<string, unknown>>(url, token);
 }
 
+// Group turnover for the IT-spend-as-%-of-revenue benchmark. Belgian PCMN class
+// 70 = "Omzet / Turnover" (credit-normal). Returns the period revenue
+// (credits − debits) for one company. NOTE: gross — includes intercompany.
+export async function fetchBCRevenue(
+  companyId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<number> {
+  const token = await getBCToken();
+  const filter = `postingDate ge ${dateFrom} and postingDate le ${dateTo} and startswith(accountNumber,'70')`;
+  const url = `${BC_BASE_URL}/companies(${companyId})/generalLedgerEntries?$filter=${encodeURIComponent(
+    filter
+  )}&$select=debitAmount,creditAmount`;
+  const rows = await fetchAllPages<Record<string, unknown>>(url, token);
+  return rows.reduce(
+    (s, r) => s + (((r.creditAmount as number) || 0) - ((r.debitAmount as number) || 0)),
+    0
+  );
+}
+
 export async function fetchBCAccounts(companyId: string): Promise<Record<string, unknown>[]> {
   const data = await fetchBC(
     `accounts?$filter=category eq 'Expense'&$select=number,displayName,category,subCategory,balance,netChange`,

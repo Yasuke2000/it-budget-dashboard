@@ -59,6 +59,40 @@ export async function fetchSubscribedSkus(): Promise<Record<string, unknown>[]> 
   return data.value;
 }
 
+// Active-to-provisioned usage (FinOps): of the licensed M365 users, how many were
+// actually active in the last 30 days. Uses the Office 365 active-user detail
+// report. Requires the APPLICATION permission `Reports.Read.All` + admin consent;
+// returns null (gracefully) until that's granted, so the tile shows "n/a".
+export async function fetchM365ActiveUsage(): Promise<{ active: number; licensed: number } | null> {
+  try {
+    const token = await getGraphToken();
+    const res = await fetchWithRetry(
+      "https://graph.microsoft.com/v1.0/reports/getOffice365ActiveUserDetail(period='D30')?$format=application/json",
+      { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+      { timeoutMs: 60_000, maxAttempts: 2 }
+    );
+    if (!res.ok) return null; // 403 = permission not granted yet
+    const data = (await res.json()) as { value?: Record<string, unknown>[] };
+    const rows = data.value || [];
+    let licensed = 0;
+    let active = 0;
+    for (const r of rows) {
+      if (r.isDeleted === true || r.isDeleted === "True") continue;
+      const products = (r.assignedProducts as unknown[]) || [];
+      if (!products.length) continue; // only licensed users
+      licensed += 1;
+      // Active = any product shows a last-activity date within the D30 window.
+      const activeOnAny = Object.entries(r).some(
+        ([k, v]) => k.endsWith("LastActivityDate") && typeof v === "string" && v.length > 0
+      );
+      if (activeOnAny) active += 1;
+    }
+    return licensed > 0 ? { active, licensed } : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchManagedDevices(): Promise<Record<string, unknown>[]> {
   const token = await getGraphToken();
   // chassisType is not a valid Graph v1.0 field — removed from $select

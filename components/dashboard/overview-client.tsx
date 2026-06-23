@@ -189,22 +189,29 @@ export function OverviewClient() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <KPICard
           title="Total IT Spend"
           value={formatCurrencyCompact(kpis.totalSpendYTD)}
           change={formatPercent(kpis.spendChangePercent)}
           changeType={kpis.spendTrend === "up" ? "negative" : kpis.spendTrend === "down" ? "positive" : "neutral"}
           iconName="DollarSign"
-          description={selectedRange.label}
+          description={`${selectedRange.label} · cash/outlay basis`}
           sparklineData={spendSparkline}
         />
         <KPICard
-          title="Projected Full Year"
-          value={formatCurrencyCompact(kpis.projectedAnnualSpend)}
+          title={kpis.annualisedSpendTTM > 0 ? "Annualised IT Spend" : "Projected Full Year"}
+          value={formatCurrencyCompact(kpis.annualisedSpendTTM > 0 ? kpis.annualisedSpendTTM : kpis.projectedAnnualSpend)}
           iconName="TrendingUp"
           changeType="neutral"
-          description="Annualised run-rate (complete months)"
+          description={kpis.annualisedSpendTTM > 0 ? "Trailing 12 months (actual)" : `Run-rate · ${kpis.projectionMonths} complete mo`}
+        />
+        <KPICard
+          title="IT Spend % of Revenue"
+          value={kpis.itSpendPercentOfRevenue > 0 ? `${kpis.itSpendPercentOfRevenue.toFixed(2)}%` : "—"}
+          changeType="neutral"
+          iconName="Percent"
+          description={`vs ~${kpis.revenueBenchmarkPercent}% transport median${kpis.revenueIsConsolidated ? "" : " · gross rev."}`}
         />
         <KPICard
           title="IT Asset Depreciation"
@@ -218,7 +225,7 @@ export function OverviewClient() {
           value={`${kpis.licenseUtilizationPercent.toFixed(1)}%`}
           changeType={kpis.licenseUtilizationPercent >= 90 ? "positive" : kpis.licenseUtilizationPercent >= 70 ? "neutral" : "negative"}
           iconName="Key"
-          description="Paid licenses only"
+          description={kpis.licenseActiveUsagePercent != null ? `assigned · ${kpis.licenseActiveUsagePercent.toFixed(0)}% active 30d` : "Paid licenses (assigned)"}
         />
         <KPICard
           title="Managed Devices"

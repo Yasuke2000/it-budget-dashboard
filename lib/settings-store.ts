@@ -22,6 +22,12 @@ export interface AppSettings {
   // whether their spend counts toward the IT total.
   operationalSoftwareVendors: string[];
   includeOperationalSoftware: boolean;
+  // IT-spend-%-of-revenue benchmark. consolidatedRevenue = audited external
+  // revenue (overrides the gross class-70 figure, which is inflated by
+  // intercompany); 0/undefined → use gross. benchmarkPercent = industry median
+  // to compare against (transport ≈ 3.3%).
+  consolidatedRevenue: number;
+  revenueBenchmarkPercent: number;
 }
 
 async function getSetting<T>(key: string): Promise<T | null> {
@@ -71,13 +77,15 @@ async function setSetting(key: string, value: unknown): Promise<void> {
 
 /** Settings merged over the compiled defaults. */
 export async function getAppSettings(): Promise<AppSettings> {
-  const [gl, prices, vendors, budgets, opVendors, includeOp] = await Promise.all([
+  const [gl, prices, vendors, budgets, opVendors, includeOp, consolidatedRev, benchmarkPct] = await Promise.all([
     getSetting<Record<string, string>>("glMappings"),
     getSetting<Record<string, number>>("licensePrices"),
     getSetting<Record<string, string>>("itVendorRules"),
     getSetting<Record<string, number>>("budgets"),
     getSetting<string[]>("operationalSoftwareVendors"),
     getSetting<boolean>("includeOperationalSoftware"),
+    getSetting<number>("consolidatedRevenue"),
+    getSetting<number>("revenueBenchmarkPercent"),
   ]);
   return {
     glMappings: { ...DEFAULT_GL_MAPPING, ...(gl ?? {}) },
@@ -87,6 +95,9 @@ export async function getAppSettings(): Promise<AppSettings> {
     operationalSoftwareVendors: opVendors ?? OPERATIONAL_SOFTWARE_VENDORS,
     // Default: count operational software in the IT total (true) unless told otherwise.
     includeOperationalSoftware: includeOp ?? true,
+    consolidatedRevenue: consolidatedRev ?? 0,
+    // Gartner transport-industry median IT-spend-of-revenue.
+    revenueBenchmarkPercent: benchmarkPct ?? 3.3,
   };
 }
 
@@ -97,5 +108,7 @@ export async function saveAppSettings(settings: Partial<AppSettings>): Promise<A
   if (settings.budgets) await setSetting("budgets", settings.budgets);
   if (settings.operationalSoftwareVendors) await setSetting("operationalSoftwareVendors", settings.operationalSoftwareVendors);
   if (settings.includeOperationalSoftware !== undefined) await setSetting("includeOperationalSoftware", settings.includeOperationalSoftware);
+  if (settings.consolidatedRevenue !== undefined) await setSetting("consolidatedRevenue", settings.consolidatedRevenue);
+  if (settings.revenueBenchmarkPercent !== undefined) await setSetting("revenueBenchmarkPercent", settings.revenueBenchmarkPercent);
   return getAppSettings();
 }

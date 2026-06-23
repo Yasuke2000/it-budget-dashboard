@@ -185,3 +185,6 @@ export const VARIANCE_THRESHOLDS: { green: number; amber: number } = {
 };
 
 export const CONCENTRATION_RISK_THRESHOLD: number = 30;
+// 25–30% is the "watch" band (recognised TPRM single-vendor caution zone). A
+// vendor here isn't flagged red but should be monitored — e.g. EASI at ~29.7%.
+export const CONCENTRATION_WATCH_THRESHOLD: number = 25;

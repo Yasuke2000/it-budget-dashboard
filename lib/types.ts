@@ -122,17 +122,36 @@ export interface VendorSummary {
   lastInvoiceDate: string;
   contractRenewalDate?: string;
   isConcentrationRisk: boolean;
+  // 'safe' (<25%), 'watch' (25–30%), 'risk' (>30%). EASI at ~29.7% is "watch".
+  concentrationLevel: "safe" | "watch" | "risk";
 }
 
 export interface DashboardKPIs {
   totalSpendYTD: number;
   budgetVariancePercent: number;
+  // 'favorable' = under budget, 'unfavorable' = over, 'na' = no budget set.
+  budgetFavorability: "favorable" | "unfavorable" | "na";
   licenseUtilizationPercent: number;
+  // Active-to-provisioned (FinOps): % of paid seats whose user was active
+  // recently. null until the Graph Reports permission is granted.
+  licenseActiveUsagePercent: number | null;
   deviceCount: number;
   totalBudgetYTD: number;
   totalActualYTD: number;
   itDepreciationYTD: number;
+  // Run-rate projection (avg of complete months × 12) + how many months it used.
   projectedAnnualSpend: number;
+  projectionMonths: number;
+  // Trailing-twelve-months: sum of the last 12 complete months. 0 until 12 exist.
+  annualisedSpendTTM: number;
+  // Opex vs capitalised IT purchases (for the ~25/75 capex benchmark).
+  opexYTD: number;
+  capexYTD: number;
+  // IT spend as % of group revenue + the benchmark to compare against.
+  groupRevenue: number;
+  revenueIsConsolidated: boolean;
+  itSpendPercentOfRevenue: number;
+  revenueBenchmarkPercent: number;
   spendTrend: "up" | "down" | "flat";
   spendChangePercent: number;
 }

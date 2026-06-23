@@ -29,15 +29,16 @@ import type {
   DepartmentSummary,
 } from "./types";
 import type { PeppolInvoice } from "./peppol-parser";
-import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING, IT_VENDOR_RULES, UNCLASSIFIED_CATEGORY, ALLOWLIST_SCAN_ACCOUNTS, OPERATIONAL_SOFTWARE_VENDORS, OPERATIONAL_SOFTWARE_CATEGORY, isITCategory, isIntercompanyVendor, isOperationalSoftwareVendor } from "./constants";
+import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, CONCENTRATION_WATCH_THRESHOLD, DEFAULT_GL_MAPPING, IT_VENDOR_RULES, UNCLASSIFIED_CATEGORY, ALLOWLIST_SCAN_ACCOUNTS, OPERATIONAL_SOFTWARE_VENDORS, OPERATIONAL_SOFTWARE_CATEGORY, isITCategory, isIntercompanyVendor, isOperationalSoftwareVendor } from "./constants";
 import { generateAllInsights } from "./cost-insights";
 import type { CostInsight } from "./cost-insights";
 import { getCache, setCache } from "./sync-cache";
-import { fetchBCCompanies, fetchBCGLEntries, fetchBCLedgerByAccounts, fetchBCDepreciationEntries, fetchBCPurchaseInvoiceHeaders, getBCToken } from "./bc-client";
+import { fetchBCCompanies, fetchBCGLEntries, fetchBCLedgerByAccounts, fetchBCDepreciationEntries, fetchBCPurchaseInvoiceHeaders, fetchBCRevenue, getBCToken } from "./bc-client";
 import { getAppSettings } from "./settings-store";
 import {
   fetchSubscribedSkus,
   fetchManagedDevices,
+  fetchM365ActiveUsage,
   mapGraphLicenseToM365License,
   mapGraphDeviceToManagedDevice,
 } from "./graph-client";
@@ -611,12 +612,27 @@ export async function getDashboardKPIs(
   const devices = await getDevices();
   // Depreciation of IT assets — reported separately, never added to IT spend.
   const itDepreciationYTD = await getITDepreciation(companyFilter, from, to);
+  // Revenue (for the IT-spend-%-of-revenue benchmark) + active license usage.
+  const [grossRevenue, activeUsagePct, settings] = await Promise.all([
+    getGroupRevenue(companyFilter, from, to),
+    getLicenseActiveUsagePercent(),
+    getAppSettings().catch(() => null),
+  ]);
 
   // Headline IT spend excludes "Unclassified" (non-IT GL accounts the BC feed
   // may include) so the KPI is trustworthy IT-only spend.
-  const totalSpendYTD = invoices
-    .filter((inv) => isITCategory(inv.costCategory))
-    .reduce((sum, inv) => sum + inv.totalAmountExcludingTax, 0);
+  const itInvoices = invoices.filter((inv) => isITCategory(inv.costCategory));
+  const totalSpendYTD = itInvoices.reduce((sum, inv) => sum + inv.totalAmountExcludingTax, 0);
+
+  // Opex vs capitalised IT purchases (PCMN class 2 = fixed-asset/capex accounts;
+  // class 6 = operating expense). For the ~25/75 capex/opex benchmark.
+  let capexYTD = 0;
+  let opexYTD = 0;
+  for (const inv of itInvoices) {
+    const acct = inv.lines[0]?.accountNumber || inv.vendorNumber || "";
+    if (acct.startsWith("2")) capexYTD += inv.totalAmountExcludingTax;
+    else opexYTD += inv.totalAmountExcludingTax;
+  }
 
   // Year-end projection: annualised run-rate from COMPLETE months only. A month
   // is complete when it is (a) not the in-progress current month, and (b) not a
@@ -645,6 +661,15 @@ export async function getDashboardKPIs(
     ? completeMonths.reduce((s, [, v]) => s + v, 0) / completeMonths.length
     : 0;
   const projectedAnnualSpend = Math.round(avgMonthly * 12);
+  const projectionMonths = completeMonths.length;
+  // Trailing-twelve-months: the seasonality-proof actual annual figure — sum of
+  // the last 12 COMPLETE months. 0 until a full 12 exist (then it's the headline
+  // annual number; run-rate is the forward-looking secondary).
+  const completeSortedAll = completeMonths.sort((a, b) => a[0].localeCompare(b[0]));
+  const annualisedSpendTTM =
+    completeSortedAll.length >= 12
+      ? Math.round(completeSortedAll.slice(-12).reduce((s, [, v]) => s + v, 0))
+      : 0;
 
   // Budget vs actual must be SCOPE-MATCHED: compare budget only against spend in
   // the budgeted categories (not the whole IT total), over the same window.
@@ -663,6 +688,10 @@ export async function getDashboardKPIs(
     totalBudgetYTD > 0
       ? ((totalActualYTD - totalBudgetYTD) / totalBudgetYTD) * 100
       : 0;
+  // For a COST line, over budget = unfavorable, under = favorable. "na" when no
+  // budget is set (don't render a misleading 0%).
+  const budgetFavorability: DashboardKPIs["budgetFavorability"] =
+    totalBudgetYTD <= 0 ? "na" : totalActualYTD > totalBudgetYTD ? "unfavorable" : "favorable";
 
   const paidLicenses = licenses.filter((l) => l.pricePerUser > 0);
   const totalPrepaid = paidLicenses.reduce((sum, l) => sum + l.prepaidUnits, 0);
@@ -683,15 +712,33 @@ export async function getDashboardKPIs(
   const prior = priorMonths.reduce((s, [, v]) => s + v, 0);
   const spendChangePercent = prior > 0 ? ((recent - prior) / prior) * 100 : 0;
 
+  // IT spend as % of revenue. Prefer the audited consolidated figure (Settings)
+  // over gross class-70 turnover, which is inflated by intercompany.
+  const consolidated = settings?.consolidatedRevenue ?? 0;
+  const groupRevenue = consolidated > 0 ? consolidated : grossRevenue;
+  const revenueIsConsolidated = consolidated > 0;
+  const itSpendPercentOfRevenue = groupRevenue > 0 ? (totalSpendYTD / groupRevenue) * 100 : 0;
+  const revenueBenchmarkPercent = settings?.revenueBenchmarkPercent ?? 3.3;
+
   return {
     totalSpendYTD,
     budgetVariancePercent,
+    budgetFavorability,
     licenseUtilizationPercent,
+    licenseActiveUsagePercent: activeUsagePct,
     deviceCount: devices.length,
     totalBudgetYTD,
     totalActualYTD,
     itDepreciationYTD,
     projectedAnnualSpend,
+    projectionMonths,
+    annualisedSpendTTM,
+    opexYTD: Math.round(opexYTD),
+    capexYTD: Math.round(capexYTD),
+    groupRevenue: Math.round(groupRevenue),
+    revenueIsConsolidated,
+    itSpendPercentOfRevenue,
+    revenueBenchmarkPercent,
     spendTrend: spendChangePercent > 2 ? "up" : spendChangePercent < -2 ? "down" : "flat",
     spendChangePercent,
   };
@@ -728,6 +775,52 @@ export async function getITDepreciation(
   } catch {
     return 0;
   }
+}
+
+// ---- Group revenue (for IT-spend-%-of-revenue benchmark) ----
+// Gross class-70 turnover across the group (includes intercompany). The
+// dashboard prefers an audited consolidated figure from Settings when set.
+export async function getGroupRevenue(
+  companyFilter: CompanyFilter = "all",
+  dateFrom?: string,
+  dateTo?: string
+): Promise<number> {
+  if (isDemoMode()) return 0;
+  const yr = new Date().getFullYear();
+  const from = dateFrom ?? `${yr}-01-01`;
+  const to = dateTo ?? `${yr}-12-31`;
+  const cacheKey = `revenue-${companyFilter}-${from}-${to}`;
+  const cached = getCache<number>(cacheKey);
+  if (cached != null) return cached;
+  try {
+    await getBCToken();
+    const companies = await getCompanies();
+    const targets = companyFilter === "all" ? companies : companies.filter((c) => c.id === companyFilter);
+    const per = await Promise.all(
+      targets.map((c) => fetchBCRevenue(c.id, from, to).catch(() => 0))
+    );
+    const total = per.reduce((s, v) => s + v, 0);
+    setCache(cacheKey, total, 120);
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
+// ---- License active-to-provisioned usage (FinOps) ----
+// % of licensed M365 users active in the last 30 days. null until the Graph
+// Reports.Read.All permission is granted (then the tile lights up automatically).
+export async function getLicenseActiveUsagePercent(): Promise<number | null> {
+  if (isDemoMode()) return null;
+  const cacheKey = "license-active-usage";
+  // -1 is a sentinel for "checked, not available" (no Reports permission yet), so
+  // we don't re-hit Graph on every dashboard load.
+  const cached = getCache<number>(cacheKey);
+  if (cached != null) return cached === -1 ? null : cached;
+  const usage = await fetchM365ActiveUsage();
+  const pct = usage && usage.licensed > 0 ? (usage.active / usage.licensed) * 100 : null;
+  setCache(cacheKey, pct == null ? -1 : pct, 240); // 4h TTL
+  return pct;
 }
 
 // ---- Monthly Spend Trend ----
@@ -1124,6 +1217,14 @@ export async function getVendorSummary(
     .map((data) => {
       const percentOfTotal =
         totalSpend > 0 ? (data.totalSpend / totalSpend) * 100 : 0;
+      // 'risk' above the 30% flag; 'watch' in the 25–30% band (one rounding from
+      // the flag — e.g. EASI ~29.7%); else 'safe'.
+      const concentrationLevel: VendorSummary["concentrationLevel"] =
+        percentOfTotal > CONCENTRATION_RISK_THRESHOLD
+          ? "risk"
+          : percentOfTotal >= CONCENTRATION_WATCH_THRESHOLD
+          ? "watch"
+          : "safe";
       return {
         vendorName: data.display,
         vendorNumber: data.vendorNumber,
@@ -1133,6 +1234,7 @@ export async function getVendorSummary(
         categories: Array.from(data.categories),
         lastInvoiceDate: data.lastDate,
         isConcentrationRisk: percentOfTotal > CONCENTRATION_RISK_THRESHOLD,
+        concentrationLevel,
       };
     })
     .sort((a, b) => b.totalSpend - a.totalSpend);
