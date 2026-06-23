@@ -879,6 +879,20 @@ export async function getCostInsights(
   return generateAllInsights({ licenses, vendors, devices, budget, employees });
 }
 
+// Conservative vendor-name normalisation for de-duplication: same vendor written
+// with/without legal form ("GMI GROUP" vs "GMI GROUP NV") collapses to one key.
+// Deliberately does NOT strip distinguishing words, to avoid merging different
+// entities.
+function normalizeVendorKey(name: string): string {
+  return (name || "")
+    .toUpperCase()
+    .replace(/\./g, "")
+    .replace(/[,&]/g, " ")
+    .replace(/\b(BVBA|BV|NV\/SA|NV|SA|SRL|SPRL|COMM ?V|VOF|GMBH|LTD|LLC|INC)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // ---- Vendor Summary ----
 export async function getVendorSummary(
   companyFilter: CompanyFilter = "all",
@@ -897,6 +911,7 @@ export async function getVendorSummary(
   const vendorMap = new Map<
     string,
     {
+      display: string;
       vendorNumber: string;
       totalSpend: number;
       invoiceCount: number;
@@ -906,28 +921,34 @@ export async function getVendorSummary(
   >();
 
   invoices.forEach((inv) => {
-    const existing = vendorMap.get(inv.vendorName) || {
+    const key = normalizeVendorKey(inv.vendorName) || inv.vendorName;
+    const existing = vendorMap.get(key) || {
+      display: inv.vendorName,
       vendorNumber: inv.vendorNumber,
       totalSpend: 0,
       invoiceCount: 0,
       categories: new Set<string>(),
       lastDate: "",
     };
+    // Prefer the longest variant as the display name (usually most complete).
+    if (inv.vendorName && inv.vendorName.length > existing.display.length) {
+      existing.display = inv.vendorName;
+    }
     existing.totalSpend += inv.totalAmountExcludingTax;
     existing.invoiceCount += 1;
     existing.categories.add(inv.costCategory);
     if (inv.postingDate > existing.lastDate) {
       existing.lastDate = inv.postingDate;
     }
-    vendorMap.set(inv.vendorName, existing);
+    vendorMap.set(key, existing);
   });
 
-  return Array.from(vendorMap.entries())
-    .map(([vendorName, data]) => {
+  return Array.from(vendorMap.values())
+    .map((data) => {
       const percentOfTotal =
         totalSpend > 0 ? (data.totalSpend / totalSpend) * 100 : 0;
       return {
-        vendorName,
+        vendorName: data.display,
         vendorNumber: data.vendorNumber,
         totalSpend: data.totalSpend,
         invoiceCount: data.invoiceCount,
