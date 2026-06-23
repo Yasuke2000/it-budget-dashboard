@@ -40,6 +40,9 @@ export interface AppSettings {
   // to compare against (transport ≈ 3.3%).
   consolidatedRevenue: number;
   revenueBenchmarkPercent: number;
+  // Show the Peppol e-invoicing page in the nav. Off by default — the page isn't
+  // connected to a live Peppol Access Point yet, so it's hidden until enabled.
+  showPeppol: boolean;
 }
 
 async function getSetting<T>(key: string): Promise<T | null> {
@@ -89,7 +92,7 @@ async function setSetting(key: string, value: unknown): Promise<void> {
 
 /** Settings merged over the compiled defaults. */
 export async function getAppSettings(): Promise<AppSettings> {
-  const [gl, prices, vendors, budgets, opVendors, includeOp, consolidatedRev, benchmarkPct] = await Promise.all([
+  const [gl, prices, vendors, budgets, opVendors, includeOp, consolidatedRev, benchmarkPct, showPeppol] = await Promise.all([
     getSetting<Record<string, string>>("glMappings"),
     getSetting<Record<string, number>>("licensePrices"),
     getSetting<Record<string, string>>("itVendorRules"),
@@ -98,6 +101,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     getSetting<boolean>("includeOperationalSoftware"),
     getSetting<number>("consolidatedRevenue"),
     getSetting<number>("revenueBenchmarkPercent"),
+    getSetting<boolean>("showPeppol"),
   ]);
   // Merge stored GL overrides over defaults, then strip any forbidden account
   // (depreciation 63x / suspense 49x) so it can never leak into the spend total.
@@ -116,6 +120,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     consolidatedRevenue: consolidatedRev ?? 0,
     // Gartner transport-industry median IT-spend-of-revenue.
     revenueBenchmarkPercent: benchmarkPct ?? 3.3,
+    showPeppol: showPeppol ?? false,
   };
 }
 
@@ -128,5 +133,6 @@ export async function saveAppSettings(settings: Partial<AppSettings>): Promise<A
   if (settings.includeOperationalSoftware !== undefined) await setSetting("includeOperationalSoftware", settings.includeOperationalSoftware);
   if (settings.consolidatedRevenue !== undefined) await setSetting("consolidatedRevenue", settings.consolidatedRevenue);
   if (settings.revenueBenchmarkPercent !== undefined) await setSetting("revenueBenchmarkPercent", settings.revenueBenchmarkPercent);
+  if (settings.showPeppol !== undefined) await setSetting("showPeppol", settings.showPeppol);
   return getAppSettings();
 }

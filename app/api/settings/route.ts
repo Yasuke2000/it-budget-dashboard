@@ -13,6 +13,7 @@ export async function GET() {
     includeOperationalSoftware: s.includeOperationalSoftware,
     consolidatedRevenue: s.consolidatedRevenue,
     revenueBenchmarkPercent: s.revenueBenchmarkPercent,
+    showPeppol: s.showPeppol,
   });
 }
 
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
       includeOperationalSoftware?: boolean;
       consolidatedRevenue?: number;
       revenueBenchmarkPercent?: number;
+      showPeppol?: boolean;
     };
     const settings = await saveAppSettings({
       glMappings: body.glMappings,
@@ -37,6 +39,7 @@ export async function POST(request: Request) {
       includeOperationalSoftware: body.includeOperationalSoftware,
       consolidatedRevenue: body.consolidatedRevenue,
       revenueBenchmarkPercent: body.revenueBenchmarkPercent,
+      showPeppol: body.showPeppol,
     });
     // Invalidate cached spend/licenses so the new mapping/prices take effect now
     // (instead of after the 2–4h TTL).

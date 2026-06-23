@@ -40,17 +40,28 @@ const navItems = [
   { label: "Devices", icon: Monitor, href: "/devices" },
   { label: "Personnel", icon: Users, href: "/personnel" },
   { label: "Import", icon: Upload, href: "/import" },
-  { label: "Peppol", icon: FileCheck, href: "/peppol" },
   { label: "Connectors", icon: Plug, href: "/connectors" },
   { label: "Insights", icon: Lightbulb, href: "/insights" },
   { label: "Contracts", icon: ScrollText, href: "/contracts" },
   { label: "Settings", icon: Settings, href: "/settings" },
 ];
 
+const PEPPOL_ITEM = { label: "Peppol", icon: FileCheck, href: "/peppol" };
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const [showPeppol, setShowPeppol] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => setShowPeppol(Boolean(d?.showPeppol)))
+      .catch(() => {});
+  }, []);
+
+  const items = showPeppol ? [...navItems.slice(0, 8), PEPPOL_ITEM, ...navItems.slice(8)] : navItems;
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -91,7 +102,7 @@ export function CommandPalette() {
         <CommandEmpty>No results found.</CommandEmpty>
 
         <CommandGroup heading="Navigate">
-          {navItems.map(({ label, icon: Icon, href }) => (
+          {items.map(({ label, icon: Icon, href }) => (
             <CommandItem
               key={href}
               value={label}

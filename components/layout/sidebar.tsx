@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -40,15 +41,30 @@ const navItems = [
   { label: "Devices", icon: Monitor, href: "/devices" },
   { label: "Personnel", icon: Users, href: "/personnel" },
   { label: "Import", icon: Upload, href: "/import" },
-  { label: "Peppol", icon: FileCheck, href: "/peppol" },
   { label: "Connectors", icon: Plug, href: "/connectors" },
   { label: "Insights", icon: Lightbulb, href: "/insights" },
   { label: "Contracts", icon: ScrollText, href: "/contracts" },
   { label: "Settings", icon: Settings, href: "/settings" },
 ];
 
+// Peppol is hidden by default (not connected to a live Access Point); shown only
+// when enabled in Settings. Slots in after "Import" where it used to live.
+const PEPPOL_ITEM = { label: "Peppol", icon: FileCheck, href: "/peppol" };
+
 function SidebarContent() {
   const pathname = usePathname();
+  const [showPeppol, setShowPeppol] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => setShowPeppol(Boolean(d?.showPeppol)))
+      .catch(() => {});
+  }, []);
+
+  const items = showPeppol
+    ? [...navItems.slice(0, 9), PEPPOL_ITEM, ...navItems.slice(9)]
+    : navItems;
 
   return (
     <div className="flex h-full flex-col bg-slate-950">
@@ -87,7 +103,7 @@ function SidebarContent() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-        {navItems.map(({ label, icon: Icon, href }) => {
+        {items.map(({ label, icon: Icon, href }) => {
           const isActive =
             href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (

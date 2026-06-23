@@ -1153,6 +1153,65 @@ function OperationalSoftwareTab() {
   );
 }
 
+// ─── Tab: Features (beta toggles) ─────────────────────────────────────────────
+
+function FeaturesTab() {
+  const [showPeppol, setShowPeppol] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => { if (typeof d?.showPeppol === "boolean") setShowPeppol(d.showPeppol); })
+      .catch(() => {});
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ showPeppol }),
+      });
+      setSaved(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+        <CardHeader>
+          <CardTitle className="text-white text-sm font-semibold">Beta / Optional Features</CardTitle>
+          <CardDescription>
+            Toggle features that aren&apos;t fully wired to a live source yet. Off by default so they
+            don&apos;t show half-finished.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-white">Peppol e-invoicing page</p>
+              <p className="text-xs text-slate-500">
+                {showPeppol
+                  ? "On — shown in the navigation."
+                  : "Off — hidden from the navigation. It isn't connected to a live Peppol Access Point yet (manual UBL upload + compliance reference only)."}
+              </p>
+            </div>
+            <Switch checked={showPeppol} onCheckedChange={(v) => { setShowPeppol(Boolean(v)); setSaved(false); }} />
+          </div>
+          <div className="flex items-center justify-end gap-4">
+            <SaveButton onClick={handleSave} saving={saving} saved={saved} />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Tab 3: License Prices ────────────────────────────────────────────────────
 
 function LicensePricesTab() {
@@ -1494,6 +1553,12 @@ export default function SettingsPage() {
             Operational SW
           </TabsTrigger>
           <TabsTrigger
+            value="features"
+            className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
+          >
+            Features
+          </TabsTrigger>
+          <TabsTrigger
             value="license-prices"
             className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
           >
@@ -1522,6 +1587,9 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="operational">
             <OperationalSoftwareTab />
+          </TabsContent>
+          <TabsContent value="features">
+            <FeaturesTab />
           </TabsContent>
           <TabsContent value="license-prices">
             <LicensePricesTab />
