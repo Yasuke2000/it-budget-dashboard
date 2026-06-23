@@ -24,8 +24,13 @@ const CATEGORY_LABELS: Record<CostInsight["category"], string> = {
   duplicate_cost: "Duplicate Cost",
 };
 
-export default async function InsightsPage() {
-  const insights = await getCostInsights();
+export default async function InsightsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const sp = await searchParams;
+  const insights = await getCostInsights(sp.from, sp.to);
 
   const totalSavings = insights.reduce((s, i) => s + i.potentialSavings, 0);
   const criticalCount = insights.filter(i => i.severity === "critical").length;

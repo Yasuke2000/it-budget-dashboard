@@ -8,10 +8,16 @@ import type { BudgetEntry } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function BudgetPage() {
+export default async function BudgetPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const sp = await searchParams;
+  const company = sp.company || "all";
   const currentYear = new Date().getFullYear();
-  const from = `${currentYear}-01-01`;
-  const to = `${currentYear}-12-31`;
+  const from = sp.from || `${currentYear}-01-01`;
+  const to = sp.to || `${currentYear}-12-31`;
 
   const demo = isDemoMode();
   let entries: BudgetEntry[];
@@ -20,7 +26,7 @@ export default async function BudgetPage() {
     entries = await getBudgetEntries();
   } else {
     // No budget configured — build actual spend from real BC invoices
-    const invoices = await getInvoices("all", from, to);
+    const invoices = await getInvoices(company, from, to);
     const actualByKey = new Map<string, number>();
     for (const inv of invoices) {
       if (!isITCategory(inv.costCategory)) continue;

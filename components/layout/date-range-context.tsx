@@ -1,6 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode, useMemo } from "react";
+import React, { createContext, useContext, useState, ReactNode, useMemo, useCallback } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 export interface DateRangeOption {
   label: string;
@@ -64,8 +65,30 @@ const DateRangeContext = createContext<DateRangeContextType>({
 });
 
 export function DateRangeProvider({ children }: { children: ReactNode }) {
-  const [selectedRange, setSelectedRange] = useState<DateRangeOption>(presets[0]);
-  const value = useMemo(() => ({ selectedRange, setSelectedRange, presets }), [selectedRange]);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // URL is the source of truth so SERVER pages react to the date range too.
+  const [selectedRange, setRange] = useState<DateRangeOption>(
+    () => presets.find((p) => p.value === searchParams.get("range")) ?? presets[0]
+  );
+
+  const setSelectedRange = useCallback(
+    (range: DateRangeOption) => {
+      setRange(range);
+      const params = new URLSearchParams(Array.from(searchParams.entries()));
+      params.set("range", range.value);
+      params.set("from", range.from);
+      params.set("to", range.to);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [router, pathname, searchParams]
+  );
+
+  const value = useMemo(
+    () => ({ selectedRange, setSelectedRange, presets }),
+    [selectedRange, setSelectedRange]
+  );
   return (
     <DateRangeContext.Provider value={value}>
       {children}

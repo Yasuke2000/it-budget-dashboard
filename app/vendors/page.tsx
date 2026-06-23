@@ -7,11 +7,17 @@ import { VendorSpendChart } from "@/components/vendors/vendor-spend-chart";
 
 export const dynamic = "force-dynamic";
 
-export default async function VendorsPage() {
+export default async function VendorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const sp = await searchParams;
+  const company = sp.company || "all";
   const currentYear = new Date().getFullYear();
   const [vendors, invoices] = await Promise.all([
-    getVendorSummary(),
-    getInvoices(),
+    getVendorSummary(company, sp.from, sp.to),
+    getInvoices(company, sp.from, sp.to),
   ]);
   const live = !isDemoMode();
 
