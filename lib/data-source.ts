@@ -33,7 +33,7 @@ import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING, UNCL
 import { generateAllInsights } from "./cost-insights";
 import type { CostInsight } from "./cost-insights";
 import { getCache, setCache } from "./sync-cache";
-import { fetchBCCompanies, fetchBCGLEntries, fetchBCITLedgerEntries, getBCToken } from "./bc-client";
+import { fetchBCCompanies, fetchBCGLEntries, fetchBCITLedgerEntries, fetchBCPurchaseInvoiceHeaders, getBCToken } from "./bc-client";
 import {
   fetchSubscribedSkus,
   fetchManagedDevices,
@@ -203,18 +203,27 @@ export async function getInvoices(
       // (see fetchBCITLedgerEntries). Each entry becomes a synthetic "invoice"
       // so all downstream consumers (KPIs, category, monthly, vendors, budget)
       // keep working — now with correctly-categorised, real data.
+      // Per company, fetch the IT G/L entries AND the posted-invoice headers in
+      // parallel. The headers give us the real vendor name for each document
+      // (G/L entries don't carry it), so vendor analysis shows e.g. "NTS
+      // Computers Technology BV" instead of the booking description.
       const perCompany = await Promise.all(
         targetCompanies.map(async (company) => {
-          try {
-            return { company, glEntries: await fetchBCITLedgerEntries(company.id, from, to) };
-          } catch {
-            return { company, glEntries: [] as Record<string, unknown>[] };
+          const [glEntries, headers] = await Promise.all([
+            fetchBCITLedgerEntries(company.id, from, to).catch(() => [] as Record<string, unknown>[]),
+            fetchBCPurchaseInvoiceHeaders(company.id, from, to).catch(() => [] as Record<string, unknown>[]),
+          ]);
+          const vendorByDoc = new Map<string, { name: string; number: string }>();
+          for (const h of headers) {
+            const num = (h.number as string) || "";
+            if (num) vendorByDoc.set(num, { name: (h.vendorName as string) || "", number: (h.vendorNumber as string) || "" });
           }
+          return { company, glEntries, vendorByDoc };
         })
       );
 
       const allInvoices: PurchaseInvoice[] = [];
-      for (const { company, glEntries } of perCompany) {
+      for (const { company, glEntries, vendorByDoc } of perCompany) {
         for (const g of glEntries) {
           const accountNumber = (g.accountNumber as string) || "";
           // Spend = debit − credit. This nets out correction/reversal pairs to
@@ -225,6 +234,7 @@ export async function getInvoices(
           const documentNumber = (g.documentNumber as string) || "";
           const description = (g.description as string) || "";
           const costCategory = DEFAULT_GL_MAPPING[accountNumber] || UNCLASSIFIED_CATEGORY;
+          const vendor = vendorByDoc.get(documentNumber);
 
           allInvoices.push({
             id: `gl-${company.id}-${(g.id as string) || `${documentNumber}-${accountNumber}-${postingDate}`}`,
@@ -232,11 +242,10 @@ export async function getInvoices(
             invoiceDate: postingDate,
             postingDate,
             dueDate: postingDate,
-            // G/L entries don't carry the vendor name; the booking description is
-            // the closest real attribution we have without the (very slow)
-            // per-invoice line join.
-            vendorNumber: accountNumber,
-            vendorName: description || accountNumber,
+            // Real vendor from the posted-invoice header; fall back to the
+            // booking description only if the document can't be matched.
+            vendorNumber: vendor?.number || accountNumber,
+            vendorName: vendor?.name || description || accountNumber,
             totalAmountExcludingTax: amount,
             totalAmountIncludingTax: amount,
             totalTaxAmount: 0,

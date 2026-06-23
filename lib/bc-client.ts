@@ -127,6 +127,23 @@ export async function fetchBCITLedgerEntries(
   return fetchAllPages<Record<string, unknown>>(url, token);
 }
 
+// Posted purchase-invoice headers (no lines) for a date range. Used to map a
+// G/L entry's documentNumber → the real vendor name, since G/L entries don't
+// carry the vendor. Header-only fetch is cheap (~0.6s / ~700KB for the largest
+// company) and is cached + warmed.
+export async function fetchBCPurchaseInvoiceHeaders(
+  companyId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<Record<string, unknown>[]> {
+  const token = await getBCToken();
+  const filter = `postingDate ge ${dateFrom} and postingDate le ${dateTo}`;
+  const url = `${BC_BASE_URL}/companies(${companyId})/purchaseInvoices?$filter=${encodeURIComponent(
+    filter
+  )}&$select=number,vendorName,vendorNumber`;
+  return fetchAllPages<Record<string, unknown>>(url, token);
+}
+
 export async function fetchBCAccounts(companyId: string): Promise<Record<string, unknown>[]> {
   const data = await fetchBC(
     `accounts?$filter=category eq 'Expense'&$select=number,displayName,category,subCategory,balance,netChange`,

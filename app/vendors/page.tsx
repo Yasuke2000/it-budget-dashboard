@@ -33,8 +33,7 @@ export default async function VendorsPage() {
         </p>
         {live && (
           <p className="text-xs text-slate-600 mt-1">
-            Grouped by G/L booking description. True vendor names aren&apos;t available from the
-            ledger feed — they require the per-invoice line join, which is omitted for performance.
+            Real vendor names from posted Business Central purchase invoices, limited to IT spend.
           </p>
         )}
       </div>
