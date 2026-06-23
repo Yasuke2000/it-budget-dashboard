@@ -75,14 +75,11 @@ interface SyncState {
   message: string;
 }
 
-// ─── Static demo companies ─────────────────────────────────────────────────
-
-const DEMO_COMPANIES = [
-  { id: "comp-gdi", name: "Acme Distribution International", active: true },
-  { id: "comp-whs", name: "Warehouse Solutions", active: true },
-  { id: "comp-gre", name: "Acme Real Estate", active: true },
-  { id: "comp-tdr", name: "Transport De Rudder", active: true },
-];
+interface CompanyToggle {
+  id: string;
+  name: string;
+  active: boolean;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -157,6 +154,7 @@ interface ConnectionStatus {
   services: {
     bc: ServiceStatus;
     graph: ServiceStatus;
+    officient: ServiceStatus;
     dell: ServiceStatus;
     lenovo: ServiceStatus;
   };
@@ -172,7 +170,7 @@ function GeneralTab() {
     lastSyncAt: "2025-03-23T08:14:32Z",
     message: "All data sources synced successfully.",
   });
-  const [companies, setCompanies] = useState(DEMO_COMPANIES);
+  const [companies, setCompanies] = useState<CompanyToggle[]>([]);
   const [connStatus, setConnStatus] = useState<ConnectionStatus | null>(null);
   const [connLoading, setConnLoading] = useState(true);
 
@@ -182,6 +180,16 @@ function GeneralTab() {
       .then((data: ConnectionStatus) => setConnStatus(data))
       .catch(() => setConnStatus(null))
       .finally(() => setConnLoading(false));
+  }, []);
+
+  // Real Business Central companies (not demo placeholders).
+  useEffect(() => {
+    fetch("/api/companies")
+      .then((r) => r.json())
+      .then((data: { id: string; name: string }[]) => {
+        if (Array.isArray(data)) setCompanies(data.map((c) => ({ id: c.id, name: c.name, active: true })));
+      })
+      .catch(() => {});
   }, []);
 
   const handleSync = useCallback(async () => {
@@ -299,6 +307,7 @@ function GeneralTab() {
   }> = [
     { label: "Business Central", key: "bc", description: "BC_CLIENT_ID + BC_CLIENT_SECRET" },
     { label: "Microsoft Graph", key: "graph", description: "Same app registration as BC" },
+    { label: "Officient HR", key: "officient", description: "OFFICIENT_API_TOKEN or OAuth client" },
     { label: "Dell TechDirect", key: "dell", description: "DELL_CLIENT_ID + DELL_CLIENT_SECRET" },
     { label: "Lenovo eSupport", key: "lenovo", description: "LENOVO_CLIENT_ID" },
   ];
@@ -491,6 +500,9 @@ function GeneralTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {companies.length === 0 && (
+            <p className="text-sm text-slate-500 py-2">No companies loaded yet…</p>
+          )}
           {companies.map((company) => (
             <div
               key={company.id}

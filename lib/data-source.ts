@@ -51,7 +51,7 @@ export function isDemoMode(): boolean {
 // read this after fetching to show an honest "sample data" banner instead of
 // silently presenting demo numbers as real. Module singleton — good enough for
 // a per-request banner hint.
-export type SourceState = "live" | "demo" | "unknown";
+export type SourceState = "live" | "empty" | "unknown";
 export const sourceStatus: Record<string, SourceState> = {
   invoices: "unknown",
   licenses: "unknown",
@@ -152,8 +152,10 @@ export async function getCompanies(): Promise<Company[]> {
     setCache(cacheKey, companies, 60 * 24); // 24h TTL
     return companies;
   } catch (err) {
-    console.warn("BC API error (companies), falling back to demo data:", err);
-    return demoCompanies;
+    // Live mode shows real data or nothing — never demo. An empty company list
+    // means BC is unreachable, which surfaces as empty dashboards (honest).
+    console.warn("BC API error (companies):", err);
+    return [];
   }
 }
 
@@ -272,19 +274,10 @@ export async function getInvoices(
     const allInvoices = await flight;
     return applyPayroll(allInvoices, companyFilter, from, to);
   } catch (err) {
-    console.warn("BC API error (invoices), falling back to demo data:", err);
-    sourceStatus.invoices = "demo";
-    let invoices = demoInvoices;
-    if (companyFilter !== "all") {
-      invoices = invoices.filter((inv) => inv.companyId === companyFilter);
-    }
-    if (dateFrom) {
-      invoices = invoices.filter((inv) => inv.postingDate >= dateFrom);
-    }
-    if (dateTo) {
-      invoices = invoices.filter((inv) => inv.postingDate <= dateTo);
-    }
-    return applyPayroll(invoices, companyFilter, from, to);
+    // Live mode: real data or empty — never demo invoices.
+    console.warn("BC API error (invoices):", err);
+    sourceStatus.invoices = "empty";
+    return applyPayroll([], companyFilter, from, to);
   }
 }
 
@@ -359,18 +352,8 @@ export async function getGLEntries(
     setCache(cacheKey, allEntries, 120); // 2h TTL
     return allEntries;
   } catch (err) {
-    console.warn("BC API error (GL entries), falling back to demo data:", err);
-    let entries = demoGLEntries;
-    if (companyFilter !== "all") {
-      entries = entries.filter((e) => e.companyId === companyFilter);
-    }
-    if (dateFrom) {
-      entries = entries.filter((e) => e.postingDate >= dateFrom);
-    }
-    if (dateTo) {
-      entries = entries.filter((e) => e.postingDate <= dateTo);
-    }
-    return entries;
+    console.warn("BC API error (GL entries):", err);
+    return [];
   }
 }
 
@@ -381,7 +364,7 @@ export async function getLicenses(): Promise<M365License[]> {
   const cacheKey = "licenses";
   const cached = getCache<M365License[]>(cacheKey);
   if (cached) { sourceStatus.licenses = "live"; return cached; }
-  if (Date.now() < graphLicensesFailedUntil) { sourceStatus.licenses = "demo"; return demoLicenses; }
+  if (Date.now() < graphLicensesFailedUntil) { sourceStatus.licenses = "empty"; return []; }
 
   try {
     const skus = await fetchSubscribedSkus();
@@ -390,10 +373,12 @@ export async function getLicenses(): Promise<M365License[]> {
     sourceStatus.licenses = "live";
     return licenses;
   } catch (err) {
-    console.warn("Graph API error (licenses), falling back to demo data:", err);
-    sourceStatus.licenses = "demo";
+    // Live mode: real data or empty — never demo. Graph licenses need an
+    // *Application* (not Delegated) permission grant; until then this is empty.
+    console.warn("Graph API error (licenses):", err);
+    sourceStatus.licenses = "empty";
     graphLicensesFailedUntil = Date.now() + GRAPH_FAIL_TTL_MS;
-    return demoLicenses;
+    return [];
   }
 }
 
@@ -404,7 +389,7 @@ export async function getDevices(): Promise<ManagedDevice[]> {
   const cacheKey = "devices";
   const cached = getCache<ManagedDevice[]>(cacheKey);
   if (cached) { sourceStatus.devices = "live"; return cached; }
-  if (Date.now() < graphDevicesFailedUntil) { sourceStatus.devices = "demo"; return demoDevices; }
+  if (Date.now() < graphDevicesFailedUntil) { sourceStatus.devices = "empty"; return []; }
 
   try {
     const rawDevices = await fetchManagedDevices();
@@ -413,10 +398,12 @@ export async function getDevices(): Promise<ManagedDevice[]> {
     sourceStatus.devices = "live";
     return devices;
   } catch (err) {
-    console.warn("Graph API error (devices), falling back to demo data:", err);
-    sourceStatus.devices = "demo";
+    // Live mode: real data or empty — never demo. Intune needs an *Application*
+    // (not Delegated) Graph permission grant; until then this is empty.
+    console.warn("Graph API error (devices):", err);
+    sourceStatus.devices = "empty";
     graphDevicesFailedUntil = Date.now() + GRAPH_FAIL_TTL_MS;
-    return demoDevices;
+    return [];
   }
 }
 
@@ -434,9 +421,9 @@ export async function getSoftwareLicenses(): Promise<import("./types").SoftwareL
 export async function getContracts(): Promise<Contract[]> {
   if (isDemoMode()) return demoContracts;
 
-  // No live API source for contracts yet — return demo data
-  console.warn("getContracts: no live API source configured, returning demo data");
-  return demoContracts;
+  // No live contracts source yet. Live mode shows nothing rather than demo
+  // contracts — these would need to be imported or sourced from BC.
+  return [];
 }
 
 // ---- Budget ----
@@ -692,9 +679,11 @@ export async function getEmployees(): Promise<Employee[]> {
       assets: assetsByPerson.get(e.id) || [],
     }));
   } catch (err) {
-    console.warn("Officient API error (employees), falling back to demo data:", err);
-    sourceStatus.employees = "demo";
-    return getDemoEmployees();
+    // Live mode: real data or empty — never demo employees. Officient isn't
+    // connected yet (no credentials), so personnel shows empty with a notice.
+    console.warn("Officient API error (employees):", err);
+    sourceStatus.employees = "empty";
+    return [];
   }
 }
 
@@ -714,9 +703,8 @@ export async function getJiraWorklogs(): Promise<JiraWorklog[]> {
     setCache(cacheKey, worklogs, 360); // 6h TTL
     return worklogs;
   } catch (err) {
-    console.warn("Jira API error (worklogs), falling back to demo data:", err);
-    const mockData = await import("../data/mock/jira-worklogs.json");
-    return mockData.default as JiraWorklog[];
+    console.warn("Jira API error (worklogs):", err);
+    return [];
   }
 }
 
@@ -827,9 +815,8 @@ export async function getPeppolInvoices(): Promise<PeppolInvoice[]> {
     return demoPeppolInvoices;
   }
 
-  // No live API source for Peppol invoices yet — return demo data
-  console.warn("getPeppolInvoices: no live API source configured, returning demo data");
-  return demoPeppolInvoices;
+  // Live mode: only real uploaded/received Peppol invoices (none yet) — no demo.
+  return [];
 }
 
 // ---- Cost Insights ----

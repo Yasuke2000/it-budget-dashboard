@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DevicesPage() {
   const devices = await getDevices();
-  const isSample = !isDemoMode() && sourceStatus.devices === "demo";
+  const notConnected = !isDemoMode() && sourceStatus.devices === "empty";
 
   const total = devices.length;
   const compliant = devices.filter((d) => d.complianceState === "compliant").length;
@@ -30,8 +30,8 @@ export default async function DevicesPage() {
         </p>
       </div>
 
-      {isSample && (
-        <SampleDataBanner message="Showing sample devices — live Intune access via Microsoft Graph is not yet granted (returns 403/401). Numbers below are illustrative, not your real fleet." />
+      {notConnected && (
+        <SampleDataBanner message="No device data yet — Intune access needs the DeviceManagementManagedDevices.Read.All permission as an APPLICATION permission (it is currently Delegated, which app-only sign-in can't use). Once granted, your real fleet appears here." />
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

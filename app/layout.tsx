@@ -20,6 +20,12 @@ export const metadata: Metadata = {
   description: "IT Budget Management & Cost Analysis",
 };
 
+// Render every route dynamically (no static HTML) so a fresh deploy always
+// reaches users. Static HTML was being cached by the browser/CDN, pinning an
+// old client bundle — which left interactive controls dead and pages stuck
+// "Loading…" because the new JavaScript never replaced the cached one.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{

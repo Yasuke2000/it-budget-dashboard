@@ -84,8 +84,20 @@ export default function ContractsPage() {
         />
       </div>
 
-      <ContractTimeline contracts={contracts} />
-      <ContractTable contracts={contracts} />
+      {contracts.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl border border-slate-800 bg-slate-900/40">
+          <p className="text-slate-400 font-medium">No contracts tracked yet</p>
+          <p className="text-slate-600 text-sm mt-1 max-w-md">
+            There&apos;s no live contract source connected. Contracts can be added once a
+            source (e.g. an import or a BC contract feed) is configured.
+          </p>
+        </div>
+      ) : (
+        <>
+          <ContractTimeline contracts={contracts} />
+          <ContractTable contracts={contracts} />
+        </>
+      )}
     </div>
   );
 }

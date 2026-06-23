@@ -10,7 +10,7 @@ export default async function PersonnelPage() {
     getPersonnelKPIs(),
   ]);
 
-  const isSample = !isDemoMode() && sourceStatus.employees === "demo";
+  const notConnected = !isDemoMode() && sourceStatus.employees === "empty";
 
   const employees = allEmployees.filter(
     (e) => e.status === "active" && e.department === "IT"
@@ -18,8 +18,8 @@ export default async function PersonnelPage() {
 
   return (
     <div className="space-y-6">
-      {isSample && (
-        <SampleDataBanner message="Showing sample employees — live HR data from Officient is not connected yet (credentials pending). Headcount and cost figures are illustrative." />
+      {notConnected && (
+        <SampleDataBanner message="No HR data yet — Officient is not connected (awaiting API credentials). Headcount and personnel cost will populate once connected." />
       )}
       <PersonnelContent employees={employees} kpis={kpis} />
     </div>

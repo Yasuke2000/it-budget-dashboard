@@ -21,7 +21,7 @@ export default async function LicensesPage() {
     getLicenses(),
     getSoftwareLicenses(),
   ]);
-  const isSample = !isDemoMode() && sourceStatus.licenses === "demo";
+  const notConnected = !isDemoMode() && sourceStatus.licenses === "empty";
   const otherAnnualCost = softwareLicenses.reduce((s, l) => s + l.annualCost, 0);
 
   const paidLicenses = licenses.filter((l) => l.pricePerUser > 0);
@@ -45,8 +45,8 @@ export default async function LicensesPage() {
         <p className="text-slate-400">Microsoft 365 utilization from your tenant, plus other tracked licenses</p>
       </div>
 
-      {isSample && (
-        <SampleDataBanner message="Showing sample Microsoft 365 licenses — live tenant access requires the Organization.Read.All (or Directory.Read.All) Graph permission, which returns 403 today. Other tracked licenses below are still your imported data." />
+      {notConnected && (
+        <SampleDataBanner message="No Microsoft 365 license data yet — this needs the Organization.Read.All permission as an APPLICATION permission (it is currently Delegated, which app-only sign-in can't use). Other tracked licenses below are still your imported data." />
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
