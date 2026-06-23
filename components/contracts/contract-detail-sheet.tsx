@@ -20,6 +20,7 @@ import {
   Tag,
   CheckCircle,
   XCircle,
+  FileText,
 } from "lucide-react";
 import type { Contract } from "@/lib/types";
 
@@ -160,6 +161,22 @@ export function ContractDetailSheet({ contract, open, onOpenChange }: ContractDe
                 </p>
               </div>
             </div>
+          )}
+
+          {/* Attached document */}
+          {contract.fileId && (
+            <a
+              href={`/api/contracts/file?id=${contract.fileId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 hover:border-teal-500/40 transition-colors"
+            >
+              <FileText className="h-4 w-4 text-teal-400 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-teal-400 truncate">{contract.fileName || "View document"}</p>
+                <p className="text-xs text-slate-500">Open contract document</p>
+              </div>
+            </a>
           )}
 
           {/* Owner */}

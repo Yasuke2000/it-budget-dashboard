@@ -29,7 +29,7 @@ import type {
   DepartmentSummary,
 } from "./types";
 import type { PeppolInvoice } from "./peppol-parser";
-import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING, IT_VENDOR_RULES, UNCLASSIFIED_CATEGORY, isITCategory } from "./constants";
+import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, DEFAULT_GL_MAPPING, IT_VENDOR_RULES, UNCLASSIFIED_CATEGORY, isITCategory, isIntercompanyVendor } from "./constants";
 import { generateAllInsights } from "./cost-insights";
 import type { CostInsight } from "./cost-insights";
 import { getCache, setCache } from "./sync-cache";
@@ -252,6 +252,10 @@ export async function getInvoices(
           const vendor = vendorByDoc.get(documentNumber);
           if (documentNumber) countedDocs.add(documentNumber);
 
+          // Skip intercompany recharges (vendor is a Gheeraert-group entity) —
+          // internal cross-charges aren't third-party IT spend.
+          if (isIntercompanyVendor(vendor?.name || "")) continue;
+
           allInvoices.push({
             id: `gl-${company.id}-${(g.id as string) || `${documentNumber}-${accountNumber}-${postingDate}`}`,
             number: documentNumber,
@@ -293,6 +297,7 @@ export async function getInvoices(
             const vlow = vname.toLowerCase();
             const matched = vendorPatterns.find((p) => p && vlow.includes(p.toLowerCase()));
             if (!matched) continue;
+            if (isIntercompanyVendor(vname)) continue;
             const num = (h.number as string) || "";
             if (num && countedDocs.has(num)) continue;
             const amt = (h.totalAmountExcludingTax as number) || 0;
@@ -491,12 +496,30 @@ export async function getSoftwareLicenses(): Promise<import("./types").SoftwareL
 }
 
 // ---- Contracts ----
+// Derive status from the end date so it never drifts: ≤0 days = expired,
+// ≤90 days = expiring soon, otherwise active. No end date → active (open-ended).
+function contractStatus(endDate: string): Contract["status"] {
+  if (!endDate) return "active";
+  const days = (new Date(endDate).getTime() - Date.now()) / 86_400_000;
+  if (Number.isNaN(days)) return "active";
+  if (days < 0) return "expired";
+  if (days <= 90) return "expiring_soon";
+  return "active";
+}
+
 export async function getContracts(): Promise<Contract[]> {
   if (isDemoMode()) return demoContracts;
 
-  // No live contracts source yet. Live mode shows nothing rather than demo
-  // contracts — these would need to be imported or sourced from BC.
-  return [];
+  // Live: manually-managed contracts/renewals from the contract store (DB or
+  // file-backed). Status is computed here from the end date.
+  try {
+    const { getContractsStored } = await import("./contract-store");
+    const stored = await getContractsStored();
+    return stored.map((c) => ({ ...c, status: contractStatus(c.endDate) }));
+  } catch (err) {
+    console.warn("Contract store error:", err);
+    return [];
+  }
 }
 
 // ---- Budget ----

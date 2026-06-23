@@ -35,7 +35,33 @@ export const IT_GL_ACCOUNTS: string[] = Object.keys(DEFAULT_GL_MAPPING);
 export const IT_VENDOR_RULES: Record<string, string> = {
   idocta: "External IT Services",
   canon: "Hardware (Purchases)",
+  // External IT/dev partners booked to the generic 613300 "Externe
+  // dienstverlening" account (NOT an IT account), confirmed with David in the
+  // 2026-06 spend audit. Captured by name so their spend counts as IT without
+  // mapping all of 613300 (which is dominated by intercompany + management fees).
+  allphi: "External IT Services",         // outsourced dev/MSP partner (~€154k/yr)
+  "just-fix-it": "External IT Services",   // IT support (~€33k/yr)
+  "gmi group": "External IT Services",     // IT services (also booked to 611130)
 };
+
+// Group entities — when one of these is the *vendor* on an invoice it's an
+// intercompany recharge / self-billing, not third-party IT spend. Excluded from
+// IT totals so internal cross-charges never inflate the numbers (and so a broad
+// vendor-allowlist pattern can never accidentally pull in €1.85M of GSS recharge
+// booked to 613300). Matched case-insensitively as a substring of the vendor name.
+export const INTERCOMPANY_VENDORS: string[] = [
+  "gheeraert",            // GTG / GSS / GPR / GTR / Distribution / Express / Property / Renting / Garage
+  "marcel lamberts",
+  "de rudder",
+  "trans-form",
+  "warehouse bv",
+];
+
+/** True when the invoice vendor is a Gheeraert-group entity (intercompany). */
+export function isIntercompanyVendor(vendorName: string): boolean {
+  const v = (vendorName || "").toLowerCase();
+  return INTERCOMPANY_VENDORS.some((p) => v.includes(p));
+}
 
 // Depreciation/amortisation of IT assets (P&L). Reported as a SEPARATE figure,
 // never added to IT spend (the asset purchase is already counted as capex above).

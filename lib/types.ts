@@ -306,6 +306,9 @@ export interface Contract {
   owner: string;
   notes: string;
   tags: string[];
+  // Optional uploaded contract document (PDF/etc.) stored on the data volume.
+  fileId?: string;
+  fileName?: string;
 }
 
 // === Savings Pipeline ===

@@ -101,6 +101,27 @@ CREATE TABLE IF NOT EXISTS software_licenses (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (vendor, product)
 );
+
+CREATE TABLE IF NOT EXISTS contracts (
+  id                 TEXT PRIMARY KEY,
+  vendor             TEXT NOT NULL,
+  description        TEXT NOT NULL DEFAULT '',
+  category           TEXT NOT NULL DEFAULT 'saas',
+  start_date         TEXT,
+  end_date           TEXT,
+  renewal_type       TEXT NOT NULL DEFAULT 'manual',
+  auto_renew         BOOLEAN NOT NULL DEFAULT FALSE,
+  notice_period_days INTEGER NOT NULL DEFAULT 0,
+  monthly_cost       NUMERIC(14,2) NOT NULL DEFAULT 0,
+  annual_cost        NUMERIC(14,2) NOT NULL DEFAULT 0,
+  billing_cycle      TEXT NOT NULL DEFAULT 'annual',
+  owner              TEXT NOT NULL DEFAULT '',
+  notes              TEXT NOT NULL DEFAULT '',
+  tags               JSONB NOT NULL DEFAULT '[]'::jsonb,
+  file_id            TEXT,
+  file_name          TEXT,
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `;
 
 /** Ensure the schema exists. Memoized so it runs at most once per process. */

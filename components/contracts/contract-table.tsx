@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, XCircle, Pencil, Trash2 } from "lucide-react";
 import { ExpiryBadge } from "./expiry-badge";
 import { ContractDetailSheet } from "./contract-detail-sheet";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -26,6 +26,8 @@ import type { Contract } from "@/lib/types";
 
 interface ContractTableProps {
   contracts: Contract[];
+  onEdit?: (c: Contract) => void;
+  onDelete?: (c: Contract) => void;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -44,7 +46,8 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: "bg-slate-500/20 text-slate-400 border-slate-500/30",
 };
 
-export function ContractTable({ contracts }: ContractTableProps) {
+export function ContractTable({ contracts, onEdit, onDelete }: ContractTableProps) {
+  const showActions = Boolean(onEdit || onDelete);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [expiryFilter, setExpiryFilter] = useState("all");
@@ -120,6 +123,7 @@ export function ContractTable({ contracts }: ContractTableProps) {
                 <TableHead className="text-slate-400 text-right">Annual Cost</TableHead>
                 <TableHead className="text-slate-400">Status</TableHead>
                 <TableHead className="text-slate-400 text-center">Auto</TableHead>
+                {showActions && <TableHead className="text-slate-400 text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -147,11 +151,27 @@ export function ContractTable({ contracts }: ContractTableProps) {
                       <XCircle className="h-4 w-4 text-slate-500 mx-auto" />
                     )}
                   </TableCell>
+                  {showActions && (
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        {onEdit && (
+                          <button onClick={() => onEdit(c)} className="p-1.5 rounded text-slate-400 hover:text-teal-400 hover:bg-slate-800" aria-label="Edit contract">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button onClick={() => onDelete(c)} className="p-1.5 rounded text-slate-400 hover:text-red-400 hover:bg-slate-800" aria-label="Delete contract">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-slate-500 py-8">
+                  <TableCell colSpan={showActions ? 9 : 8} className="text-center text-slate-500 py-8">
                     No contracts match your filters.
                   </TableCell>
                 </TableRow>
