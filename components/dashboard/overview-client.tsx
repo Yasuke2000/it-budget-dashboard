@@ -195,8 +195,11 @@ export function OverviewClient() {
         <KPICard
           title="Total IT Spend"
           value={formatCurrencyCompact(kpis.totalSpendYTD)}
-          change={formatPercent(kpis.spendChangePercent)}
-          changeType={kpis.spendTrend === "up" ? "negative" : kpis.spendTrend === "down" ? "positive" : "neutral"}
+          // Trend % shown only when trustworthy. Hidden for now: quarter-over-quarter
+          // is distorted by Q1-clustered annual licences and there's no clean
+          // year-over-year baseline yet (sparkline still conveys the shape).
+          change={kpis.spendTrendReliable ? formatPercent(kpis.spendChangePercent) : undefined}
+          changeType={!kpis.spendTrendReliable ? "neutral" : kpis.spendTrend === "up" ? "negative" : kpis.spendTrend === "down" ? "positive" : "neutral"}
           iconName="DollarSign"
           description={`${selectedRange.label} · booked, ex-VAT`}
           sparklineData={spendSparkline}

@@ -65,8 +65,12 @@ async function buildDashboardContext(): Promise<string> {
     `License Utilization: ${kpis.licenseUtilizationPercent.toFixed(1)}%`
   );
   lines.push(`Device Count: ${kpis.deviceCount}`);
+  // Only feed the trend to the model when it's trustworthy; otherwise tell it why,
+  // so it doesn't quote a seasonal quarter-over-quarter artefact as a real trend.
   lines.push(
-    `Spend Trend: ${kpis.spendTrend} (${kpis.spendChangePercent >= 0 ? "+" : ""}${kpis.spendChangePercent.toFixed(1)}%)`
+    kpis.spendTrendReliable
+      ? `Spend Trend: ${kpis.spendTrend} (${kpis.spendChangePercent >= 0 ? "+" : ""}${kpis.spendChangePercent.toFixed(1)}%)`
+      : `Spend Trend: not enough clean history for a reliable trend (annual licences cluster in Q1; no usable year-over-year baseline yet) — do not infer a trend.`
   );
   lines.push("");
 

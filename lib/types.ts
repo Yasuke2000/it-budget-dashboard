@@ -157,6 +157,12 @@ export interface DashboardKPIs {
   revenueBenchmarkPercent: number;
   spendTrend: "up" | "down" | "flat";
   spendChangePercent: number;
+  // Whether the trend is trustworthy enough to show. False while we lack a
+  // seasonality-proof comparison: IT spend is lumpy (annual licences cluster in
+  // Q1), so quarter-over-quarter is misleading, and a year-over-year baseline
+  // isn't usable yet (pre-2025 BC data has migration reversals). Consumers hide
+  // the trend when this is false rather than show a seasonal artefact.
+  spendTrendReliable: boolean;
   // Accounts payable on IT spend: how much of the IT spend in this period sits on
   // invoices BC still marks "Open" (posted, not yet paid), and how much of that is
   // past its due date. Accrual spend total is unaffected — this is a cash view.

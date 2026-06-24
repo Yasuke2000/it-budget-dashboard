@@ -790,6 +790,12 @@ export async function getDashboardKPIs(
   const recent = recentMonths.reduce((s, [, v]) => s + v, 0);
   const prior = priorMonths.reduce((s, [, v]) => s + v, 0);
   const spendChangePercent = prior > 0 ? ((recent - prior) / prior) * 100 : 0;
+  // Don't surface this quarter-over-quarter number yet: IT spend is lumpy (annual
+  // licences — PTV, Eurotracs, Trimble, iDocta — cluster in Q1), so a rolling-quarter
+  // comparison reflects renewal timing, not a real trend. The seasonality-proof fix
+  // is year-over-year, but the prior year isn't usable (BC migration left reversals
+  // in 2024, e.g. −€468k in Dec-2024). Flip to true once a YoY baseline exists.
+  const spendTrendReliable = false;
 
   // IT spend as % of revenue. Prefer the audited consolidated figure (Settings)
   // over gross class-70 turnover, which is inflated by intercompany.
@@ -835,6 +841,7 @@ export async function getDashboardKPIs(
     revenueBenchmarkPercent,
     spendTrend: spendChangePercent > 2 ? "up" : spendChangePercent < -2 ? "down" : "flat",
     spendChangePercent,
+    spendTrendReliable,
     openInvoiceAmount: Math.round(openInvoiceAmount),
     openInvoiceCount,
     overdueAmount: Math.round(overdueAmount),

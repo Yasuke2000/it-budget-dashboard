@@ -85,6 +85,11 @@ export async function GET(request: Request) {
   const trendLabel = recentMonths.length > 0 && priorMonths.length > 0
     ? `${recentMonths[0]}–${recentMonths[recentMonths.length - 1]} vs ${priorMonths[0]}–${priorMonths[priorMonths.length - 1]}`
     : "insufficient data";
+  // Hide the quarter-over-quarter % when it isn't trustworthy (seasonal Q1 renewal
+  // clustering, no clean year-over-year baseline) — report the reason instead.
+  const trendText = kpis.spendTrendReliable
+    ? `${kpis.spendTrend} (${kpis.spendChangePercent >= 0 ? "+" : ""}${kpis.spendChangePercent.toFixed(1)}%, ${trendLabel})`
+    : "not yet reliable (annual licences cluster in Q1; no usable year-over-year baseline)";
 
   // Total entity spend for % calculation
   const totalEntitySpend = entities.reduce((s, e) => s + e.totalSpend, 0);
@@ -101,7 +106,7 @@ export async function GET(request: Request) {
 
 ## Executive Summary
 - **Total IT Spend YTD:** ${fmt(kpis.totalSpendYTD)} against a budget of ${fmt(kpis.totalBudgetYTD)} (variance: ${kpis.budgetVariancePercent >= 0 ? "+" : ""}${kpis.budgetVariancePercent.toFixed(1)}%)
-- **Spend trend:** ${kpis.spendTrend} (${kpis.spendChangePercent >= 0 ? "+" : ""}${kpis.spendChangePercent.toFixed(1)}%, comparing ${trendLabel})
+- **Spend trend:** ${trendText}
 - **License waste:** ${totalWastedUnits} unused paid licenses = ${fmt(totalMonthlyWaste)}/month (${fmt(totalAnnualWaste)}/year)
 - **Managed devices:** ${kpis.deviceCount} enrolled in Intune (${complianceRate}% compliant)
 - **Contracts requiring action:** ${enrichedContracts.filter(c => c.realStatus === "EXPIRED" || c.realStatus === "expiring_soon").length} (expired or expiring within 90 days)
@@ -116,7 +121,7 @@ export async function GET(request: Request) {
 | Budget Variance | ${kpis.budgetVariancePercent >= 0 ? "+" : ""}${kpis.budgetVariancePercent.toFixed(1)}% |
 | License Utilization | ${kpis.licenseUtilizationPercent.toFixed(1)}% |
 | Managed Devices | ${kpis.deviceCount} |
-| Spend Trend | ${kpis.spendTrend} (${kpis.spendChangePercent >= 0 ? "+" : ""}${kpis.spendChangePercent.toFixed(1)}%, ${trendLabel}) |
+| Spend Trend | ${trendText} |
 | License Waste (monthly) | ${fmt(totalMonthlyWaste)} |
 | License Waste (annual) | ${fmt(totalAnnualWaste)} |
 
