@@ -167,17 +167,26 @@ export const SKU_NAMES: Record<string, string> = {
   SPB: "Microsoft 365 Business Premium",
 };
 
+// Per-seat MONTHLY price (EUR, ex-VAT). Real rates derived from the actual EASI
+// (Microsoft 365 CSP) and GMI (Business Central partner) invoices, 2026-06.
+// Editable/overridable in Settings → License Prices.
 export const DEFAULT_LICENSE_PRICES: Record<string, number> = {
-  SPB: 20.60,
+  SPB: 17.55,                          // M365 Business Premium (EASI annual rate €210.63/yr)
   SPE_E3: 36.00,
   SPE_E5: 57.00,
   FLOW_FREE: 0,
   TEAMS_EXPLORATORY: 0,
   POWER_BI_STANDARD: 0,
-  AAD_PREMIUM: 6.00,
+  AAD_PREMIUM: 6.00,                   // Entra ID P1
+  AAD_PREMIUM_P2: 10.08,               // Entra ID P2 (EASI)
   EMS: 9.80,
   EMSPREMIUM: 15.40,
   INTUNE_A: 8.60,
+  O365_BUSINESS_ESSENTIALS: 6.72,      // M365 Business Basic (EASI)
+  EXCHANGESTANDARD: 4.44,              // Exchange Online P1 (EASI)
+  ATP_ENTERPRISE: 2.24,                // Defender for O365 P1 (EASI)
+  DYN365_BUSCENTRAL_ESSENTIAL: 69.30,  // BC Essentials (GMI: €5,821.20/yr ÷ 7 seats)
+  DYN365_BUSCENTRAL_TEAM_MEMBER: 8.00, // BC Team Member (Microsoft NCE list est.)
 };
 
 export const VARIANCE_THRESHOLDS: { green: number; amber: number } = {
