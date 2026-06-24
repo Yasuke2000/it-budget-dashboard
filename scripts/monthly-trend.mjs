@@ -1,0 +1,17 @@
+const b = "http://localhost:3000";
+const q = "company=all&dateFrom=2025-06-24&dateTo=2026-06-24";
+const d = await (await fetch(b + "/api/dashboard?" + q)).json();
+const m = (d.monthly || []).map((x) => ({ mo: x.month, a: Math.round(x.actual) }));
+console.log("monthly IT spend:");
+for (const r of m) console.log(r.mo, r.a);
+const sum = (a) => a.reduce((s, x) => s + x, 0);
+const complete = m.filter((x) => x.mo >= "2025-07" && x.mo <= "2026-05");
+console.log("");
+console.log("complete months (Jul25-May26):", complete.length, "sum", sum(complete.map((x) => x.a)));
+console.log("flat avg x12 (current method):", Math.round(sum(complete.map((x) => x.a)) / complete.length * 12));
+const last3 = complete.slice(-3);
+console.log("last 3 complete:", JSON.stringify(last3), "-> x12 =", Math.round(sum(last3.map((x) => x.a)) / 3 * 12));
+const last6 = complete.slice(-6);
+console.log("last 6 complete -> x12 =", Math.round(sum(last6.map((x) => x.a)) / 6 * 12));
+const prior3 = complete.slice(-6, -3);
+console.log("prior 3 complete:", JSON.stringify(prior3), "sum", sum(prior3.map((x) => x.a)));

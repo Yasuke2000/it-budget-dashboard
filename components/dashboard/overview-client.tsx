@@ -206,7 +206,7 @@ export function OverviewClient() {
           value={formatCurrencyCompact(kpis.annualisedSpendTTM > 0 ? kpis.annualisedSpendTTM : kpis.projectedAnnualSpend)}
           iconName="TrendingUp"
           changeType="neutral"
-          description={kpis.annualisedSpendTTM > 0 ? "Trailing 12 months (actual)" : `Run-rate · ${kpis.projectionMonths} complete mo`}
+          description={kpis.annualisedSpendTTM > 0 ? "Trailing 12 months (actual)" : `Annualised from ${selectedRange.label.toLowerCase()}`}
         />
         <KPICard
           title="IT Spend % of Revenue"

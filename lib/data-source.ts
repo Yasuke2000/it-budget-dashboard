@@ -731,11 +731,16 @@ export async function getDashboardKPIs(
     itByMonth.set(m, (itByMonth.get(m) ?? 0) + inv.totalAmountExcludingTax);
   }
   const completeMonths = [...itByMonth.entries()].filter(([m]) => isCompleteMonth(m));
-  const avgMonthly = completeMonths.length
-    ? completeMonths.reduce((s, [, v]) => s + v, 0) / completeMonths.length
-    : 0;
-  const projectedAnnualSpend = Math.round(avgMonthly * 12);
-  const projectionMonths = completeMonths.length;
+  // Annualise the ACTUAL spend in the selected window by elapsed days. This is the
+  // robust choice for lumpy IT spend: annual licences (PTV, Eurotracs, Trimble, …)
+  // cluster in Q1, so annualising a recent-months run-rate would multiply those
+  // once-a-year invoices by 12 and badly overstate. Day-weighting counts each
+  // renewal once across the year and includes partial boundary / in-progress months
+  // proportionally — so for a ~12-month range it ≈ the actual total (never reads
+  // oddly below it), and for a short range it scales up to a full-year estimate.
+  const windowDays = Math.max(1, Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000));
+  const projectedAnnualSpend = Math.round((totalSpendYTD * 365) / windowDays);
+  const projectionMonths = Math.max(1, Math.round(windowDays / 30.44));
   // Trailing-twelve-months: the seasonality-proof actual annual figure — sum of
   // the last 12 COMPLETE months. 0 until a full 12 exist (then it's the headline
   // annual number; run-rate is the forward-looking secondary).
