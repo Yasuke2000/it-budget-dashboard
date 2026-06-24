@@ -144,6 +144,15 @@ export function InvoiceTable({ invoices }: InvoiceTableProps) {
     return Array.from(map.entries());
   }, [invoices]);
 
+  // Distinct statuses actually present. In live mode every invoice is "Paid"
+  // (built from posted GL entries), so the status filter would do nothing — only
+  // show it when there's genuinely more than one status to filter by.
+  const statuses = useMemo(
+    () => Array.from(new Set(invoices.map((inv) => inv.status))).sort(),
+    [invoices]
+  );
+  const showStatusFilter = statuses.length > 1;
+
   const filtered = useMemo(() => {
     let result = invoices;
 
@@ -280,32 +289,28 @@ export function InvoiceTable({ invoices }: InvoiceTableProps) {
             </SelectContent>
           </Select>
 
-          {/* Status */}
-          <Select
-            value={statusFilter}
-            onValueChange={handleFilterChange(setStatusFilter)}
-          >
-            <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-300 focus:ring-teal-500">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-800 border-slate-700">
-              <SelectItem value="all" className="text-slate-300">
-                All Statuses
-              </SelectItem>
-              <SelectItem value="Paid" className="text-slate-300">
-                Paid
-              </SelectItem>
-              <SelectItem value="Open" className="text-slate-300">
-                Open
-              </SelectItem>
-              <SelectItem value="Canceled" className="text-slate-300">
-                Canceled
-              </SelectItem>
-              <SelectItem value="Draft" className="text-slate-300">
-                Draft
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Status — only when the data has more than one status (hidden in live
+              mode where everything is "Paid"). Options built from real data. */}
+          {showStatusFilter && (
+            <Select
+              value={statusFilter}
+              onValueChange={handleFilterChange(setStatusFilter)}
+            >
+              <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-300 focus:ring-teal-500">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-700">
+                <SelectItem value="all" className="text-slate-300">
+                  All Statuses
+                </SelectItem>
+                {statuses.map((s) => (
+                  <SelectItem key={s} value={s} className="text-slate-300">
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           {/* Category */}
           <Select
