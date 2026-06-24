@@ -18,15 +18,17 @@ export async function register() {
         const iso = (d: Date) => d.toISOString().split("T")[0];
 
         await ds.getCompanies();
-        // Warm the two ranges the dashboard uses by default (YTD + last 12 months)
-        // plus the Graph-backed getters (which negative-cache their fallback).
+        // Warm the FULL dashboard KPI path (invoices + budget + licenses + devices
+        // + depreciation + revenue + license-usage) for the two default ranges, so
+        // the first /api/dashboard hit is fully cache-served. getDashboardKPIs
+        // populates every sub-getter's cache. Warm yesterday/today boundary variants
+        // of the rolling range too, since the client computes it in local time and
+        // may land a day off this UTC-based one.
+        const from12b = new Date(from12); from12b.setDate(from12b.getDate() - 1);
         await Promise.allSettled([
-          ds.getInvoices("all", `${yr}-01-01`, `${yr}-12-31`),
-          ds.getInvoices("all", iso(from12), iso(now)),
-          ds.getITDepreciation("all", `${yr}-01-01`, `${yr}-12-31`),
-          ds.getITDepreciation("all", iso(from12), iso(now)),
-          ds.getLicenses(),
-          ds.getDevices(),
+          ds.getDashboardKPIs("all", `${yr}-01-01`, `${yr}-12-31`),
+          ds.getDashboardKPIs("all", iso(from12), iso(now)),
+          ds.getDashboardKPIs("all", iso(from12b), iso(now)),
         ]);
         console.log("[startup] IT Finance cache warmed");
       } catch (err) {

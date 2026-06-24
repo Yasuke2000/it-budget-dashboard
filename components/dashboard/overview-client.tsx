@@ -46,7 +46,9 @@ export function OverviewClient() {
       dateTo: selectedRange.to,
     });
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20_000);
+    // 45s: a cold-cache first load fans out to many live BC/Graph calls across 11
+    // companies and can exceed 20s; the result is then cached so refreshes are fast.
+    const timer = setTimeout(() => controller.abort(), 45_000);
     const startedAt = Date.now();
     fetch(`/api/dashboard?${params}`, { signal: controller.signal, cache: "no-store" })
       .then((res) => {
