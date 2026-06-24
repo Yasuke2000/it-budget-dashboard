@@ -174,6 +174,19 @@ export async function getCompanies(): Promise<Company[]> {
   }
 }
 
+// Map a BC purchase-invoice-header status to our union. "Open" = posted but not
+// yet paid (outstanding AP); "Paid" = settled. Unmatched (no header for the GL
+// doc, e.g. a journal posting) → "Paid", so it never inflates the open figure.
+function mapHeaderStatus(s: string | undefined): PurchaseInvoice["status"] {
+  switch ((s || "").toLowerCase()) {
+    case "open": return "Open";
+    case "draft": return "Draft";
+    case "canceled":
+    case "cancelled": return "Canceled";
+    default: return "Paid";
+  }
+}
+
 // ---- Invoices ----
 export async function getInvoices(
   companyFilter: CompanyFilter = "all",
@@ -270,10 +283,19 @@ export async function getInvoices(
             fetchBCLedgerByAccounts(company.id, from, to, pullAccounts).catch(() => { degraded = true; return [] as Record<string, unknown>[]; }),
             fetchBCPurchaseInvoiceHeaders(company.id, headerFrom, headerTo).catch(() => { degraded = true; return [] as Record<string, unknown>[]; }),
           ]);
-          const vendorByDoc = new Map<string, { name: string; number: string }>();
+          const vendorByDoc = new Map<string, { name: string; number: string; status: string; dueDate: string }>();
           for (const h of headers) {
             const num = (h.number as string) || "";
-            if (num) vendorByDoc.set(num, { name: (h.vendorName as string) || "", number: (h.vendorNumber as string) || "" });
+            // Skip Draft headers (IF-prefix): BC keeps both an unposted Draft and
+            // the posted (AF-prefix) copy of the same invoice. The posted GL doc
+            // matches the posted header, so the Draft is just a duplicate; ignoring
+            // it keeps the paid/open status pointing at the real posted invoice.
+            if (num) vendorByDoc.set(num, {
+              name: (h.vendorName as string) || "",
+              number: (h.vendorNumber as string) || "",
+              status: (h.status as string) || "",
+              dueDate: (h.dueDate as string) || "",
+            });
           }
           return { company, glEntries, vendorByDoc };
         })
@@ -325,7 +347,11 @@ export async function getInvoices(
             number: documentNumber,
             invoiceDate: postingDate,
             postingDate,
-            dueDate: postingDate,
+            // Real due date + payment status from the posted-invoice header (BC
+            // "Open" = posted but unpaid, "Paid" = settled). Falls back to posting
+            // date / Paid when the GL doc has no matching invoice header (e.g. a
+            // journal posting), so unmatched lines never inflate the open figure.
+            dueDate: vendor?.dueDate || postingDate,
             // Real vendor from the posted-invoice header; fall back to the
             // booking description only if the document can't be matched.
             vendorNumber: vendor?.number || accountNumber,
@@ -333,7 +359,7 @@ export async function getInvoices(
             totalAmountExcludingTax: amount,
             totalAmountIncludingTax: amount,
             totalTaxAmount: 0,
-            status: "Paid",
+            status: mapHeaderStatus(vendor?.status),
             currencyCode: "EUR",
             companyId: company.id,
             companyName: company.displayName,
@@ -768,6 +794,21 @@ export async function getDashboardKPIs(
   const itSpendPercentOfRevenue = groupRevenue > 0 ? (totalSpendYTD / groupRevenue) * 100 : 0;
   const revenueBenchmarkPercent = settings?.revenueBenchmarkPercent ?? 3.3;
 
+  // Accounts payable on IT spend: of the IT spend in this window, how much sits on
+  // invoices BC still marks "Open" (posted, unpaid), and how much is past due. This
+  // is a cash/AP view — the accrual spend total above is unaffected by it.
+  const todayIso = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
+  let openInvoiceAmount = 0, openInvoiceCount = 0, overdueAmount = 0, overdueCount = 0;
+  for (const inv of itInvoices) {
+    if (inv.status !== "Open") continue;
+    openInvoiceAmount += inv.totalAmountExcludingTax;
+    openInvoiceCount++;
+    if (inv.dueDate && inv.dueDate < todayIso) {
+      overdueAmount += inv.totalAmountExcludingTax;
+      overdueCount++;
+    }
+  }
+
   return {
     totalSpendYTD,
     budgetVariancePercent,
@@ -789,6 +830,10 @@ export async function getDashboardKPIs(
     revenueBenchmarkPercent,
     spendTrend: spendChangePercent > 2 ? "up" : spendChangePercent < -2 ? "down" : "flat",
     spendChangePercent,
+    openInvoiceAmount: Math.round(openInvoiceAmount),
+    openInvoiceCount,
+    overdueAmount: Math.round(overdueAmount),
+    overdueCount,
   };
 }
 

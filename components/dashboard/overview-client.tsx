@@ -235,6 +235,17 @@ export function OverviewClient() {
           iconName="Monitor"
           description="Enrolled in Intune"
         />
+        <KPICard
+          title="Open IT Invoices"
+          value={formatCurrencyCompact(kpis.openInvoiceAmount)}
+          changeType={kpis.overdueAmount > 0 ? "negative" : "neutral"}
+          iconName="Clock"
+          description={
+            kpis.openInvoiceCount > 0
+              ? `${kpis.openInvoiceCount} unpaid${kpis.overdueAmount > 0 ? ` · ${formatCurrencyCompact(kpis.overdueAmount)} overdue` : ""}`
+              : "All settled — nothing outstanding"
+          }
+        />
       </div>
 
       {/* Spend Trend */}

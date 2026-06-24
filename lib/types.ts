@@ -157,6 +157,13 @@ export interface DashboardKPIs {
   revenueBenchmarkPercent: number;
   spendTrend: "up" | "down" | "flat";
   spendChangePercent: number;
+  // Accounts payable on IT spend: how much of the IT spend in this period sits on
+  // invoices BC still marks "Open" (posted, not yet paid), and how much of that is
+  // past its due date. Accrual spend total is unaffected — this is a cash view.
+  openInvoiceAmount: number;
+  openInvoiceCount: number;
+  overdueAmount: number;
+  overdueCount: number;
 }
 
 export interface MonthlySpend {

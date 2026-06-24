@@ -41,6 +41,11 @@ export const ALLOWLIST_SCAN_ACCOUNTS: string[] = [
   "612300", // Kantoorbenodigdheden (Canon, iDocta)
   "615800", // Andere door te rekenen kosten (Canon)
   "611110", // Onderhoud/installatie (Connectify 3CX telephony lands here — €5.3k/yr)
+  // Added after the 2026-06 full-ledger completeness sweep (290 candidates,
+  // adversarially classified). Each holds exactly one IT vendor amid non-IT bulk:
+  "611011", // Onderhoud gebouwen in huur (Ubiquiti UniFi networking gear)
+  "612500", // Documentatie en naslagwerken (Alpega freight/TMS software subscription)
+  "614400", // Verzekering cyber (CyberContract cyber-insurance; rest is ALLIA truck insurance)
 ];
 
 // IT vendor allowlist — captures spend from these vendors EVEN when it lands on
@@ -60,6 +65,9 @@ export const IT_VENDOR_RULES: Record<string, string> = {
   "just-fix-it": "External IT Services",   // IT support (~€33k/yr, booked to 613300)
   "gmi group": "External IT Services",     // IT services (also booked to 611130)
   connectify: "Telecom",                   // 3CX telephony / IT-telecom (~€5.3k/yr, booked to 611110)
+  ubiquiti: "Hardware (Purchases)",        // UniFi networking gear (booked to 611011)
+  cybercontract: "Security",               // cyber-insurance / -compliance (booked to 614400)
+  alpega: "Operational Software",          // freight/TMS software platform (booked to 612500)
 };
 
 // Group entities — when one of these is the *vendor* on an invoice it's an
