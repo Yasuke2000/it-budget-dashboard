@@ -59,33 +59,54 @@ export async function fetchSubscribedSkus(): Promise<Record<string, unknown>[]> 
   return data.value;
 }
 
+// Split one CSV line, honouring double-quoted fields (which may contain commas).
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (c === "," && !inQ) {
+      out.push(cur); cur = "";
+    } else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
 // Active-to-provisioned usage (FinOps): of the licensed M365 users, how many were
-// actually active in the last 30 days. Uses the Office 365 active-user detail
-// report. Requires the APPLICATION permission `Reports.Read.All` + admin consent;
-// returns null (gracefully) until that's granted, so the tile shows "n/a".
+// actually active in the last 30 days. Uses the Office 365 active-user DETAIL
+// report, which Graph returns as CSV (it rejects $format=application/json with a
+// 400). Requires the APPLICATION permission `Reports.Read.All` + admin consent;
+// returns null gracefully if that's missing or the report is empty.
 export async function fetchM365ActiveUsage(): Promise<{ active: number; licensed: number } | null> {
   try {
     const token = await getGraphToken();
     const res = await fetchWithRetry(
-      "https://graph.microsoft.com/v1.0/reports/getOffice365ActiveUserDetail(period='D30')?$format=application/json",
-      { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+      "https://graph.microsoft.com/v1.0/reports/getOffice365ActiveUserDetail(period='D30')",
+      { headers: { Authorization: `Bearer ${token}` } },
       { timeoutMs: 60_000, maxAttempts: 2 }
     );
-    if (!res.ok) return null; // 403 = permission not granted yet
-    const data = (await res.json()) as { value?: Record<string, unknown>[] };
-    const rows = data.value || [];
+    if (!res.ok) return null;
+    const csv = (await res.text()).replace(/^﻿/, "");
+    const lines = csv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    if (lines.length < 2) return null;
+    const header = splitCsvLine(lines[0]);
+    const assignedIdx = header.findIndex((h) => /assigned products/i.test(h));
+    const deletedIdx = header.findIndex((h) => /^is deleted/i.test(h));
+    const activityIdxs = header.map((h, i) => (/last activity date/i.test(h) ? i : -1)).filter((i) => i >= 0);
+    if (assignedIdx < 0 || activityIdxs.length === 0) return null;
     let licensed = 0;
     let active = 0;
-    for (const r of rows) {
-      if (r.isDeleted === true || r.isDeleted === "True") continue;
-      const products = (r.assignedProducts as unknown[]) || [];
-      if (!products.length) continue; // only licensed users
+    for (let r = 1; r < lines.length; r++) {
+      const cols = splitCsvLine(lines[r]);
+      if (deletedIdx >= 0 && /true/i.test(cols[deletedIdx] || "")) continue;
+      if (!(cols[assignedIdx] || "").trim()) continue; // only licensed users
       licensed += 1;
-      // Active = any product shows a last-activity date within the D30 window.
-      const activeOnAny = Object.entries(r).some(
-        ([k, v]) => k.endsWith("LastActivityDate") && typeof v === "string" && v.length > 0
-      );
-      if (activeOnAny) active += 1;
+      if (activityIdxs.some((i) => (cols[i] || "").trim().length > 0)) active += 1;
     }
     return licensed > 0 ? { active, licensed } : null;
   } catch {
