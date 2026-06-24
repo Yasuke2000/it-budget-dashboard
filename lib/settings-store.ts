@@ -43,6 +43,9 @@ export interface AppSettings {
   // Show the Peppol e-invoicing page in the nav. Off by default — the page isn't
   // connected to a live Peppol Access Point yet, so it's hidden until enabled.
   showPeppol: boolean;
+  // License-optimization buffer: spare seats per SKU NOT counted as reclaimable
+  // waste (you keep a few for new hires). 0 = flag every unused seat.
+  licenseBufferSeats: number;
 }
 
 async function getSetting<T>(key: string): Promise<T | null> {
@@ -92,7 +95,7 @@ async function setSetting(key: string, value: unknown): Promise<void> {
 
 /** Settings merged over the compiled defaults. */
 export async function getAppSettings(): Promise<AppSettings> {
-  const [gl, prices, vendors, budgets, opVendors, includeOp, consolidatedRev, benchmarkPct, showPeppol] = await Promise.all([
+  const [gl, prices, vendors, budgets, opVendors, includeOp, consolidatedRev, benchmarkPct, showPeppol, licBuffer] = await Promise.all([
     getSetting<Record<string, string>>("glMappings"),
     getSetting<Record<string, number>>("licensePrices"),
     getSetting<Record<string, string>>("itVendorRules"),
@@ -102,6 +105,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     getSetting<number>("consolidatedRevenue"),
     getSetting<number>("revenueBenchmarkPercent"),
     getSetting<boolean>("showPeppol"),
+    getSetting<number>("licenseBufferSeats"),
   ]);
   // Merge stored GL overrides over defaults, then strip any forbidden account
   // (depreciation 63x / suspense 49x) so it can never leak into the spend total.
@@ -121,6 +125,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     // Gartner transport-industry median IT-spend-of-revenue.
     revenueBenchmarkPercent: benchmarkPct ?? 3.3,
     showPeppol: showPeppol ?? false,
+    licenseBufferSeats: licBuffer ?? 0,
   };
 }
 
@@ -134,5 +139,6 @@ export async function saveAppSettings(settings: Partial<AppSettings>): Promise<A
   if (settings.consolidatedRevenue !== undefined) await setSetting("consolidatedRevenue", settings.consolidatedRevenue);
   if (settings.revenueBenchmarkPercent !== undefined) await setSetting("revenueBenchmarkPercent", settings.revenueBenchmarkPercent);
   if (settings.showPeppol !== undefined) await setSetting("showPeppol", settings.showPeppol);
+  if (settings.licenseBufferSeats !== undefined) await setSetting("licenseBufferSeats", settings.licenseBufferSeats);
   return getAppSettings();
 }

@@ -106,9 +106,9 @@ export default function SavingsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-white">License Savings Pipeline</h1>
+        <h1 className="text-2xl font-bold text-white">License Optimization</h1>
         <p className="text-slate-400">
-          Prioritized savings opportunities from license waste analysis
+          Reclaimable licenses after the optimization buffer (spare seats kept for new hires)
         </p>
       </div>
 

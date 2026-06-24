@@ -98,6 +98,23 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
                         </span>
                       ))}
                     </div>
+                    {/* Which entities the spend comes from */}
+                    {vendor.entities?.length > 0 && (
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                        <span className="text-[10px] text-slate-600 uppercase tracking-wider">via</span>
+                        {vendor.entities.slice(0, 3).map((e) => (
+                          <span
+                            key={e.name}
+                            className="text-[10px] text-teal-300/80 bg-teal-500/10 border border-teal-500/20 px-1.5 py-0.5 rounded"
+                          >
+                            {e.name} · {formatCurrency(e.spend)}
+                          </span>
+                        ))}
+                        {vendor.entities.length > 3 && (
+                          <span className="text-[10px] text-slate-600">+{vendor.entities.length - 3} more</span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Stats */}

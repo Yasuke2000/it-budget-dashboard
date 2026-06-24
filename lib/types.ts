@@ -124,6 +124,9 @@ export interface VendorSummary {
   isConcentrationRisk: boolean;
   // 'safe' (<25%), 'watch' (25–30%), 'risk' (>30%). EASI at ~29.7% is "watch".
   concentrationLevel: "safe" | "watch" | "risk";
+  // Which Gheeraert entities the vendor's spend comes from (so you can see where
+  // the spend originates), highest first.
+  entities: { name: string; spend: number }[];
 }
 
 export interface DashboardKPIs {

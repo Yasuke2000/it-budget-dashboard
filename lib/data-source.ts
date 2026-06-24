@@ -140,6 +140,10 @@ async function applyPayroll(
       lines: [],
     });
   }
+  // NOTE: internal IT-staff cost (Adhemar/David) is intentionally NOT synthesized
+  // from a manual figure. BC class-62 wages are aggregated (no IT split), so IT
+  // personnel cost will populate only from real EasyPay/Officient payroll data
+  // (the entries handled above), never a hardcoded estimate.
   return synthetic.length ? [...invoices, ...synthetic] : invoices;
 }
 
@@ -463,9 +467,14 @@ export async function getLicenses(): Promise<M365License[]> {
   try {
     const skus = await fetchSubscribedSkus();
     // Apply per-seat prices entered in Settings (Graph doesn't expose contracted
-    // prices), overriding the compiled defaults so cost/waste reflect reality.
+    // prices) + the optimization buffer, so cost/waste reflect reality.
     let prices: Record<string, number> = {};
-    try { prices = (await getAppSettings()).licensePrices; } catch { /* keep mapper defaults */ }
+    let bufferSeats = 0;
+    try {
+      const s = await getAppSettings();
+      prices = s.licensePrices;
+      bufferSeats = s.licenseBufferSeats || 0;
+    } catch { /* keep mapper defaults */ }
     const licenses: M365License[] = skus.map((sku) => {
       const lic = mapGraphLicenseToM365License(sku);
       const p = prices[lic.skuPartNumber];
@@ -474,8 +483,14 @@ export async function getLicenses(): Promise<M365License[]> {
         // Bill the committed (prepaid) pool, not just consumed seats — matches
         // the Microsoft invoice; the unused portion shows up in wastedCost.
         lic.monthlyCost = lic.prepaidUnits * p;
-        lic.wastedCost = lic.wastedUnits * p;
       }
+      // Optimization buffer: keep up to `bufferSeats` spare seats per SKU out of
+      // the reclaimable-waste figure (you hold a few for new hires). Utilization
+      // and purchased/assigned counts are untouched.
+      if (bufferSeats > 0) {
+        lic.wastedUnits = Math.max(0, lic.wastedUnits - bufferSeats);
+      }
+      lic.wastedCost = lic.wastedUnits * lic.pricePerUser;
       return lic;
     });
     setCache(cacheKey, licenses, 240); // 4h TTL
@@ -1219,6 +1234,7 @@ export async function getVendorSummary(
       totalSpend: number;
       invoiceCount: number;
       categories: Set<string>;
+      entities: Map<string, number>;
       lastDate: string;
     }
   >();
@@ -1231,6 +1247,7 @@ export async function getVendorSummary(
       totalSpend: 0,
       invoiceCount: 0,
       categories: new Set<string>(),
+      entities: new Map<string, number>(),
       lastDate: "",
     };
     // Prefer the longest variant as the display name (usually most complete).
@@ -1240,6 +1257,9 @@ export async function getVendorSummary(
     existing.totalSpend += inv.totalAmountExcludingTax;
     existing.invoiceCount += 1;
     existing.categories.add(inv.costCategory);
+    if (inv.companyName) {
+      existing.entities.set(inv.companyName, (existing.entities.get(inv.companyName) ?? 0) + inv.totalAmountExcludingTax);
+    }
     if (inv.postingDate > existing.lastDate) {
       existing.lastDate = inv.postingDate;
     }
@@ -1268,6 +1288,9 @@ export async function getVendorSummary(
         lastInvoiceDate: data.lastDate,
         isConcentrationRisk: percentOfTotal > CONCENTRATION_RISK_THRESHOLD,
         concentrationLevel,
+        entities: Array.from(data.entities.entries())
+          .map(([name, spend]) => ({ name, spend: Math.round(spend) }))
+          .sort((a, b) => b.spend - a.spend),
       };
     })
     .sort((a, b) => b.totalSpend - a.totalSpend);

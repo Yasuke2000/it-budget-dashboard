@@ -1157,23 +1157,31 @@ function OperationalSoftwareTab() {
 
 function FeaturesTab() {
   const [showPeppol, setShowPeppol] = useState(false);
+  const [licBuffer, setLicBuffer] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings")
       .then((r) => r.json())
-      .then((d) => { if (typeof d?.showPeppol === "boolean") setShowPeppol(d.showPeppol); })
+      .then((d) => {
+        if (typeof d?.showPeppol === "boolean") setShowPeppol(d.showPeppol);
+        if (typeof d?.licenseBufferSeats === "number" && d.licenseBufferSeats > 0) setLicBuffer(String(d.licenseBufferSeats));
+      })
       .catch(() => {});
   }, []);
 
   const handleSave = async () => {
     setSaving(true);
     try {
+      const buf = parseInt(licBuffer, 10);
       await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ showPeppol }),
+        body: JSON.stringify({
+          showPeppol,
+          licenseBufferSeats: Number.isFinite(buf) && buf > 0 ? buf : 0,
+        }),
       });
       setSaved(true);
     } finally {
@@ -1203,6 +1211,15 @@ function FeaturesTab() {
             </div>
             <Switch checked={showPeppol} onCheckedChange={(v) => { setShowPeppol(Boolean(v)); setSaved(false); }} />
           </div>
+
+          <div className="rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-3 space-y-1.5">
+            <p className="text-sm font-medium text-white">License optimization buffer (spare seats)</p>
+            <p className="text-xs text-slate-500">Spare seats per SKU NOT counted as reclaimable waste (kept for new hires). 0 = flag every unused seat.</p>
+            <Input type="number" min={0} step={1} value={licBuffer}
+              onChange={(e) => { setLicBuffer(e.target.value); setSaved(false); }}
+              placeholder="0" className="h-8 w-28 bg-slate-800 border-slate-700 text-white focus:border-teal-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+          </div>
+
           <div className="flex items-center justify-end gap-4">
             <SaveButton onClick={handleSave} saving={saving} saved={saved} />
           </div>
