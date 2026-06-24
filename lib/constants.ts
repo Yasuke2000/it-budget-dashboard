@@ -14,7 +14,10 @@ export const DEFAULT_GL_MAPPING: Record<string, string> = {
   "612350": "Hardware (Purchases)",     // Computerbenodigdheden (computer supplies)
   "612400": "Telecom",                  // Telefonie en internet
   "613320": "External IT Services",     // Informaticadiensten (external IT services / consultancy)
-  "614400": "Security",                 // Verzekering cyber (cyber-insurance premium — IT-security cost)
+  // NOTE: 614400 "Verzekering cyber" is NOT mapped — despite its name it's a
+  // catch-all insurance account dominated by ~€92k truck insurance (ALLIA,
+  // "VRACHTWAGENS"). The real cyber premium is only ~€5.5k and isn't cleanly
+  // isolable by account, so it's better tracked as a line in the Contracts register.
   // IT capital purchases (fixed-asset additions — actual hardware/software buys)
   "240200": "Hardware (Purchases)",     // Computer hardware
   "240500": "Software & Licenses",      // Computer software
