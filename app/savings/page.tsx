@@ -5,7 +5,7 @@ import { KPICard } from "@/components/dashboard/kpi-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
-import type { SavingsOpportunity } from "@/lib/types";
+import type { SavingsOpportunity, LicenseHarvest } from "@/lib/types";
 import {
   BarChart,
   Bar,
@@ -27,6 +27,7 @@ const STATUS_COLORS: Record<SavingsOpportunity["status"], string> = {
 
 export default function SavingsPage() {
   const [opportunities, setOpportunities] = useState<SavingsOpportunity[]>([]);
+  const [harvest, setHarvest] = useState<LicenseHarvest | null>(null);
   const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -43,7 +44,10 @@ export default function SavingsPage() {
       .then((data) => {
         clearTimeout(timer);
         if (cancelled) return;
-        setOpportunities(Array.isArray(data) ? data : []);
+        // API returns { opportunities, harvest }; tolerate a bare array too.
+        const opps = Array.isArray(data) ? data : data.opportunities ?? [];
+        setOpportunities(opps);
+        setHarvest(Array.isArray(data) ? null : data.harvest ?? null);
         setLoading(false);
       })
       .catch(() => {
@@ -110,15 +114,21 @@ export default function SavingsPage() {
         <p className="text-slate-400">
           Reclaimable licenses after the optimization buffer (spare seats kept for new hires)
         </p>
+        {harvest?.hasUsageData && harvest.totalReclaimableAnnual > 0 && (
+          <p className="text-sm text-slate-500 mt-1">
+            Total reclaimable ≈ <span className="text-teal-300 font-semibold">{formatCurrency(harvest.totalReclaimableAnnual)}/yr</span>{" "}
+            — {formatCurrency(harvest.unassignedMonthly * 12)} unassigned seats (exact) + {formatCurrency(harvest.inactiveMonthlyEstimate * 12)} assigned-but-inactive (estimate).
+          </p>
+        )}
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="Identified Savings"
           value={formatCurrency(totalAnnualSavings)}
           iconName="DollarSign"
-          description="Annual savings potential"
+          description="Unassigned seats (exact)"
           changeType="positive"
           change={`${formatCurrency(totalAnnualSavings / 12)}/month`}
         />
@@ -130,13 +140,33 @@ export default function SavingsPage() {
           changeType="negative"
           change={`${formatCurrency(opportunities.reduce((s, o) => s + o.monthlyWaste, 0))}/month wasted`}
         />
-        <KPICard
-          title="License Utilization"
-          value={`${overallUtilization.toFixed(1)}%`}
-          iconName="Key"
-          description={`${totalAssigned} of ${totalLicenses} licenses assigned`}
-          changeType={overallUtilization >= 90 ? "positive" : "neutral"}
-        />
+        {harvest?.hasUsageData ? (
+          <KPICard
+            title="Inactive Seats (30d)"
+            value={String(harvest.inactiveUsers)}
+            iconName="Clock"
+            description={`~${formatCurrency(harvest.inactiveMonthlyEstimate * 12)}/yr reclaimable (est.)`}
+            changeType={harvest.inactiveUsers > 0 ? "negative" : "positive"}
+            change={harvest.activePercent != null ? `${harvest.activePercent.toFixed(0)}% active` : undefined}
+          />
+        ) : (
+          <KPICard
+            title="License Utilization"
+            value={`${overallUtilization.toFixed(1)}%`}
+            iconName="Key"
+            description={`${totalAssigned} of ${totalLicenses} licenses assigned`}
+            changeType={overallUtilization >= 90 ? "positive" : "neutral"}
+          />
+        )}
+        {harvest?.hasUsageData && (
+          <KPICard
+            title="License Utilization"
+            value={`${overallUtilization.toFixed(1)}%`}
+            iconName="Key"
+            description={`${totalAssigned} of ${totalLicenses} licenses assigned`}
+            changeType={overallUtilization >= 90 ? "positive" : "neutral"}
+          />
+        )}
       </div>
 
       {/* Utilization Bar Chart */}

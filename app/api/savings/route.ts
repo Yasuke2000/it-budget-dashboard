@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getLicenses } from "@/lib/data-source";
+import { getLicenses, getLicenseHarvest } from "@/lib/data-source";
 import type { SavingsOpportunity } from "@/lib/types";
 
 export async function GET() {
   try {
-    const licenses = await getLicenses();
+    const [licenses, harvest] = await Promise.all([getLicenses(), getLicenseHarvest()]);
 
     const opportunities: SavingsOpportunity[] = licenses
       .filter((l) => l.wastedUnits > 0 && l.pricePerUser > 0)
@@ -23,7 +23,7 @@ export async function GET() {
       }))
       .sort((a, b) => b.annualSavings - a.annualSavings);
 
-    return NextResponse.json(opportunities);
+    return NextResponse.json({ opportunities, harvest });
   } catch (error) {
     console.error("Failed to generate savings opportunities:", error);
     return NextResponse.json(

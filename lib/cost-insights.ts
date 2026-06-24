@@ -228,7 +228,7 @@ export function analyzePersonnelCosts(employees: Employee[]): CostInsight[] {
         category: "optimization",
         severity: "info",
         title: `IT team is ${itRatio.toFixed(1)}% of headcount (${itTeam.length}/${totalEmployees})`,
-        description: `Industry benchmark for logistics companies is 3-5% IT staff ratio. Your ratio suggests the IT team may be understaffed, leading to reliance on expensive external services.`,
+        description: `A commonly cited (indicative, not authoritative) IT-staff ratio is ~3-5%. A low ratio can mean lean staffing and reliance on external services — worth comparing internal vs external IT cost rather than treating as a hard target.`,
         potentialSavings: 0,
         action: "Compare internal IT costs vs external IT services spend. Consider whether hiring internally would be more cost-effective than EASI managed services.",
         dataSource: "Officient HR — people",

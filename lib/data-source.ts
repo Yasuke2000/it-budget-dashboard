@@ -27,6 +27,7 @@ import type {
   JiraProjectCost,
   PersonnelKPIs,
   DepartmentSummary,
+  LicenseHarvest,
 } from "./types";
 import type { PeppolInvoice } from "./peppol-parser";
 import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, CONCENTRATION_WATCH_THRESHOLD, DEFAULT_GL_MAPPING, IT_VENDOR_RULES, UNCLASSIFIED_CATEGORY, ALLOWLIST_SCAN_ACCOUNTS, OPERATIONAL_SOFTWARE_VENDORS, OPERATIONAL_SOFTWARE_CATEGORY, isITCategory, isIntercompanyVendor, isOperationalSoftwareVendor, normalizeVendor } from "./constants";
@@ -917,17 +918,49 @@ export async function getGroupRevenue(
 // ---- License active-to-provisioned usage (FinOps) ----
 // % of licensed M365 users active in the last 30 days. null until the Graph
 // Reports.Read.All permission is granted (then the tile lights up automatically).
-export async function getLicenseActiveUsagePercent(): Promise<number | null> {
+// Raw {active, licensed} counts from the M365 active-user report, cached 4h so
+// the percent KPI and the license-harvest view share one Graph call. null when
+// the Reports permission/report isn't available.
+export async function getLicenseActiveUsageRaw(): Promise<{ active: number; licensed: number } | null> {
   if (isDemoMode()) return null;
-  const cacheKey = "license-active-usage";
-  // -1 is a sentinel for "checked, not available" (no Reports permission yet), so
-  // we don't re-hit Graph on every dashboard load.
-  const cached = getCache<number>(cacheKey);
-  if (cached != null) return cached === -1 ? null : cached;
+  const cacheKey = "license-active-usage-raw";
+  const cached = getCache<{ active: number; licensed: number } | number>(cacheKey);
+  if (cached != null) return cached === -1 ? null : (cached as { active: number; licensed: number });
   const usage = await fetchM365ActiveUsage();
-  const pct = usage && usage.licensed > 0 ? (usage.active / usage.licensed) * 100 : null;
-  setCache(cacheKey, pct == null ? -1 : pct, 240); // 4h TTL
-  return pct;
+  setCache(cacheKey, usage ?? -1, 240); // 4h TTL; -1 = checked, unavailable
+  return usage;
+}
+
+export async function getLicenseActiveUsagePercent(): Promise<number | null> {
+  const usage = await getLicenseActiveUsageRaw();
+  return usage && usage.licensed > 0 ? (usage.active / usage.licensed) * 100 : null;
+}
+
+// License harvesting: how many paid seats are reclaimable, split into the two
+// pools an admin can actually act on — unassigned (exact) and assigned-but-inactive
+// (count exact, € estimated via the blended assigned-seat price). See LicenseHarvest.
+export async function getLicenseHarvest(): Promise<LicenseHarvest> {
+  const [licenses, usage] = await Promise.all([getLicenses(), getLicenseActiveUsageRaw()]);
+  const paid = licenses.filter((l) => l.pricePerUser > 0);
+  const unassignedSeats = paid.reduce((s, l) => s + l.wastedUnits, 0);
+  const unassignedMonthly = paid.reduce((s, l) => s + l.wastedCost, 0);
+  const assignedSeats = paid.reduce((s, l) => s + l.consumedUnits, 0);
+  const assignedSpend = paid.reduce((s, l) => s + l.consumedUnits * l.pricePerUser, 0);
+  const blendedSeatMonthly = assignedSeats > 0 ? assignedSpend / assignedSeats : 0;
+  const inactiveUsers = usage ? Math.max(0, usage.licensed - usage.active) : 0;
+  const inactiveMonthlyEstimate = Math.round(inactiveUsers * blendedSeatMonthly);
+  return {
+    hasUsageData: !!usage,
+    licensedUsers: usage?.licensed ?? 0,
+    activeUsers: usage?.active ?? 0,
+    inactiveUsers,
+    activePercent: usage && usage.licensed > 0 ? (usage.active / usage.licensed) * 100 : null,
+    unassignedSeats,
+    unassignedMonthly: Math.round(unassignedMonthly),
+    blendedSeatMonthly: Math.round(blendedSeatMonthly * 100) / 100,
+    inactiveMonthlyEstimate,
+    totalReclaimableAnnual: Math.round((unassignedMonthly + inactiveMonthlyEstimate) * 12),
+  };
 }
 
 // ---- Monthly Spend Trend ----

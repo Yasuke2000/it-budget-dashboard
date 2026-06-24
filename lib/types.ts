@@ -361,6 +361,25 @@ export interface SavingsOpportunity {
   assignedLicenses: number;
 }
 
+// License-harvesting summary. Two distinct reclaimable pools:
+//  • unassigned seats — paid but not assigned to anyone (exact, per-SKU price)
+//  • inactive-assigned users — hold a licence but no M365 activity in 30 days
+//    (count is exact from the Graph active-user report; the € is an ESTIMATE
+//    using the blended average price of an assigned seat, since the report is
+//    per-user not per-SKU).
+export interface LicenseHarvest {
+  hasUsageData: boolean;        // false when the Graph Reports permission/report is unavailable
+  licensedUsers: number;
+  activeUsers: number;
+  inactiveUsers: number;        // licensed but inactive 30d
+  activePercent: number | null;
+  unassignedSeats: number;
+  unassignedMonthly: number;    // exact
+  blendedSeatMonthly: number;   // avg €/assigned seat (basis for the inactive estimate)
+  inactiveMonthlyEstimate: number;
+  totalReclaimableAnnual: number; // (unassignedMonthly + inactiveMonthlyEstimate) × 12
+}
+
 // === Warranty ===
 
 export interface WarrantyInfo {

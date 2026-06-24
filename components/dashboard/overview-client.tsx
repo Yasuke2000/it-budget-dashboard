@@ -216,7 +216,7 @@ export function OverviewClient() {
           value={kpis.itSpendPercentOfRevenue > 0 ? `${kpis.itSpendPercentOfRevenue.toFixed(2)}%` : "—"}
           changeType="neutral"
           iconName="Percent"
-          description={`vs ~${kpis.revenueBenchmarkPercent}% transport median${kpis.revenueIsConsolidated ? "" : " · gross rev."}`}
+          description={`vs ~${kpis.revenueBenchmarkPercent}% benchmark (indicative)${kpis.revenueIsConsolidated ? "" : " · gross rev."}`}
         />
         <KPICard
           title="IT Asset Depreciation"
