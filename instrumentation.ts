@@ -19,17 +19,24 @@ export async function register() {
 
         await ds.getCompanies();
         // Warm the FULL dashboard KPI path (invoices + budget + licenses + devices
-        // + depreciation + revenue + license-usage) for the two default ranges, so
-        // the first /api/dashboard hit is fully cache-served. getDashboardKPIs
-        // populates every sub-getter's cache. Warm yesterday/today boundary variants
-        // of the rolling range too, since the client computes it in local time and
-        // may land a day off this UTC-based one.
+        // + depreciation + revenue + license-usage) for the default ranges, so the
+        // first /api/dashboard hit is fully cache-served. Run SEQUENTIALLY — firing
+        // them concurrently floods BC with ~60 parallel calls, triggers rate-limit
+        // throttling, and the degraded (partial) results are deliberately NOT cached,
+        // which defeats the warm-up. The rolling "last 12 months" range is the
+        // default the Overview opens on, so warm it FIRST; include a ±1-day boundary
+        // variant since the client computes the range in local time vs this UTC one.
         const from12b = new Date(from12); from12b.setDate(from12b.getDate() - 1);
-        await Promise.allSettled([
-          ds.getDashboardKPIs("all", `${yr}-01-01`, `${yr}-12-31`),
-          ds.getDashboardKPIs("all", iso(from12), iso(now)),
-          ds.getDashboardKPIs("all", iso(from12b), iso(now)),
-        ]);
+        const now1 = new Date(now); now1.setDate(now1.getDate() + 1);
+        const ranges: [string, string][] = [
+          [iso(from12), iso(now)],
+          [iso(from12b), iso(now)],
+          [iso(from12), iso(now1)],
+          [`${yr}-01-01`, `${yr}-12-31`],
+        ];
+        for (const [f, t] of ranges) {
+          await ds.getDashboardKPIs("all", f, t);
+        }
         console.log("[startup] IT Finance cache warmed");
       } catch (err) {
         console.warn("[startup] cache warm failed:", err);
