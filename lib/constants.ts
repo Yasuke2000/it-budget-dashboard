@@ -40,6 +40,7 @@ export const ALLOWLIST_SCAN_ACCOUNTS: string[] = [
   "613300", // Externe dienstverlening (ALLPHI, JUST-FIX-IT, GMI, iDocta land here)
   "612300", // Kantoorbenodigdheden (Canon, iDocta)
   "615800", // Andere door te rekenen kosten (Canon)
+  "611110", // Onderhoud/installatie (Connectify 3CX telephony lands here — €5.3k/yr)
 ];
 
 // IT vendor allowlist — captures spend from these vendors EVEN when it lands on
@@ -56,8 +57,9 @@ export const IT_VENDOR_RULES: Record<string, string> = {
   // 2026-06 spend audit. Captured by name so their spend counts as IT without
   // mapping all of 613300 (which is dominated by intercompany + management fees).
   allphi: "External IT Services",         // outsourced dev/MSP partner (~€154k/yr)
-  "just-fix-it": "External IT Services",   // IT support (~€33k/yr)
+  "just-fix-it": "External IT Services",   // IT support (~€33k/yr, booked to 613300)
   "gmi group": "External IT Services",     // IT services (also booked to 611130)
+  connectify: "Telecom",                   // 3CX telephony / IT-telecom (~€5.3k/yr, booked to 611110)
 };
 
 // Group entities — when one of these is the *vendor* on an invoice it's an
@@ -73,16 +75,24 @@ export const INTERCOMPANY_VENDORS: string[] = [
   "warehouse bv",
 ];
 
+// Lower-case and strip every non-alphanumeric char before matching, so a vendor
+// allowlist/pattern is insensitive to spacing, hyphens and punctuation. Without
+// this, BC's "JUST -FIX IT-" never matched the rule "just-fix-it" and ~€33k/yr of
+// IT support was silently dropped from the spend total (2026-06 completeness audit).
+export function normalizeVendor(s: string): string {
+  return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 /** True when the invoice vendor is a Gheeraert-group entity (intercompany). */
 export function isIntercompanyVendor(vendorName: string): boolean {
-  const v = (vendorName || "").toLowerCase();
-  return INTERCOMPANY_VENDORS.some((p) => v.includes(p));
+  const v = normalizeVendor(vendorName);
+  return INTERCOMPANY_VENDORS.some((p) => v.includes(normalizeVendor(p)));
 }
 
 /** True when the vendor is operational/business-system software (TMS/telematics). */
 export function isOperationalSoftwareVendor(vendorName: string, patterns: string[] = OPERATIONAL_SOFTWARE_VENDORS): boolean {
-  const v = (vendorName || "").toLowerCase();
-  return patterns.some((p) => p && v.includes(p.toLowerCase()));
+  const v = normalizeVendor(vendorName);
+  return patterns.some((p) => p && v.includes(normalizeVendor(p)));
 }
 
 // Depreciation/amortisation of IT assets (P&L). Reported as a SEPARATE figure,
