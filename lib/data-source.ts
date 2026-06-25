@@ -32,7 +32,7 @@ import type {
   LicenseHarvest,
 } from "./types";
 import type { PeppolInvoice } from "./peppol-parser";
-import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, CONCENTRATION_WATCH_THRESHOLD, DEFAULT_GL_MAPPING, IT_VENDOR_RULES, UNCLASSIFIED_CATEGORY, ALLOWLIST_SCAN_ACCOUNTS, OPERATIONAL_SOFTWARE_VENDORS, OPERATIONAL_SOFTWARE_CATEGORY, isITCategory, isIntercompanyVendor, isOperationalSoftwareVendor, normalizeVendor } from "./constants";
+import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, CONCENTRATION_WATCH_THRESHOLD, DEFAULT_GL_MAPPING, IT_VENDOR_RULES, UNCLASSIFIED_CATEGORY, ALLOWLIST_SCAN_ACCOUNTS, OPERATIONAL_SOFTWARE_VENDORS, OPERATIONAL_SOFTWARE_CATEGORY, isITCategory, isToolsSpendCategory, isIntercompanyVendor, isOperationalSoftwareVendor, normalizeVendor } from "./constants";
 import { generateAllInsights } from "./cost-insights";
 import type { CostInsight } from "./cost-insights";
 import { getCache, setCache } from "./sync-cache";
@@ -697,9 +697,10 @@ export async function getDashboardKPIs(
     getITPersonnelCost(companyFilter, from, to).catch(() => 0),
   ]);
 
-  // Headline IT spend excludes "Unclassified" (non-IT GL accounts the BC feed
-  // may include) so the KPI is trustworthy IT-only spend.
-  const itInvoices = invoices.filter((inv) => isITCategory(inv.costCategory));
+  // Headline IT spend = tools & services only: excludes "Unclassified" (non-IT GL
+  // accounts) AND "IT Personnel" (internal labour, added separately from BC as
+  // itPersonnelCost — counting it here too would double-count it in totalCostOfIT).
+  const itInvoices = invoices.filter((inv) => isToolsSpendCategory(inv.costCategory));
   const totalSpendYTD = itInvoices.reduce((sum, inv) => sum + inv.totalAmountExcludingTax, 0);
 
   // Opex vs capitalised IT purchases (PCMN class 2 = fixed-asset/capex accounts;
@@ -730,7 +731,7 @@ export async function getDashboardKPIs(
 
   const itByMonth = new Map<string, number>();
   for (const inv of invoices) {
-    if (!isITCategory(inv.costCategory)) continue;
+    if (!isToolsSpendCategory(inv.costCategory)) continue;
     const m = inv.postingDate.substring(0, 7);
     itByMonth.set(m, (itByMonth.get(m) ?? 0) + inv.totalAmountExcludingTax);
   }
@@ -1033,7 +1034,7 @@ export async function getMonthlySpend(
 
   const actualByMonth = new Map<string, number>();
   for (const inv of invoices) {
-    if (!isITCategory(inv.costCategory)) continue;
+    if (!isToolsSpendCategory(inv.costCategory)) continue;
     const m = inv.postingDate.substring(0, 7);
     actualByMonth.set(m, (actualByMonth.get(m) ?? 0) + inv.totalAmountExcludingTax);
   }
@@ -1123,6 +1124,9 @@ export async function getCategorySpend(
   const categoryMap = new Map<string, { actual: number; budget: number }>();
 
   invoices.forEach((inv) => {
+    // Tools & services categories only — internal "IT Personnel" labour is a
+    // separate line (BC-sourced), not a spend category, and "Unclassified" is non-IT.
+    if (!isToolsSpendCategory(inv.costCategory)) return;
     const cat = inv.costCategory || "Other IT";
     const existing = categoryMap.get(cat) || { actual: 0, budget: 0 };
     existing.actual += inv.totalAmountExcludingTax;

@@ -41,9 +41,13 @@ export async function GET(request: Request) {
         if (!m) return { ...base, costLabel: "Unmapped", periodCost: null, costPerCommit: null, costPerIssue: null, note: "No cost source mapped." };
         if (m.kind === "excluded") return { ...base, costLabel: m.label, periodCost: null, costPerCommit: null, costPerIssue: null, note: "Management comp — not counted as dev cost." };
         if (m.kind === "internal") return { ...base, costLabel: m.label, periodCost: null, costPerCommit: null, costPerIssue: null, note: "Inside the IT-department payroll; per-person not separable in BC." };
-        // vendor
-        const v = vendors.find((x) => (x.vendorName || "").toLowerCase().includes(m.match || ""));
-        const cost = v ? Math.round(v.totalSpend) : 0;
+        // vendor — sum ALL matching vendors (not just the first), so split vendor
+        // names aggregate. If none match, cost is UNKNOWN (null), not a misleading €0.
+        const matches = vendors.filter((x) => (x.vendorName || "").toLowerCase().includes(m.match || ""));
+        if (!matches.length) {
+          return { ...base, costLabel: m.label, periodCost: null, costPerCommit: null, costPerIssue: null, note: "No vendor spend found in this period." };
+        }
+        const cost = Math.round(matches.reduce((s, x) => s + (x.totalSpend || 0), 0));
         return {
           ...base, costLabel: m.label, periodCost: cost,
           costPerCommit: d.commits ? Math.round(cost / d.commits) : null,

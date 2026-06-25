@@ -166,6 +166,15 @@ export function isITCategory(category: string): boolean {
   return category !== UNCLASSIFIED_CATEGORY;
 }
 
+// "Tools & services" IT spend = IT spend EXCLUDING internal labour. Internal IT-staff
+// cost is sourced separately (BC class-62 AFDELING=IT) and added once into the Total
+// Cost of IT, so the "IT Personnel" category (from any EasyPay/Officient payroll
+// import) must be kept OUT of the external-spend total/categories/trend to avoid
+// double-counting labour.
+export function isToolsSpendCategory(category: string): boolean {
+  return isITCategory(category) && category !== "IT Personnel";
+}
+
 export const SKU_NAMES: Record<string, string> = {
   ENTERPRISEPACK: "Office 365 E3",
   SPE_E3: "Microsoft 365 E3",
