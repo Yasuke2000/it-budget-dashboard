@@ -249,6 +249,24 @@ export function OverviewClient() {
               : "All settled — nothing outstanding"
           }
         />
+        {kpis.itPersonnelCost > 0 && (
+          <>
+            <KPICard
+              title="IT Personnel (internal)"
+              value={formatCurrencyCompact(kpis.itPersonnelCost)}
+              iconName="Users"
+              changeType="neutral"
+              description="IT-dept payroll · from BC (AFDELING=IT)"
+            />
+            <KPICard
+              title="Total Cost of IT"
+              value={formatCurrencyCompact(kpis.totalCostOfIT)}
+              iconName="Building2"
+              changeType="neutral"
+              description={`external + internal · ${kpis.groupRevenue > 0 ? (kpis.totalCostOfIT / kpis.groupRevenue * 100).toFixed(2) : "—"}% of revenue`}
+            />
+          </>
+        )}
       </div>
 
       {/* Spend Trend */}

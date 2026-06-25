@@ -170,6 +170,10 @@ export interface DashboardKPIs {
   openInvoiceCount: number;
   overdueAmount: number;
   overdueCount: number;
+  // Internal IT-staff cost (from BC, AFDELING=IT department dimension on class-62)
+  // and the fully-loaded Total Cost of IT = external spend + internal labour.
+  itPersonnelCost: number;
+  totalCostOfIT: number;
 }
 
 export interface MonthlySpend {

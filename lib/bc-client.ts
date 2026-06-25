@@ -183,6 +183,33 @@ export async function fetchBCRevenue(
   );
 }
 
+// Internal IT-staff cost: class-62 (personnel) GL entries tagged with the
+// AFDELING (department) dimension value "IT". Belgian payroll is booked
+// aggregated per account/month, BUT split by the AFDELING dimension — so the IT
+// department's fully-loaded cost (gross + employer RSZ + extras) is isolable
+// without any HR-system integration. Returns the period cost (debit − credit) for
+// one company. The dimension comes via $expand=dimensionSetLines.
+export async function fetchITDepartmentPayroll(
+  companyId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<number> {
+  const token = await getBCToken();
+  const filter = `startswith(accountNumber,'62') and postingDate ge ${dateFrom} and postingDate le ${dateTo}`;
+  const url = `${BC_BASE_URL}/companies(${companyId})/generalLedgerEntries?$filter=${encodeURIComponent(
+    filter
+  )}&$select=debitAmount,creditAmount&$expand=dimensionSetLines($select=code,valueCode)`;
+  const rows = await fetchAllPages<Record<string, unknown>>(url, token);
+  let total = 0;
+  for (const r of rows) {
+    const dims = (r.dimensionSetLines as { code?: string; valueCode?: string }[] | undefined) || [];
+    if (dims.some((d) => d.code === "AFDELING" && d.valueCode === "IT")) {
+      total += ((r.debitAmount as number) || 0) - ((r.creditAmount as number) || 0);
+    }
+  }
+  return total;
+}
+
 export async function fetchBCAccounts(companyId: string): Promise<Record<string, unknown>[]> {
   const data = await fetchBC(
     `accounts?$filter=category eq 'Expense'&$select=number,displayName,category,subCategory,balance,netChange`,
