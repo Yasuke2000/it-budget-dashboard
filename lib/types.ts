@@ -183,6 +183,21 @@ export interface MonthlySpend {
   forecast?: number;
 }
 
+// Spend forecast for budget planning. Each point is one month: history months have
+// `actual` (incl. flat personnel), future months have `forecast`.
+export interface ForecastPoint {
+  month: string;
+  actual: number | null;
+  forecast: number | null;
+}
+export interface SpendForecast {
+  points: ForecastPoint[];      // ~12 history + 12 forecast months
+  annualForecast: number;       // sum of the next 12 forecast months (incl. personnel)
+  monthlyPersonnel: number;     // flat recurring internal IT-staff cost / month
+  includesPersonnel: boolean;
+  method: string;
+}
+
 export interface CategorySpend {
   category: string;
   amount: number;

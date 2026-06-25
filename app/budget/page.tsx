@@ -1,10 +1,12 @@
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { BudgetTable } from "@/components/budget/budget-table";
-import { getBudgetEntries, getInvoices, isDemoMode } from "@/lib/data-source";
+import { ForecastChart } from "@/components/budget/forecast-chart";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getBudgetEntries, getInvoices, getSpendForecast, isDemoMode } from "@/lib/data-source";
 import { isITCategory } from "@/lib/constants";
 import { formatCurrencyCompact, formatPercent } from "@/lib/utils";
 import { AlertCircle } from "lucide-react";
-import type { BudgetEntry } from "@/lib/types";
+import type { BudgetEntry, SpendForecast } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +23,7 @@ export default async function BudgetPage({
 
   const demo = isDemoMode();
   let entries: BudgetEntry[];
+  const forecast: SpendForecast | null = await getSpendForecast(company).catch(() => null);
 
   if (demo) {
     entries = await getBudgetEntries();
@@ -125,6 +128,25 @@ export default async function BudgetPage({
           </>
         )}
       </div>
+
+      {forecast && forecast.points.length > 1 && (
+        <Card className="bg-slate-900 border-slate-800">
+          <CardHeader>
+            <CardTitle className="text-white text-base flex items-center justify-between flex-wrap gap-2">
+              <span>12-Month Forecast {forecast.includesPersonnel ? "(incl. internal IT staff)" : "(tools/services)"}</span>
+              <span className="text-sm font-normal text-slate-400">
+                Next 12 months ≈ <span className="text-amber-300 font-semibold">{formatCurrencyCompact(forecast.annualForecast)}</span>
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ForecastChart points={forecast.points} />
+            <p className="text-xs text-slate-500 mt-2">
+              {forecast.method}. Each future month is projected from the same calendar month last year, so recurring annual licences (which cluster in Q1) land in the right months — better for cash &amp; budget planning than a flat average. Set per-category budgets in Settings → Budget to track against this.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {hasBudget && (
         <div className="flex items-center gap-6 px-1">

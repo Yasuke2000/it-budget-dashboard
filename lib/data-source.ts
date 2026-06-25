@@ -17,6 +17,8 @@ import type {
   BudgetEntry,
   DashboardKPIs,
   MonthlySpend,
+  ForecastPoint,
+  SpendForecast,
   CategorySpend,
   EntitySpend,
   VendorSummary,
@@ -1046,6 +1048,63 @@ export async function getMonthlySpend(
       };
     })
     .filter((m) => m.budget > 0 || m.actual > 0);
+}
+
+// ---- Spend forecast (budget planning) ----
+// Seasonal-naive forecast: each of the next 12 months is projected from the SAME
+// calendar month's actual over the trailing 12 months, plus the recurring internal
+// IT-staff cost (flat monthly). This deliberately preserves the lumpy pattern —
+// annual licences that cluster in Q1 are forecast back into Q1 — instead of a flat
+// run-rate that would smear them. An optional growth factor scales the variable part.
+export async function getSpendForecast(companyFilter: CompanyFilter = "all"): Promise<SpendForecast> {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const now = new Date();
+  // Trailing 12 FULL months: first day of (this month − 12) … last day of last month.
+  const start = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+  const endPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+  const fromStr = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-01`;
+  const toStr = `${endPrevMonth.getFullYear()}-${pad(endPrevMonth.getMonth() + 1)}-${pad(endPrevMonth.getDate())}`;
+
+  const [monthly, personnelAnnual] = await Promise.all([
+    getMonthlySpend(companyFilter, fromStr, toStr),
+    getITPersonnelCost(companyFilter, fromStr, toStr).catch(() => 0),
+  ]);
+  const monthlyPersonnel = Math.round(personnelAnnual / 12);
+
+  // Seasonal baseline: latest actual seen for each calendar month (MM) + the average
+  // as a fallback for any missing month.
+  const byCal = new Map<string, number>();
+  for (const m of monthly) byCal.set(m.month.slice(5, 7), m.actual);
+  const avgTools = monthly.length ? monthly.reduce((s, m) => s + m.actual, 0) / monthly.length : 0;
+
+  const growth = 1; // flat (no growth) by default — the apparent rise is Q1 seasonality, not trend.
+
+  // History points (trailing actuals, incl. flat personnel) then 12 forecast months.
+  const points: ForecastPoint[] = monthly.map((m) => ({
+    month: m.month,
+    actual: Math.round(m.actual + monthlyPersonnel),
+    forecast: null,
+  }));
+  // Connect the dashed forecast line to the last actual point.
+  if (points.length) points[points.length - 1].forecast = points[points.length - 1].actual;
+
+  let annualForecast = 0;
+  for (let i = 1; i <= 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const cal = pad(d.getMonth() + 1);
+    const baseTools = (byCal.get(cal) ?? avgTools) * growth;
+    const f = Math.round(baseTools + monthlyPersonnel);
+    annualForecast += f;
+    points.push({ month: `${d.getFullYear()}-${cal}`, actual: null, forecast: f });
+  }
+
+  return {
+    points,
+    annualForecast: Math.round(annualForecast),
+    monthlyPersonnel,
+    includesPersonnel: monthlyPersonnel > 0,
+    method: "Seasonal baseline (same calendar month, trailing year) + recurring internal IT staff",
+  };
 }
 
 // ---- Category Spend ----
