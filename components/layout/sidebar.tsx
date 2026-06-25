@@ -20,6 +20,7 @@ import {
   Plug,
   ScrollText,
   Coins,
+  GitBranch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -40,6 +41,7 @@ const navItems = [
   { label: "Vendors", icon: Building2, href: "/vendors" },
   { label: "Devices", icon: Monitor, href: "/devices" },
   { label: "Personnel", icon: Users, href: "/personnel" },
+  { label: "Developers", icon: GitBranch, href: "/developers" },
   { label: "Import", icon: Upload, href: "/import" },
   { label: "Connectors", icon: Plug, href: "/connectors" },
   { label: "Insights", icon: Lightbulb, href: "/insights" },
@@ -63,7 +65,7 @@ function SidebarContent() {
   }, []);
 
   const items = showPeppol
-    ? [...navItems.slice(0, 9), PEPPOL_ITEM, ...navItems.slice(9)]
+    ? [...navItems.slice(0, 10), PEPPOL_ITEM, ...navItems.slice(10)]
     : navItems;
 
   return (

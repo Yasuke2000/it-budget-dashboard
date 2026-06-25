@@ -380,6 +380,60 @@ export interface LicenseHarvest {
   totalReclaimableAnnual: number; // (unassignedMonthly + inactiveMonthlyEstimate) × 12
 }
 
+// === Developer productivity (Azure DevOps) ===
+export interface DeveloperStat {
+  name: string;
+  email: string;
+  commits: number;
+  filesAdded: number;
+  filesEdited: number;
+  filesDeleted: number;
+  filesChanged: number;
+  avgFilesPerCommit: number;
+  contributionPercent: number; // share of total commits in the window
+}
+export interface BranchStat {
+  name: string;
+  commits: number;
+  lastActivity: string | null;
+}
+export interface DevCommit {
+  id: string;
+  author: string;
+  email: string;
+  branch?: string;
+  message: string;
+  date: string;
+  filesChanged: number;
+}
+export interface FileChurn {
+  path: string;
+  changes: number;
+  contributors: string[];
+}
+export interface DeveloperDashboard {
+  configured: boolean;
+  org?: string;
+  project?: string;
+  repo?: string;
+  rangeFrom: string;
+  rangeTo: string;
+  totalCommits: number;
+  developerCount: number;
+  totalFilesChanged: number;
+  filesAdded: number;
+  filesEdited: number;
+  filesDeleted: number;
+  developers: DeveloperStat[];
+  branches: BranchStat[];
+  recentCommits: DevCommit[];
+  churn: FileChurn[];
+  avgFilesPerCommit: number;
+  smallCommits: number;
+  largeCommits: number;
+  notes: string[];
+}
+
 // === Warranty ===
 
 export interface WarrantyInfo {

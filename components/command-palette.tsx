@@ -29,6 +29,7 @@ import {
   FileDown,
   Download,
   SunMoon,
+  GitBranch,
 } from "lucide-react";
 
 const navItems = [
@@ -39,6 +40,7 @@ const navItems = [
   { label: "Vendors", icon: Building2, href: "/vendors" },
   { label: "Devices", icon: Monitor, href: "/devices" },
   { label: "Personnel", icon: Users, href: "/personnel" },
+  { label: "Developers", icon: GitBranch, href: "/developers" },
   { label: "Import", icon: Upload, href: "/import" },
   { label: "Connectors", icon: Plug, href: "/connectors" },
   { label: "Insights", icon: Lightbulb, href: "/insights" },
