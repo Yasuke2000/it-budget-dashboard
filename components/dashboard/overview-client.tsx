@@ -204,13 +204,26 @@ export function OverviewClient() {
           description={`${selectedRange.label} · booked, ex-VAT`}
           sparklineData={spendSparkline}
         />
-        <KPICard
-          title={kpis.annualisedSpendTTM > 0 ? "Annualised IT Spend" : "Projected Full Year"}
-          value={formatCurrencyCompact(kpis.annualisedSpendTTM > 0 ? kpis.annualisedSpendTTM : kpis.projectedAnnualSpend)}
-          iconName="TrendingUp"
-          changeType="neutral"
-          description={kpis.annualisedSpendTTM > 0 ? "Trailing 12 months (actual)" : `Annualised from ${selectedRange.label.toLowerCase()}`}
-        />
+        {kpis.itPersonnelCost > 0 ? (
+          // With internal-staff data we show the all-in Total Cost of IT here — far
+          // more meaningful than a projection that just equals the 12-month actual.
+          <KPICard
+            title="Total Cost of IT"
+            value={formatCurrencyCompact(kpis.totalCostOfIT)}
+            iconName="Building2"
+            changeType="neutral"
+            description={`external + internal staff · ${kpis.groupRevenue > 0 ? (kpis.totalCostOfIT / kpis.groupRevenue * 100).toFixed(2) : "—"}% of revenue`}
+          />
+        ) : (
+          // Fallback when no payroll data: the annualised run-rate projection.
+          <KPICard
+            title={kpis.annualisedSpendTTM > 0 ? "Annualised IT Spend" : "Projected Full Year"}
+            value={formatCurrencyCompact(kpis.annualisedSpendTTM > 0 ? kpis.annualisedSpendTTM : kpis.projectedAnnualSpend)}
+            iconName="TrendingUp"
+            changeType="neutral"
+            description={kpis.annualisedSpendTTM > 0 ? "Trailing 12 months (actual)" : `Annualised from ${selectedRange.label.toLowerCase()}`}
+          />
+        )}
         <KPICard
           title="IT Spend % of Revenue"
           value={kpis.itSpendPercentOfRevenue > 0 ? `${kpis.itSpendPercentOfRevenue.toFixed(2)}%` : "—"}
@@ -250,22 +263,13 @@ export function OverviewClient() {
           }
         />
         {kpis.itPersonnelCost > 0 && (
-          <>
-            <KPICard
-              title="IT Personnel (internal)"
-              value={formatCurrencyCompact(kpis.itPersonnelCost)}
-              iconName="Users"
-              changeType="neutral"
-              description="IT-dept payroll · from BC (AFDELING=IT)"
-            />
-            <KPICard
-              title="Total Cost of IT"
-              value={formatCurrencyCompact(kpis.totalCostOfIT)}
-              iconName="Building2"
-              changeType="neutral"
-              description={`external + internal · ${kpis.groupRevenue > 0 ? (kpis.totalCostOfIT / kpis.groupRevenue * 100).toFixed(2) : "—"}% of revenue`}
-            />
-          </>
+          <KPICard
+            title="IT Personnel (internal)"
+            value={formatCurrencyCompact(kpis.itPersonnelCost)}
+            iconName="Users"
+            changeType="neutral"
+            description="IT-dept payroll · from BC (AFDELING=IT)"
+          />
         )}
       </div>
 

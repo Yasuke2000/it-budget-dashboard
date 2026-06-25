@@ -1,0 +1,31 @@
+const b = "http://localhost:3000";
+const q = "company=all&dateFrom=2025-06-24&dateTo=2026-06-24";
+const d = await (await fetch(b + "/api/dashboard?" + q)).json();
+const k = d.kpis;
+const cats = d.categories || [];
+const vendors = d.vendors || [];
+const ok = (c) => (c ? "OK " : "FAIL");
+
+const catSum = Math.round(cats.reduce((s, c) => s + c.amount, 0));
+const allphi = vendors.find((v) => /allphi/i.test(v.vendorName));
+const dev = await (await fetch(b + "/api/developers?dateFrom=2025-06-24&dateTo=2026-06-24&branch=dev")).json();
+const jonas = (dev.roi || []).find((r) => /jonas/i.test(r.name));
+
+console.log("=== HEADLINE ===");
+console.log("IT spend (tools/services):", Math.round(k.totalSpendYTD));
+console.log("IT personnel (internal):  ", k.itPersonnelCost);
+console.log("Total Cost of IT:         ", k.totalCostOfIT);
+console.log("Group revenue (consol.):  ", k.groupRevenue, "| consolidated flag:", k.revenueIsConsolidated);
+console.log("IT % of revenue (tools):  ", k.itSpendPercentOfRevenue.toFixed(2) + "%");
+console.log("Total IT % of revenue:    ", (k.totalCostOfIT / k.groupRevenue * 100).toFixed(2) + "%");
+console.log("\n=== RECONCILIATION CHECKS ===");
+console.log(ok(Math.abs(catSum - Math.round(k.totalSpendYTD)) <= 2), "categories sum (", catSum, ") == IT spend (", Math.round(k.totalSpendYTD), ")");
+console.log(ok(k.totalCostOfIT === Math.round(k.totalSpendYTD) + k.itPersonnelCost), "totalCostOfIT == spend + personnel");
+console.log(ok(Math.abs(k.itSpendPercentOfRevenue - (k.totalSpendYTD / k.groupRevenue * 100)) < 0.01), "IT%rev matches spend/revenue");
+console.log(ok(allphi && jonas && Math.round(allphi.totalSpend) === jonas.periodCost), "ALLPHI vendor spend (", allphi ? Math.round(allphi.totalSpend) : "?", ") == Jonas ROI cost (", jonas ? jonas.periodCost : "?", ")");
+console.log(ok(k.openInvoiceAmount >= 0 && k.overdueAmount <= k.openInvoiceAmount), "overdue <= open AP");
+console.log("\n=== OTHER KPIs ===");
+console.log("opex/capex:", k.opexYTD, "/", k.capexYTD, "| depreciation:", k.itDepreciationYTD, "| licenses util:", k.licenseUtilizationPercent.toFixed(0) + "%", "| devices:", k.deviceCount);
+console.log("open AP:", k.openInvoiceAmount, "overdue:", k.overdueAmount, "| trendReliable:", k.spendTrendReliable);
+console.log("dev: commits", dev.totalCommits, "issues", dev.totalIssues, "devs", dev.developerCount, "| itDeptPayroll(period):", dev.itDeptPayrollPeriod);
+console.log("categories:", JSON.stringify(cats.map((c) => [c.category, Math.round(c.amount)])));
