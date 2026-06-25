@@ -14,6 +14,8 @@ export async function GET() {
     bc: { configured: false, connected: false, error: null },
     graph: { configured: false, connected: false, error: null },
     officient: { configured: false, connected: false, error: null },
+    jira: { configured: false, connected: false, error: null },
+    azureDevops: { configured: false, connected: false, error: null },
     dell: { configured: false, connected: false, error: null },
     lenovo: { configured: false, connected: false, error: null },
   };
@@ -32,22 +34,44 @@ export async function GET() {
     catch (e: unknown) { status.graph.error = e instanceof Error ? e.message : String(e); }
   }
 
-  // Officient HR — token or OAuth client credentials
+  // Officient HR — a static API token can work; the OAuth client_id/secret alone
+  // CANNOT authenticate headlessly, so don't claim "connected" without a token.
   if (process.env.OFFICIENT_API_TOKEN || (process.env.OFFICIENT_CLIENT_ID && process.env.OFFICIENT_CLIENT_SECRET)) {
     status.officient.configured = true;
-    status.officient.connected = true; // verified on first HR fetch
+    if (!process.env.OFFICIENT_API_TOKEN) status.officient.error = "OAuth app present, but a personal access token is required for server-to-server access";
   }
 
-  // Dell
+  // Jira — probe /myself so "connected" reflects reality.
+  if (process.env.JIRA_BASE_URL && process.env.JIRA_EMAIL && process.env.JIRA_API_TOKEN) {
+    status.jira.configured = true;
+    try {
+      const auth = "Basic " + Buffer.from(`${process.env.JIRA_EMAIL}:${process.env.JIRA_API_TOKEN}`).toString("base64");
+      const r = await fetch(`${process.env.JIRA_BASE_URL.replace(/\/$/, "")}/rest/api/3/myself`, { headers: { Authorization: auth, Accept: "application/json" } });
+      status.jira.connected = r.ok;
+      if (!r.ok) status.jira.error = `HTTP ${r.status}`;
+    } catch (e: unknown) { status.jira.error = e instanceof Error ? e.message : String(e); }
+  }
+
+  // Azure DevOps — probe /_apis/projects with the PAT.
+  if (process.env.AZURE_DEVOPS_ORG && process.env.AZURE_DEVOPS_PAT) {
+    status.azureDevops.configured = true;
+    try {
+      const auth = "Basic " + Buffer.from(`:${process.env.AZURE_DEVOPS_PAT}`).toString("base64");
+      const r = await fetch(`https://dev.azure.com/${process.env.AZURE_DEVOPS_ORG}/_apis/projects?api-version=7.1`, { headers: { Authorization: auth, Accept: "application/json" } });
+      status.azureDevops.connected = r.ok;
+      if (!r.ok) status.azureDevops.error = `HTTP ${r.status}`;
+    } catch (e: unknown) { status.azureDevops.error = e instanceof Error ? e.message : String(e); }
+  }
+
+  // Dell / Lenovo — configured if creds present, but NOT yet wired into the app, so
+  // never reported "connected" (no live verification).
   if (process.env.DELL_CLIENT_ID && process.env.DELL_CLIENT_SECRET) {
     status.dell.configured = true;
-    status.dell.connected = true; // test on first warranty call
+    status.dell.error = "configured but not integrated yet";
   }
-
-  // Lenovo
   if (process.env.LENOVO_CLIENT_ID) {
     status.lenovo.configured = true;
-    status.lenovo.connected = true;
+    status.lenovo.error = "configured but not integrated yet";
   }
 
   const cache = getCacheStats();

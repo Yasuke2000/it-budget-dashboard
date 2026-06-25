@@ -11,7 +11,7 @@ import type { DeveloperDashboard } from "@/lib/types";
 function fmtDate(d: string): string {
   if (!d) return "—";
   const dt = new Date(d);
-  return Number.isNaN(dt.getTime()) ? "—" : dt.toLocaleDateString("nl-BE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  return Number.isNaN(dt.getTime()) ? "—" : dt.toLocaleString("nl-BE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 export default function DevelopersPage() {
@@ -66,6 +66,7 @@ export default function DevelopersPage() {
           <h1 className="text-2xl font-bold text-white">Developer Dashboard</h1>
           <p className="text-slate-400">
             {data.org}/{data.project} · {selectedRange.label.toLowerCase()} · commits on <span className="text-teal-300">{data.branches.find((b) => b.commits === data.totalCommits)?.name || (branch === "production" ? "master" : "develop")}</span>
+            {data.commitsTruncated ? <span className="text-amber-400"> · ⚠ capped at 5000 commits (undercount)</span> : null}
           </p>
         </div>
         {/* Dev (develop) ↔ Production (master) branch toggle */}
@@ -132,7 +133,7 @@ export default function DevelopersPage() {
       {/* Jira — tickets & hours per developer */}
       {data.jira ? (
         <Card className="bg-slate-900 border-slate-800">
-          <CardHeader><CardTitle className="text-white text-base">Jira — tickets &amp; hours{data.jira.partial ? " · hours sampled" : ""}</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-white text-base">Jira — tickets &amp; hours{data.jira.partial ? " · hours sampled" : ""}{data.jira.countsReliable === false ? " · ⚠ some counts unavailable" : ""}</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

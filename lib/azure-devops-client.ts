@@ -67,11 +67,15 @@ async function getRepoId(): Promise<string | null> {
   return repo?.id ?? null;
 }
 
-// All commits on a branch within [from,to], paginated.
-async function fetchCommits(repoId: string, branch: string, from: string, to: string): Promise<RawCommit[]> {
+// All commits on a branch within [from,to], paginated. `truncated` is true if the
+// 5000-commit safety cap was hit (so callers can flag an undercount rather than
+// silently dropping commits).
+async function fetchCommits(repoId: string, branch: string, from: string, to: string): Promise<{ commits: RawCommit[]; truncated: boolean }> {
   const out: RawCommit[] = [];
   const TOP = 100;
-  for (let skip = 0; skip < 5000; skip += TOP) {
+  const CAP = 5000;
+  let truncated = false;
+  for (let skip = 0; skip < CAP; skip += TOP) {
     const qs = `searchCriteria.itemVersion.version=${encodeURIComponent(branch)}` +
       `&searchCriteria.fromDate=${encodeURIComponent(from)}&searchCriteria.toDate=${encodeURIComponent(to)}` +
       `&searchCriteria.$top=${TOP}&searchCriteria.$skip=${skip}&${API}`;
@@ -79,8 +83,9 @@ async function fetchCommits(repoId: string, branch: string, from: string, to: st
     const rows = data?.value || [];
     out.push(...rows);
     if (rows.length < TOP) break;
+    if (skip + TOP >= CAP) truncated = true; // full last page at the cap → more remain
   }
-  return out;
+  return { commits: out, truncated };
 }
 
 const filesIn = (c: RawCommit) => (c.changeCounts?.Add || 0) + (c.changeCounts?.Edit || 0) + (c.changeCounts?.Delete || 0);
@@ -119,7 +124,7 @@ export async function getDeveloperDashboard(dateFrom: string, dateTo: string, pr
   const empty: DeveloperDashboard = {
     configured: isDevOpsConfigured(), org: ORG, project: PROJECT, repo: REPO,
     rangeFrom: dateFrom, rangeTo: dateTo, totalCommits: 0, developerCount: 0,
-    totalFilesChanged: 0, totalIssues: 0, filesAdded: 0, filesEdited: 0, filesDeleted: 0,
+    totalFilesChanged: 0, totalIssues: 0, commitsTruncated: false, churnSampled: false, filesAdded: 0, filesEdited: 0, filesDeleted: 0,
     developers: [], branches: [], recentCommits: [], churn: [],
     avgFilesPerCommit: 0, smallCommits: 0, largeCommits: 0,
     notes: ["Lines added/deleted are not exposed by the Azure DevOps API — metrics are file-level (accurate)."],
@@ -134,7 +139,8 @@ export async function getDeveloperDashboard(dateFrom: string, dateTo: string, pr
 
   // Primary branch (dev=develop / production=master) drives totals/per-dev/churn;
   // other tracked branches → counts only.
-  const primary = await fetchCommits(repoId, primaryBranch, dateFrom, dateTo);
+  const primaryRes = await fetchCommits(repoId, primaryBranch, dateFrom, dateTo);
+  const primary = primaryRes.commits;
 
   // Per-developer aggregation. Jira issue keys (e.g. GP-2401) are parsed straight
   // from commit messages — the issues are already linked there, so no Jira API is
@@ -167,7 +173,7 @@ export async function getDeveloperDashboard(dateFrom: string, dateTo: string, pr
   // Branch stats (commit count + last activity in window) for each tracked branch.
   const branches: BranchStat[] = [];
   for (const b of TRACKED_BRANCHES) {
-    const commits = b === primaryBranch ? primary : await fetchCommits(repoId, b, dateFrom, dateTo);
+    const commits = b === primaryBranch ? primary : (await fetchCommits(repoId, b, dateFrom, dateTo)).commits;
     const dates = commits.map((c) => c.author?.date).filter(Boolean) as string[];
     branches.push({ name: b, commits: commits.length, lastActivity: dates.length ? dates.sort().slice(-1)[0] : null });
   }
@@ -189,6 +195,7 @@ export async function getDeveloperDashboard(dateFrom: string, dateTo: string, pr
   const result: DeveloperDashboard = {
     configured: true, org: ORG, project: PROJECT, repo: REPO, rangeFrom: dateFrom, rangeTo: dateTo,
     totalCommits, developerCount: developers.length, totalFilesChanged: totalFiles, totalIssues: allIssues.size,
+    commitsTruncated: primaryRes.truncated, churnSampled: primary.length > 80,
     filesAdded, filesEdited, filesDeleted, developers, branches, recentCommits, churn,
     avgFilesPerCommit: totalCommits ? Math.round((totalFiles / totalCommits) * 10) / 10 : 0,
     smallCommits, largeCommits,

@@ -169,17 +169,19 @@ export async function fetchJiraWorklogs(
 // ---- Developer KPIs (Peter's request) ----
 
 /** Count issues matching a JQL via the modern approximate-count endpoint. */
-async function approximateCount(baseUrl: string, authHeader: string, jql: string): Promise<number> {
+// Returns the count, or NULL on any failure — so a transient error is NOT mistaken
+// for a genuine zero on a KPI. Callers flag the result as unreliable when null.
+async function approximateCount(baseUrl: string, authHeader: string, jql: string): Promise<number | null> {
   try {
     const res = await fetchWithRetry(`${baseUrl}/rest/api/3/search/approximate-count`, {
       method: "POST",
       headers: { Authorization: authHeader, Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify({ jql }),
     });
-    if (!res.ok) return 0;
+    if (!res.ok) { console.warn(`Jira approximate-count ${res.status} for: ${jql.slice(0, 80)}`); return null; }
     const d = (await res.json()) as { count?: number };
     return Number(d.count) || 0;
-  } catch { return 0; }
+  } catch (e) { console.warn("Jira approximate-count error:", e); return null; }
 }
 
 /** Resolve a Jira accountId from an email address (null if not found). */
@@ -244,7 +246,14 @@ export async function getJiraDevMetrics(
 
   const projList = projectKeys.map((p) => `"${p}"`).join(", ");
   const proj = `project in (${projList})`;
-  const cnt = (jql: string) => approximateCount(baseUrl, authHeader, jql);
+  // Treat a failed count as 0 for display BUT flag the whole result unreliable, so
+  // the UI can warn instead of presenting a transient error as a real zero.
+  let countsReliable = true;
+  const cnt = async (jql: string): Promise<number> => {
+    const c = await approximateCount(baseUrl, authHeader, jql);
+    if (c === null) { countsReliable = false; return 0; }
+    return c;
+  };
 
   const team: JiraDevStat = {
     opened: await cnt(`${proj} AND created >= "${from}" AND created <= "${to}"`),
@@ -283,7 +292,8 @@ export async function getJiraDevMetrics(
     console.error("Jira worklog-hours aggregation failed:", err);
   }
 
-  const result: JiraMetrics = { configured: true, partial, team, perDev };
-  setCache(cacheKey, result, 120); // 2h
+  const result: JiraMetrics = { configured: true, partial, countsReliable, team, perDev };
+  // Only cache when counts were reliable — don't pin a degraded (error→0) result for 2h.
+  if (countsReliable) setCache(cacheKey, result, 120);
   return result;
 }

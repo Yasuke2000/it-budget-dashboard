@@ -192,9 +192,12 @@ export interface ForecastPoint {
 }
 export interface SpendForecast {
   points: ForecastPoint[];      // ~12 history + 12 forecast months
-  annualForecast: number;       // sum of the next 12 forecast months (incl. personnel)
+  annualForecast: number;       // sum of the next 12 forecast months (incl. personnel + scenario)
   monthlyPersonnel: number;     // flat recurring internal IT-staff cost / month
   includesPersonnel: boolean;
+  annualBudget: number;         // sum of configured budgets over the forecast window (0 = none set)
+  growthPct: number;            // scenario: % growth applied to the variable (tools) part
+  extraMonthly: number;         // scenario: flat extra €/month (new tool / hire)
   method: string;
 }
 
@@ -410,6 +413,7 @@ export interface JiraDevStat {
 export interface JiraMetrics {
   configured: boolean;
   partial: boolean;            // true when the worklog-hours scan hit the issue cap
+  countsReliable: boolean;     // false if any ticket-count query failed (shown as a warning, not a silent 0)
   team: JiraDevStat;           // whole project(s) GP+IT
   perDev: Record<string, JiraDevStat>; // keyed by developer email
 }
@@ -473,6 +477,8 @@ export interface DeveloperDashboard {
   developerCount: number;
   totalFilesChanged: number;
   totalIssues: number;
+  commitsTruncated: boolean;  // true if the 5000-commit pagination cap was hit (undercount)
+  churnSampled: boolean;      // true if churn was computed from a capped sample of commits
   filesAdded: number;
   filesEdited: number;
   filesDeleted: number;

@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       getMonthlySpend(company, fullFrom, fullTo),
       getContracts(),
       getEntitySpend(fullFrom, fullTo),
-      getCostInsights(fullFrom, fullTo),
+      getCostInsights(company, fullFrom, fullTo),
       getDevices(),
     ]);
 

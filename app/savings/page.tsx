@@ -114,6 +114,9 @@ export default function SavingsPage() {
         <p className="text-slate-400">
           Reclaimable licenses after the optimization buffer (spare seats kept for new hires)
         </p>
+        <p className="text-xs text-slate-500 mt-1">
+          Microsoft 365 licences are tenant-wide and reflect current state — this page is not affected by the company or date-range filter.
+        </p>
         {harvest?.hasUsageData && harvest.totalReclaimableAnnual > 0 && (
           <p className="text-sm text-slate-500 mt-1">
             Total reclaimable ≈ <span className="text-teal-300 font-semibold">{formatCurrency(harvest.totalReclaimableAnnual)}/yr</span>{" "}

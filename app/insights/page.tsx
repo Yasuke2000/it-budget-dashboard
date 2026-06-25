@@ -30,7 +30,7 @@ export default async function InsightsPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const sp = await searchParams;
-  const insights = await getCostInsights(sp.from, sp.to);
+  const insights = await getCostInsights(sp.company || "all", sp.from, sp.to);
 
   const totalSavings = insights.reduce((s, i) => s + i.potentialSavings, 0);
   const criticalCount = insights.filter(i => i.severity === "critical").length;

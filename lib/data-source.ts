@@ -119,11 +119,14 @@ async function applyPayroll(
   const toMonth = dateTo?.substring(0, 7);
   const synthetic: PurchaseInvoice[] = [];
   for (const e of entries) {
-    if (companyFilter !== "all" && e.companyId !== "all" && e.companyId !== companyFilter) continue;
+    // A group-level ("all") payroll entry must NOT be attributed at full value to a
+    // single company — that made Σ-per-company exceed the group. Skip "all" entries
+    // when a specific company is selected; only company-specific entries show there.
+    if (companyFilter !== "all" && e.companyId !== companyFilter) continue;
     if (fromMonth && e.month < fromMonth) continue;
     if (toMonth && e.month > toMonth) continue;
     const postingDate = `${e.month}-01`;
-    const companyId = e.companyId === "all" ? (companyFilter !== "all" ? companyFilter : "all") : e.companyId;
+    const companyId = e.companyId;
     synthetic.push({
       id: `payroll-${e.source}-${e.companyId}-${e.month}`,
       number: `${e.source.toUpperCase()}-PAYROLL-${e.month}`,
@@ -213,7 +216,30 @@ export async function getInvoices(
   const yr = new Date().getFullYear();
   const from = dateFrom ?? `${yr}-01-01`;
   const to = dateTo ?? `${yr}-12-31`;
-  const cacheKey = `invoices-${companyFilter}-${from}-${to}`;
+
+  // Load the classification settings up-front so they (a) feed the cache key — a
+  // change to GL mapping / vendor rules / op-software toggle must bust the cache,
+  // not be served stale for the 2h TTL — and (b) are reused inside the flight.
+  let glMapping: Record<string, string>;
+  let vendorRules: Record<string, string>;
+  let opVendors: string[];
+  let includeOp: boolean;
+  try {
+    const settings = await getAppSettings();
+    glMapping = settings.glMappings;
+    vendorRules = settings.itVendorRules;
+    opVendors = settings.operationalSoftwareVendors;
+    includeOp = settings.includeOperationalSoftware;
+  } catch {
+    glMapping = DEFAULT_GL_MAPPING;
+    vendorRules = IT_VENDOR_RULES;
+    opVendors = OPERATIONAL_SOFTWARE_VENDORS;
+    includeOp = true;
+  }
+  const fpStr = `${Object.keys(glMapping).sort().join(".")}|${Object.keys(vendorRules).sort().join(".")}|${[...opVendors].sort().join(".")}|${includeOp ? 1 : 0}`;
+  let fpHash = 0;
+  for (let i = 0; i < fpStr.length; i++) fpHash = (Math.imul(fpHash, 31) + fpStr.charCodeAt(i)) | 0;
+  const cacheKey = `invoices-${companyFilter}-${from}-${to}-${(fpHash >>> 0).toString(36)}`;
   const cached = getCache<PurchaseInvoice[]>(cacheKey);
   if (cached) return applyPayroll(cached, companyFilter, from, to);
 
@@ -239,29 +265,21 @@ export async function getInvoices(
       // working. Posted-invoice headers give the real vendor name per document.
       // Fall back to compiled defaults if the settings store is unavailable —
       // never empty the dashboard over a settings read.
-      let glMapping: Record<string, string>;
-      let vendorRules: Record<string, string>;
-      let opVendors: string[];
-      let includeOp: boolean;
-      try {
-        const settings = await getAppSettings();
-        glMapping = settings.glMappings;
-        vendorRules = settings.itVendorRules;
-        opVendors = settings.operationalSoftwareVendors;
-        includeOp = settings.includeOperationalSoftware;
-      } catch {
-        glMapping = DEFAULT_GL_MAPPING;
-        vendorRules = IT_VENDOR_RULES;
-        opVendors = OPERATIONAL_SOFTWARE_VENDORS;
-        includeOp = true;
-      }
+      // glMapping / vendorRules / opVendors / includeOp were loaded above (and are
+      // part of the cache key), so a cached result can't go stale across a settings
+      // change. Reused here from the enclosing scope.
       const itAccounts = Object.keys(glMapping);
       const vendorPatterns = Object.keys(vendorRules);
       // Also pull the "leak" accounts where allowlisted IT vendors (ALLPHI, Canon,
       // iDocta, GMI) land. We count their ACTUAL G/L posting (debit − credit), not
       // the invoice-header total — that's the accurate measure and nets credit
       // notes. Exclude any scan account that's also a mapped IT account.
-      const scanAccounts = ALLOWLIST_SCAN_ACCOUNTS.filter((a) => !glMapping[a]);
+      // Exclude scan accounts that are already mapped IT accounts, AND defensively
+      // strip any forbidden account (63x depreciation / 49x suspense / 2…09 contra)
+      // so a mis-set scan account can never leak into spend or double-count depreciation.
+      const scanAccounts = ALLOWLIST_SCAN_ACCOUNTS.filter(
+        (a) => !glMapping[a] && !/^(63|49)/.test(a) && !/^2\d*09$/.test(a)
+      );
       const scanSet = new Set(scanAccounts);
       const pullAccounts = [...itAccounts, ...scanAccounts];
 
@@ -1018,7 +1036,7 @@ export async function getMonthlySpend(
   // exists in demo mode — in live mode there is no configured budget source, so
   // the budget line is omitted rather than showing fake numbers.
   const invoices = await getInvoices(companyFilter, from, to);
-  const budget = await getBudgetEntries(companyFilter);
+  const budget = await getBudgetEntries(companyFilter, from, to);
 
   // Enumerate all year-months within the requested range
   const fromDate = new Date(from);
@@ -1057,7 +1075,10 @@ export async function getMonthlySpend(
 // IT-staff cost (flat monthly). This deliberately preserves the lumpy pattern —
 // annual licences that cluster in Q1 are forecast back into Q1 — instead of a flat
 // run-rate that would smear them. An optional growth factor scales the variable part.
-export async function getSpendForecast(companyFilter: CompanyFilter = "all"): Promise<SpendForecast> {
+export async function getSpendForecast(
+  companyFilter: CompanyFilter = "all",
+  opts: { growthPct?: number; extraMonthly?: number } = {}
+): Promise<SpendForecast> {
   const pad = (n: number) => String(n).padStart(2, "0");
   const now = new Date();
   // Trailing 12 FULL months: first day of (this month − 12) … last day of last month.
@@ -1065,12 +1086,18 @@ export async function getSpendForecast(companyFilter: CompanyFilter = "all"): Pr
   const endPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
   const fromStr = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-01`;
   const toStr = `${endPrevMonth.getFullYear()}-${pad(endPrevMonth.getMonth() + 1)}-${pad(endPrevMonth.getDate())}`;
+  // Forecast window = next 12 months (for the configured-budget overlay).
+  const fcFrom = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+  const fcEnd = new Date(now.getFullYear(), now.getMonth() + 12, 0);
+  const fcTo = `${fcEnd.getFullYear()}-${pad(fcEnd.getMonth() + 1)}-${pad(fcEnd.getDate())}`;
 
-  const [monthly, personnelAnnual] = await Promise.all([
+  const [monthly, personnelAnnual, fcBudget] = await Promise.all([
     getMonthlySpend(companyFilter, fromStr, toStr),
     getITPersonnelCost(companyFilter, fromStr, toStr).catch(() => 0),
+    getBudgetEntries(companyFilter, fcFrom, fcTo).catch(() => []),
   ]);
   const monthlyPersonnel = Math.round(personnelAnnual / 12);
+  const annualBudget = Math.round(fcBudget.reduce((s, b) => s + (b.budgetAmount || 0), 0));
 
   // Seasonal baseline: latest actual seen for each calendar month (MM) + the average
   // as a fallback for any missing month.
@@ -1078,7 +1105,11 @@ export async function getSpendForecast(companyFilter: CompanyFilter = "all"): Pr
   for (const m of monthly) byCal.set(m.month.slice(5, 7), m.actual);
   const avgTools = monthly.length ? monthly.reduce((s, m) => s + m.actual, 0) / monthly.length : 0;
 
-  const growth = 1; // flat (no growth) by default — the apparent rise is Q1 seasonality, not trend.
+  // Scenario knobs: growth % on the variable (tools) part + a flat extra monthly cost
+  // (e.g. a new tool or a planned hire). Default 0 / flat.
+  const growthPct = opts.growthPct ?? 0;
+  const growth = 1 + growthPct / 100;
+  const extraMonthly = Math.round(opts.extraMonthly ?? 0);
 
   // History points (trailing actuals, incl. flat personnel) then 12 forecast months.
   const points: ForecastPoint[] = monthly.map((m) => ({
@@ -1094,7 +1125,7 @@ export async function getSpendForecast(companyFilter: CompanyFilter = "all"): Pr
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
     const cal = pad(d.getMonth() + 1);
     const baseTools = (byCal.get(cal) ?? avgTools) * growth;
-    const f = Math.round(baseTools + monthlyPersonnel);
+    const f = Math.round(baseTools + monthlyPersonnel + extraMonthly);
     annualForecast += f;
     points.push({ month: `${d.getFullYear()}-${cal}`, actual: null, forecast: f });
   }
@@ -1104,6 +1135,9 @@ export async function getSpendForecast(companyFilter: CompanyFilter = "all"): Pr
     annualForecast: Math.round(annualForecast),
     monthlyPersonnel,
     includesPersonnel: monthlyPersonnel > 0,
+    annualBudget,
+    growthPct,
+    extraMonthly,
     method: "Seasonal baseline (same calendar month, trailing year) + recurring internal IT staff",
   };
 }
@@ -1119,7 +1153,7 @@ export async function getCategorySpend(
   const to = dateTo ?? `${yr}-12-31`;
   const invoices = await getInvoices(companyFilter, from, to);
   // Budget exists only in demo mode; don't blend demo budget into live figures.
-  const budget = await getBudgetEntries(companyFilter);
+  const budget = await getBudgetEntries(companyFilter, from, to);
 
   const categoryMap = new Map<string, { actual: number; budget: number }>();
 
@@ -1374,14 +1408,17 @@ export async function getPeppolInvoices(): Promise<PeppolInvoice[]> {
 
 // ---- Cost Insights ----
 export async function getCostInsights(
+  companyFilter: CompanyFilter = "all",
   dateFrom?: string,
   dateTo?: string
 ): Promise<CostInsight[]> {
+  // Vendor spend + budget are company-scoped like the rest of the app; licenses and
+  // devices are tenant-wide (M365/Intune) and can't be split per BC company.
   const [licenses, vendors, devices, budget, employees] = await Promise.all([
     getLicenses(),
-    getVendorSummary("all", dateFrom, dateTo),
+    getVendorSummary(companyFilter, dateFrom, dateTo),
     getDevices(),
-    getBudgetEntries(),
+    getBudgetEntries(companyFilter, dateFrom, dateTo),
     getEmployees(),
   ]);
   return generateAllInsights({ licenses, vendors, devices, budget, employees });
