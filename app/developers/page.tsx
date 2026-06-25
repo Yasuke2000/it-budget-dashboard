@@ -5,6 +5,7 @@ import { KPICard } from "@/components/dashboard/kpi-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useDateRange } from "@/components/layout/date-range-context";
+import { formatCurrency } from "@/lib/utils";
 import type { DeveloperDashboard } from "@/lib/types";
 
 function fmtDate(d: string): string {
@@ -89,6 +90,45 @@ export default function DevelopersPage() {
         <KPICard title="Avg Files / Commit" value={String(data.avgFilesPerCommit)} iconName="Key" description={`${data.smallCommits} small · ${data.largeCommits} large`} changeType="neutral" />
       </div>
 
+      {/* Cost vs Output — the ROI question */}
+      {data.roi && data.roi.length > 0 && (
+        <Card className="bg-slate-900 border-slate-800">
+          <CardHeader><CardTitle className="text-white text-base">Cost vs Output — is the dev spend worth it?</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-slate-800 text-slate-400">
+                  <th className="text-left px-4 py-3 font-medium">Developer</th>
+                  <th className="text-left px-4 py-3 font-medium">Cost source</th>
+                  <th className="text-right px-4 py-3 font-medium">Commits</th>
+                  <th className="text-right px-4 py-3 font-medium">Issues</th>
+                  <th className="text-right px-4 py-3 font-medium">Cost (period)</th>
+                  <th className="text-right px-4 py-3 font-medium">€ / commit</th>
+                  <th className="text-right px-4 py-3 font-medium">€ / issue</th>
+                </tr></thead>
+                <tbody>
+                  {data.roi.map((r) => (
+                    <tr key={r.email} className="border-b border-slate-800/50">
+                      <td className="px-4 py-3 text-white font-medium">{r.name}</td>
+                      <td className="px-4 py-3 text-slate-400 text-xs">{r.costLabel}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-slate-300">{r.commits}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-slate-300">{r.issues}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-white">{r.periodCost != null ? formatCurrency(r.periodCost) : "—"}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-teal-300">{r.costPerCommit != null ? formatCurrency(r.costPerCommit) : "—"}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-teal-300">{r.costPerIssue != null ? formatCurrency(r.costPerIssue) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-4 py-3 text-xs text-slate-500 space-y-1 border-t border-slate-800">
+              {data.itDeptPayrollPeriod ? <p>· Internal IT-department payroll this period: <span className="text-slate-300">{formatCurrency(data.itDeptPayrollPeriod)}</span> — covers the internal devs together; per-person isn&apos;t separable in BC.</p> : null}
+              <p>· Commits &amp; issues are activity proxies, not value. Invoice timing is lumpy — read € / commit over months, not days. A directional signal, not a verdict on individuals.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Developer statistics */}
         <Card className="bg-slate-900 border-slate-800">
@@ -99,6 +139,7 @@ export default function DevelopersPage() {
                 <thead><tr className="border-b border-slate-800 text-slate-400">
                   <th className="text-left px-4 py-3 font-medium">Developer</th>
                   <th className="text-right px-4 py-3 font-medium">Commits</th>
+                  <th className="text-right px-4 py-3 font-medium">Issues</th>
                   <th className="text-right px-4 py-3 font-medium">Files</th>
                   <th className="text-right px-4 py-3 font-medium">Avg</th>
                   <th className="text-left px-4 py-3 font-medium w-32">Contribution</th>
@@ -111,6 +152,7 @@ export default function DevelopersPage() {
                         <div className="text-xs text-slate-500">{d.email}</div>
                       </td>
                       <td className="px-4 py-3 text-right"><Badge className="bg-blue-600/80 text-blue-100 border-0">{d.commits}</Badge></td>
+                      <td className="px-4 py-3 text-right text-slate-300 tabular-nums">{d.issues}</td>
                       <td className="px-4 py-3 text-right tabular-nums">
                         <span className="text-emerald-400">+{d.filesAdded}</span>{" "}
                         <span className="text-slate-400">~{d.filesEdited}</span>{" "}
@@ -127,7 +169,7 @@ export default function DevelopersPage() {
                       </td>
                     </tr>
                   ))}
-                  {data.developers.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No commits in this period.</td></tr>}
+                  {data.developers.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No commits in this period.</td></tr>}
                 </tbody>
               </table>
             </div>

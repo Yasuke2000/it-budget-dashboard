@@ -395,6 +395,23 @@ export interface DeveloperStat {
   filesChanged: number;
   avgFilesPerCommit: number;
   contributionPercent: number; // share of total commits in the window
+  issues: number;              // distinct Jira issue keys referenced in this dev's commit messages
+}
+
+// Cost-vs-output ROI row per developer (cost resolved from BC: external vendor or
+// internal IT-dept payroll). costPerCommit/costPerIssue are null when cost is
+// unknown (internal per-person) or excluded (management).
+export interface DeveloperROIRow {
+  name: string;
+  email: string;
+  commits: number;
+  issues: number;
+  filesChanged: number;
+  costLabel: string;
+  periodCost: number | null;
+  costPerCommit: number | null;
+  costPerIssue: number | null;
+  note?: string;
 }
 export interface BranchStat {
   name: string;
@@ -425,6 +442,7 @@ export interface DeveloperDashboard {
   totalCommits: number;
   developerCount: number;
   totalFilesChanged: number;
+  totalIssues: number;
   filesAdded: number;
   filesEdited: number;
   filesDeleted: number;
@@ -436,6 +454,8 @@ export interface DeveloperDashboard {
   smallCommits: number;
   largeCommits: number;
   notes: string[];
+  roi?: DeveloperROIRow[];        // cost-vs-output, assembled in the API route
+  itDeptPayrollPeriod?: number;   // internal IT-dept payroll for the window (context for internal devs)
 }
 
 // === Warranty ===

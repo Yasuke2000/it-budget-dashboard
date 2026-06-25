@@ -119,7 +119,7 @@ export async function getDeveloperDashboard(dateFrom: string, dateTo: string, pr
   const empty: DeveloperDashboard = {
     configured: isDevOpsConfigured(), org: ORG, project: PROJECT, repo: REPO,
     rangeFrom: dateFrom, rangeTo: dateTo, totalCommits: 0, developerCount: 0,
-    totalFilesChanged: 0, filesAdded: 0, filesEdited: 0, filesDeleted: 0,
+    totalFilesChanged: 0, totalIssues: 0, filesAdded: 0, filesEdited: 0, filesDeleted: 0,
     developers: [], branches: [], recentCommits: [], churn: [],
     avgFilesPerCommit: 0, smallCommits: 0, largeCommits: 0,
     notes: ["Lines added/deleted are not exposed by the Azure DevOps API — metrics are file-level (accurate)."],
@@ -136,8 +136,12 @@ export async function getDeveloperDashboard(dateFrom: string, dateTo: string, pr
   // other tracked branches → counts only.
   const primary = await fetchCommits(repoId, primaryBranch, dateFrom, dateTo);
 
-  // Per-developer aggregation.
-  const devMap = new Map<string, DeveloperStat & { _addedFiles: number }>();
+  // Per-developer aggregation. Jira issue keys (e.g. GP-2401) are parsed straight
+  // from commit messages — the issues are already linked there, so no Jira API is
+  // needed to count issues worked per developer.
+  const ISSUE_RE = /\b([A-Z][A-Z0-9]{1,9}-\d+)\b/g;
+  const devMap = new Map<string, DeveloperStat & { _issues: Set<string> }>();
+  const allIssues = new Set<string>();
   let filesAdded = 0, filesEdited = 0, filesDeleted = 0, smallCommits = 0, largeCommits = 0;
   for (const c of primary) {
     const email = c.author?.email || c.author?.name || "?";
@@ -146,8 +150,9 @@ export async function getDeveloperDashboard(dateFrom: string, dateTo: string, pr
     filesAdded += add; filesEdited += edit; filesDeleted += del;
     const f = add + edit + del;
     if (f <= 3) smallCommits++; if (f >= 20) largeCommits++;
-    const d = devMap.get(email) || { name, email, commits: 0, filesAdded: 0, filesEdited: 0, filesDeleted: 0, filesChanged: 0, avgFilesPerCommit: 0, contributionPercent: 0, _addedFiles: 0 };
+    const d = devMap.get(email) || { name, email, commits: 0, filesAdded: 0, filesEdited: 0, filesDeleted: 0, filesChanged: 0, avgFilesPerCommit: 0, contributionPercent: 0, issues: 0, _issues: new Set<string>() };
     d.commits += 1; d.filesAdded += add; d.filesEdited += edit; d.filesDeleted += del; d.filesChanged += f;
+    for (const m of (c.comment || "").matchAll(ISSUE_RE)) { d._issues.add(m[1]); allIssues.add(m[1]); }
     devMap.set(email, d);
   }
   const totalCommits = primary.length;
@@ -156,6 +161,7 @@ export async function getDeveloperDashboard(dateFrom: string, dateTo: string, pr
     filesAdded: d.filesAdded, filesEdited: d.filesEdited, filesDeleted: d.filesDeleted, filesChanged: d.filesChanged,
     avgFilesPerCommit: d.commits ? Math.round((d.filesChanged / d.commits) * 10) / 10 : 0,
     contributionPercent: totalCommits ? Math.round((d.commits / totalCommits) * 1000) / 10 : 0,
+    issues: d._issues.size,
   })).sort((a, b) => b.commits - a.commits);
 
   // Branch stats (commit count + last activity in window) for each tracked branch.
@@ -182,7 +188,7 @@ export async function getDeveloperDashboard(dateFrom: string, dateTo: string, pr
   const totalFiles = filesAdded + filesEdited + filesDeleted;
   const result: DeveloperDashboard = {
     configured: true, org: ORG, project: PROJECT, repo: REPO, rangeFrom: dateFrom, rangeTo: dateTo,
-    totalCommits, developerCount: developers.length, totalFilesChanged: totalFiles,
+    totalCommits, developerCount: developers.length, totalFilesChanged: totalFiles, totalIssues: allIssues.size,
     filesAdded, filesEdited, filesDeleted, developers, branches, recentCommits, churn,
     avgFilesPerCommit: totalCommits ? Math.round((totalFiles / totalCommits) * 10) / 10 : 0,
     smallCommits, largeCommits,
