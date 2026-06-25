@@ -15,6 +15,7 @@ function fmtDate(d: string): string {
 
 export default function DevelopersPage() {
   const { selectedRange } = useDateRange();
+  const [branch, setBranch] = useState<"dev" | "production">("dev");
   const [data, setData] = useState<DeveloperDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
@@ -23,13 +24,13 @@ export default function DevelopersPage() {
     let cancelled = false;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 60_000);
-    const qs = new URLSearchParams({ dateFrom: selectedRange.from, dateTo: selectedRange.to });
+    const qs = new URLSearchParams({ dateFrom: selectedRange.from, dateTo: selectedRange.to, branch });
     fetch(`/api/developers?${qs}`, { signal: controller.signal, cache: "no-store" })
       .then((r) => { if (!r.ok) throw new Error(`developers ${r.status}`); return r.json(); })
       .then((d) => { clearTimeout(timer); if (cancelled) return; setData(d); setErrored(false); setLoading(false); })
       .catch(() => { clearTimeout(timer); if (cancelled) return; setErrored(true); setLoading(false); });
     return () => { cancelled = true; controller.abort(); clearTimeout(timer); };
-  }, [selectedRange.from, selectedRange.to]);
+  }, [selectedRange.from, selectedRange.to, branch]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><p className="text-slate-400">Loading developer metrics…</p></div>;
@@ -59,11 +60,25 @@ export default function DevelopersPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Developer Dashboard</h1>
-        <p className="text-slate-400">
-          {data.org}/{data.project} · {selectedRange.label.toLowerCase()} · commits on <span className="text-teal-300">{data.branches.find((b) => b.commits === data.totalCommits)?.name || "develop"}</span>
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Developer Dashboard</h1>
+          <p className="text-slate-400">
+            {data.org}/{data.project} · {selectedRange.label.toLowerCase()} · commits on <span className="text-teal-300">{data.branches.find((b) => b.commits === data.totalCommits)?.name || (branch === "production" ? "master" : "develop")}</span>
+          </p>
+        </div>
+        {/* Dev (develop) ↔ Production (master) branch toggle */}
+        <div className="inline-flex rounded-lg border border-slate-700 bg-slate-900 p-0.5 text-sm">
+          {(["dev", "production"] as const).map((b) => (
+            <button
+              key={b}
+              onClick={() => setBranch(b)}
+              className={`px-3 py-1.5 rounded-md font-medium transition-colors ${branch === b ? "bg-teal-500/20 text-teal-300" : "text-slate-400 hover:text-slate-200"}`}
+            >
+              {b === "dev" ? "Dev (develop)" : "Production (master)"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* KPIs */}

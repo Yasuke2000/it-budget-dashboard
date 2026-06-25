@@ -115,7 +115,7 @@ async function computeChurn(repoId: string, commits: RawCommit[], cap: number): 
     .slice(0, 10);
 }
 
-export async function getDeveloperDashboard(dateFrom: string, dateTo: string): Promise<DeveloperDashboard> {
+export async function getDeveloperDashboard(dateFrom: string, dateTo: string, primaryBranch: string = PRIMARY_BRANCH): Promise<DeveloperDashboard> {
   const empty: DeveloperDashboard = {
     configured: isDevOpsConfigured(), org: ORG, project: PROJECT, repo: REPO,
     rangeFrom: dateFrom, rangeTo: dateTo, totalCommits: 0, developerCount: 0,
@@ -125,15 +125,16 @@ export async function getDeveloperDashboard(dateFrom: string, dateTo: string): P
     notes: ["Lines added/deleted are not exposed by the Azure DevOps API — metrics are file-level (accurate)."],
   };
   if (!isDevOpsConfigured()) return empty;
-  const cacheKey = `ado-dashboard-${dateFrom}-${dateTo}`;
+  const cacheKey = `ado-dashboard-${primaryBranch}-${dateFrom}-${dateTo}`;
   const cached = getCache<DeveloperDashboard>(cacheKey);
   if (cached) return cached;
 
   const repoId = await getRepoId();
   if (!repoId) return { ...empty, notes: [...empty.notes, "Repository not found / not accessible."] };
 
-  // Primary branch drives totals/per-dev/churn; other tracked branches → counts.
-  const primary = await fetchCommits(repoId, PRIMARY_BRANCH, dateFrom, dateTo);
+  // Primary branch (dev=develop / production=master) drives totals/per-dev/churn;
+  // other tracked branches → counts only.
+  const primary = await fetchCommits(repoId, primaryBranch, dateFrom, dateTo);
 
   // Per-developer aggregation.
   const devMap = new Map<string, DeveloperStat & { _addedFiles: number }>();
@@ -160,7 +161,7 @@ export async function getDeveloperDashboard(dateFrom: string, dateTo: string): P
   // Branch stats (commit count + last activity in window) for each tracked branch.
   const branches: BranchStat[] = [];
   for (const b of TRACKED_BRANCHES) {
-    const commits = b === PRIMARY_BRANCH ? primary : await fetchCommits(repoId, b, dateFrom, dateTo);
+    const commits = b === primaryBranch ? primary : await fetchCommits(repoId, b, dateFrom, dateTo);
     const dates = commits.map((c) => c.author?.date).filter(Boolean) as string[];
     branches.push({ name: b, commits: commits.length, lastActivity: dates.length ? dates.sort().slice(-1)[0] : null });
   }
@@ -171,7 +172,7 @@ export async function getDeveloperDashboard(dateFrom: string, dateTo: string): P
     .slice(0, 15)
     .map((c) => ({
       id: c.commitId.slice(0, 8), author: c.author?.name || "?", email: c.author?.email || "",
-      branch: PRIMARY_BRANCH, message: (c.comment || "").split("\n")[0].slice(0, 90), date: c.author?.date || "",
+      branch: primaryBranch, message: (c.comment || "").split("\n")[0].slice(0, 90), date: c.author?.date || "",
       filesChanged: filesIn(c),
     }));
 
@@ -186,7 +187,7 @@ export async function getDeveloperDashboard(dateFrom: string, dateTo: string): P
     avgFilesPerCommit: totalCommits ? Math.round((totalFiles / totalCommits) * 10) / 10 : 0,
     smallCommits, largeCommits,
     notes: [
-      `Commits counted on the "${PRIMARY_BRANCH}" integration branch; feature-branch WIP not yet merged is excluded.`,
+      `Commits counted on the "${primaryBranch}" branch; commits on other branches not merged into it are excluded.`,
       "Lines added/deleted are not exposed by the Azure DevOps API — metrics are file-level (accurate). Churn sampled from the 80 most recent commits.",
     ],
   };

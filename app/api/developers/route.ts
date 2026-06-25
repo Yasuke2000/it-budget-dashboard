@@ -10,8 +10,12 @@ export async function GET(request: Request) {
   const defaultFrom = new Date(now.getTime() - 7 * 86_400_000).toISOString().slice(0, 10);
   const dateFrom = searchParams.get("dateFrom") || defaultFrom;
   const dateTo = searchParams.get("dateTo") || defaultTo;
+  // Branch toggle: "production" → master, anything else → develop (dev).
+  const branchEnv = searchParams.get("branch") === "production"
+    ? (process.env.AZURE_DEVOPS_PROD_BRANCH || "master")
+    : (process.env.AZURE_DEVOPS_PRIMARY_BRANCH || "develop");
   try {
-    const data = await getDeveloperDashboard(dateFrom, dateTo);
+    const data = await getDeveloperDashboard(dateFrom, dateTo, branchEnv);
     return NextResponse.json(data);
   } catch (e) {
     console.error("developer dashboard error:", e);
