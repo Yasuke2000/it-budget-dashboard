@@ -8,8 +8,9 @@
 // /issue/{key}/worklog endpoint — the worklog field on search returns at most
 // 20 entries per issue, which would silently undercount labour costs.
 
-import type { JiraWorklog } from "./types";
+import type { JiraWorklog, JiraDevStat, JiraMetrics } from "./types";
 import { fetchWithRetry } from "./http";
+import { getCache, setCache } from "./sync-cache";
 
 function getJiraAuth(): { baseUrl: string; authHeader: string } | null {
   const baseUrl = process.env.JIRA_BASE_URL;
@@ -77,7 +78,7 @@ interface IssueWorklogPage {
   worklogs?: Array<{
     started?: string;
     timeSpentSeconds?: number;
-    author?: { displayName?: string; emailAddress?: string };
+    author?: { displayName?: string; emailAddress?: string; accountId?: string };
   }>;
   total?: number;
   maxResults?: number;
@@ -163,4 +164,126 @@ export async function fetchJiraWorklogs(
   }
 
   return worklogs;
+}
+
+// ---- Developer KPIs (Peter's request) ----
+
+/** Count issues matching a JQL via the modern approximate-count endpoint. */
+async function approximateCount(baseUrl: string, authHeader: string, jql: string): Promise<number> {
+  try {
+    const res = await fetchWithRetry(`${baseUrl}/rest/api/3/search/approximate-count`, {
+      method: "POST",
+      headers: { Authorization: authHeader, Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ jql }),
+    });
+    if (!res.ok) return 0;
+    const d = (await res.json()) as { count?: number };
+    return Number(d.count) || 0;
+  } catch { return 0; }
+}
+
+/** Resolve a Jira accountId from an email address (null if not found). */
+async function searchUserAccountId(baseUrl: string, authHeader: string, email: string): Promise<string | null> {
+  try {
+    const res = await fetchWithRetry(`${baseUrl}/rest/api/3/user/search?query=${encodeURIComponent(email)}`, {
+      headers: { Authorization: authHeader, Accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const arr = (await res.json()) as Array<{ accountId?: string }>;
+    return (Array.isArray(arr) && arr[0]?.accountId) || null;
+  } catch { return null; }
+}
+
+const ZERO_STAT: JiraDevStat = { opened: 0, closed: 0, openNow: 0, updated: 0, hours: 0 };
+
+// Hours logged per accountId in the window (bounded: only issues with worklogs in
+// the period, capped, fetched with concurrency). Returns hours by accountId + total.
+async function worklogHoursByAccount(
+  baseUrl: string, authHeader: string, projectKeys: string[], from: string, to: string
+): Promise<{ byAccount: Record<string, number>; total: number; partial: boolean }> {
+  const projList = projectKeys.map((p) => `"${p}"`).join(", ");
+  const issues = await searchIssueKeys(baseUrl, authHeader, `project in (${projList}) AND worklogDate >= "${from}" AND worklogDate <= "${to}"`);
+  const CAP = 250;
+  const partial = issues.length > CAP;
+  const slice = issues.slice(0, CAP);
+  const secByAccount: Record<string, number> = {};
+  let totalSec = 0;
+  const CONC = 8;
+  for (let i = 0; i < slice.length; i += CONC) {
+    const batch = slice.slice(i, i + CONC);
+    const results = await Promise.all(batch.map((iss) => fetchIssueWorklogs(baseUrl, authHeader, iss.key, from, to).catch(() => [])));
+    for (const wls of results) {
+      for (const wl of wls ?? []) {
+        const sec = wl.timeSpentSeconds || 0;
+        totalSec += sec;
+        const acc = wl.author?.accountId;
+        if (acc) secByAccount[acc] = (secByAccount[acc] || 0) + sec;
+      }
+    }
+  }
+  const byAccount: Record<string, number> = {};
+  for (const k of Object.keys(secByAccount)) byAccount[k] = Math.round((secByAccount[k] / 3600) * 10) / 10;
+  return { byAccount, total: Math.round((totalSec / 3600) * 10) / 10, partial };
+}
+
+/**
+ * Per-developer + team Jira KPIs (tickets opened/closed/open/updated + hours
+ * logged) for the given developer emails. Cached 2h (worklog scan is heavy).
+ */
+export async function getJiraDevMetrics(
+  emails: string[], projectKeys: string[] = ["GP", "IT"], dateFrom?: string, dateTo?: string
+): Promise<JiraMetrics | null> {
+  const auth = getJiraAuth();
+  if (!auth) return null;
+  const from = dateFrom || new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
+  const to = dateTo || new Date().toISOString().split("T")[0];
+  const { baseUrl, authHeader } = auth;
+  const cacheKey = `jira-devmetrics-${projectKeys.join("+")}-${from}-${to}-${[...emails].sort().join(",")}`;
+  const cached = getCache<JiraMetrics>(cacheKey);
+  if (cached) return cached;
+
+  const projList = projectKeys.map((p) => `"${p}"`).join(", ");
+  const proj = `project in (${projList})`;
+  const cnt = (jql: string) => approximateCount(baseUrl, authHeader, jql);
+
+  const team: JiraDevStat = {
+    opened: await cnt(`${proj} AND created >= "${from}" AND created <= "${to}"`),
+    closed: await cnt(`${proj} AND statusCategory = Done AND resolved >= "${from}" AND resolved <= "${to}"`),
+    openNow: await cnt(`${proj} AND statusCategory != Done`),
+    updated: await cnt(`${proj} AND updated >= "${from}" AND updated <= "${to}"`),
+    hours: 0,
+  };
+
+  const accByEmail: Record<string, string | null> = {};
+  for (const e of emails) accByEmail[e] = await searchUserAccountId(baseUrl, authHeader, e);
+
+  const perDev: Record<string, JiraDevStat> = {};
+  for (const e of emails) {
+    const acc = accByEmail[e];
+    if (!acc) { perDev[e] = { ...ZERO_STAT }; continue; }
+    perDev[e] = {
+      opened: await cnt(`reporter = "${acc}" AND ${proj} AND created >= "${from}" AND created <= "${to}"`),
+      closed: await cnt(`assignee = "${acc}" AND statusCategory = Done AND resolved >= "${from}" AND resolved <= "${to}"`),
+      openNow: await cnt(`assignee = "${acc}" AND statusCategory != Done`),
+      updated: await cnt(`assignee = "${acc}" AND updated >= "${from}" AND updated <= "${to}"`),
+      hours: 0,
+    };
+  }
+
+  let partial = false;
+  try {
+    const { byAccount, total, partial: p } = await worklogHoursByAccount(baseUrl, authHeader, projectKeys, from, to);
+    partial = p;
+    team.hours = total;
+    for (const e of emails) {
+      const acc = accByEmail[e];
+      if (acc && byAccount[acc] != null) perDev[e].hours = byAccount[acc];
+    }
+  } catch (err) {
+    console.error("Jira worklog-hours aggregation failed:", err);
+  }
+
+  const result: JiraMetrics = { configured: true, partial, team, perDev };
+  setCache(cacheKey, result, 120); // 2h
+  return result;
 }

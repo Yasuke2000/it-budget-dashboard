@@ -384,6 +384,21 @@ export interface LicenseHarvest {
   totalReclaimableAnnual: number; // (unassignedMonthly + inactiveMonthlyEstimate) × 12
 }
 
+// === Jira developer KPIs ===
+export interface JiraDevStat {
+  opened: number;   // tickets created (reporter) in the window
+  closed: number;   // tickets resolved/Done (assignee) in the window
+  openNow: number;  // currently open tickets (assignee, not Done)
+  updated: number;  // tickets updated (assignee) in the window
+  hours: number;    // hours logged (worklogs) in the window
+}
+export interface JiraMetrics {
+  configured: boolean;
+  partial: boolean;            // true when the worklog-hours scan hit the issue cap
+  team: JiraDevStat;           // whole project(s) GP+IT
+  perDev: Record<string, JiraDevStat>; // keyed by developer email
+}
+
 // === Developer productivity (Azure DevOps) ===
 export interface DeveloperStat {
   name: string;
@@ -456,6 +471,7 @@ export interface DeveloperDashboard {
   notes: string[];
   roi?: DeveloperROIRow[];        // cost-vs-output, assembled in the API route
   itDeptPayrollPeriod?: number;   // internal IT-dept payroll for the window (context for internal devs)
+  jira?: JiraMetrics;             // Jira ticket + hours KPIs, assembled in the API route
 }
 
 // === Warranty ===

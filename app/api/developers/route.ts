@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDeveloperDashboard } from "@/lib/azure-devops-client";
 import { getVendorSummary, getITPersonnelCost } from "@/lib/data-source";
+import { getJiraDevMetrics } from "@/lib/jira-client";
 import type { DeveloperROIRow } from "@/lib/types";
 
 // Map each developer (by commit-author email) to a cost source. External devs map
@@ -25,6 +26,9 @@ export async function GET(request: Request) {
   try {
     const data = await getDeveloperDashboard(dateFrom, dateTo, branchEnv);
     if (data.configured && data.developers.length) {
+      // Jira ticket + hours KPIs for the same developers (best-effort).
+      const jira = await getJiraDevMetrics(data.developers.map((d) => d.email), ["GP", "IT"], dateFrom, dateTo).catch(() => null);
+      if (jira) data.jira = jira;
       // Cost sources for the same window (best-effort; lumpy invoice timing means
       // ROI is most meaningful over months, not days).
       const [vendors, itPayroll] = await Promise.all([

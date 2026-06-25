@@ -129,6 +129,53 @@ export default function DevelopersPage() {
         </Card>
       )}
 
+      {/* Jira — tickets & hours per developer */}
+      {data.jira ? (
+        <Card className="bg-slate-900 border-slate-800">
+          <CardHeader><CardTitle className="text-white text-base">Jira — tickets &amp; hours{data.jira.partial ? " · hours sampled" : ""}</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-slate-800 text-slate-400">
+                  <th className="text-left px-4 py-3 font-medium">Developer</th>
+                  <th className="text-right px-4 py-3 font-medium">Opened</th>
+                  <th className="text-right px-4 py-3 font-medium">Closed</th>
+                  <th className="text-right px-4 py-3 font-medium">Open now</th>
+                  <th className="text-right px-4 py-3 font-medium">Updated</th>
+                  <th className="text-right px-4 py-3 font-medium">Hours</th>
+                </tr></thead>
+                <tbody>
+                  {data.developers.map((d) => {
+                    const j = data.jira?.perDev[d.email] ?? { opened: 0, closed: 0, openNow: 0, updated: 0, hours: 0 };
+                    return (
+                      <tr key={d.email} className="border-b border-slate-800/50">
+                        <td className="px-4 py-3 text-white font-medium">{d.name}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{j.opened}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-emerald-400">{j.closed}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{j.openNow}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{j.updated}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-teal-300">{j.hours}h</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="border-t border-slate-700">
+                    <td className="px-4 py-3 text-slate-400 font-semibold">Team (GP + IT)</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.opened}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.closed}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.openNow}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.updated}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.hours}h</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="px-4 py-3 text-xs text-slate-500 border-t border-slate-800">
+              · Opened = created (reporter) · Closed = resolved (assignee) · Open now = currently assigned &amp; not Done · Updated = touched in period · Hours = worklog time.{data.jira.partial ? " Hours sampled from the 250 most recent issues with worklogs." : ""}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Developer statistics */}
         <Card className="bg-slate-900 border-slate-800">
