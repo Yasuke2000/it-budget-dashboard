@@ -409,6 +409,7 @@ export interface JiraDevStat {
   openNow: number;  // currently open tickets (assignee, not Done)
   updated: number;  // tickets updated (assignee) in the window
   hours: number;    // hours logged (worklogs) in the window
+  responseHours: number | null; // avg hours from ticket creation to first comment/worklog (null if none)
 }
 export interface JiraMetrics {
   configured: boolean;

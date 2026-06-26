@@ -144,10 +144,11 @@ export default function DevelopersPage() {
                   <th className="text-right px-4 py-3 font-medium">Open now</th>
                   <th className="text-right px-4 py-3 font-medium">Updated</th>
                   <th className="text-right px-4 py-3 font-medium">Hours</th>
+                  <th className="text-right px-4 py-3 font-medium">Response</th>
                 </tr></thead>
                 <tbody>
                   {data.developers.map((d) => {
-                    const j = data.jira?.perDev[d.email] ?? { opened: 0, closed: 0, openNow: 0, updated: 0, hours: 0 };
+                    const j = data.jira?.perDev[d.email] ?? { opened: 0, closed: 0, openNow: 0, updated: 0, hours: 0, responseHours: null };
                     return (
                       <tr key={d.email} className="border-b border-slate-800/50">
                         <td className="px-4 py-3 text-white font-medium">{d.name}</td>
@@ -156,6 +157,7 @@ export default function DevelopersPage() {
                         <td className="px-4 py-3 text-right tabular-nums text-slate-300">{j.openNow}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-slate-300">{j.updated}</td>
                         <td className="px-4 py-3 text-right tabular-nums text-teal-300">{j.hours}h</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-amber-300">{j.responseHours != null ? `${j.responseHours}h` : "—"}</td>
                       </tr>
                     );
                   })}
@@ -166,12 +168,13 @@ export default function DevelopersPage() {
                     <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.openNow}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.updated}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.hours}h</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.responseHours != null ? `${data.jira.team.responseHours}h` : "—"}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
             <div className="px-4 py-3 text-xs text-slate-500 border-t border-slate-800">
-              · Opened = created (reporter) · Closed = resolved (assignee) · Open now = currently assigned &amp; not Done · Updated = touched in period · Hours = worklog time.{data.jira.partial ? " Hours sampled from the 250 most recent issues with worklogs." : ""}
+              · Opened = created (reporter) · Closed = resolved (assignee) · Open now = currently assigned &amp; not Done · Updated = touched in period · Hours = worklog time · Response = avg time from ticket creation to first comment/worklog.{data.jira.partial ? " Hours sampled from the 250 most recent issues with worklogs; response time from the 100 most recently created issues." : ""}
             </div>
           </CardContent>
         </Card>

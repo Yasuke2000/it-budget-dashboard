@@ -196,7 +196,45 @@ async function searchUserAccountId(baseUrl: string, authHeader: string, email: s
   } catch { return null; }
 }
 
-const ZERO_STAT: JiraDevStat = { opened: 0, closed: 0, openNow: 0, updated: 0, hours: 0 };
+const ZERO_STAT: JiraDevStat = { opened: 0, closed: 0, openNow: 0, updated: 0, hours: 0, responseHours: null };
+
+// Earliest "first response" on an issue = min(first comment.created, earliest worklog.started)
+// after the issue was created. Returns ms-to-first-response, or null if none yet.
+async function fetchFirstResponseMs(baseUrl: string, authHeader: string, issueKey: string, createdMs: number): Promise<number | null> {
+  const h = { Authorization: authHeader, Accept: "application/json" };
+  let earliest = Infinity;
+  try {
+    const [cRes, wRes] = await Promise.all([
+      fetchWithRetry(`${baseUrl}/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment?orderBy=created&maxResults=1`, { headers: h }),
+      fetchWithRetry(`${baseUrl}/rest/api/3/issue/${encodeURIComponent(issueKey)}/worklog?maxResults=50`, { headers: h }),
+    ]);
+    if (cRes.ok) { const j = (await cRes.json()) as { comments?: { created?: string }[] }; const c = j.comments?.[0]?.created; if (c) earliest = Math.min(earliest, Date.parse(c)); }
+    if (wRes.ok) { const j = (await wRes.json()) as { worklogs?: { started?: string }[] }; for (const w of j.worklogs ?? []) { if (w.started) earliest = Math.min(earliest, Date.parse(w.started)); } }
+  } catch { return null; }
+  if (!isFinite(earliest)) return null;
+  const ms = earliest - createdMs;
+  return ms >= 0 ? ms : null;
+}
+
+// Issues CREATED in the window, with created date + assignee accountId (for the
+// response-time KPI). Paginated, capped.
+async function searchCreatedIssues(baseUrl: string, authHeader: string, jql: string, cap: number): Promise<{ key: string; created: string; assignee: string | null }[]> {
+  const out: { key: string; created: string; assignee: string | null }[] = [];
+  let nextPageToken: string | undefined;
+  for (let page = 0; page < 50 && out.length < cap; page++) {
+    const res = await fetchWithRetry(`${baseUrl}/rest/api/3/search/jql`, {
+      method: "POST",
+      headers: { Authorization: authHeader, Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ jql, fields: ["created", "assignee"], maxResults: 100, ...(nextPageToken ? { nextPageToken } : {}) }),
+    });
+    if (!res.ok) break;
+    const data = (await res.json()) as { issues?: { key: string; fields?: { created?: string; assignee?: { accountId?: string } } }[]; nextPageToken?: string; isLast?: boolean };
+    for (const i of data.issues ?? []) out.push({ key: i.key, created: i.fields?.created ?? "", assignee: i.fields?.assignee?.accountId ?? null });
+    if (data.isLast || !data.nextPageToken || data.nextPageToken === nextPageToken) break;
+    nextPageToken = data.nextPageToken;
+  }
+  return out.slice(0, cap);
+}
 
 // Hours logged per accountId in the window (bounded: only issues with worklogs in
 // the period, capped, fetched with concurrency). Returns hours by accountId + total.
@@ -226,6 +264,44 @@ async function worklogHoursByAccount(
   const byAccount: Record<string, number> = {};
   for (const k of Object.keys(secByAccount)) byAccount[k] = Math.round((secByAccount[k] / 3600) * 10) / 10;
   return { byAccount, total: Math.round((totalSec / 3600) * 10) / 10, partial };
+}
+
+// Avg hours from issue creation to first response (oldest comment OR earliest
+// worklog), team-wide and per assignee accountId. Scans issues CREATED in the
+// window (capped, newest first) and probes each for its first response.
+async function firstResponseByAccount(
+  baseUrl: string, authHeader: string, projectKeys: string[], from: string, to: string
+): Promise<{ byAccount: Record<string, number>; team: number | null; partial: boolean }> {
+  const projList = projectKeys.map((p) => `"${p}"`).join(", ");
+  const CAP = 100;
+  const issues = await searchCreatedIssues(
+    baseUrl, authHeader,
+    `project in (${projList}) AND created >= "${from}" AND created <= "${to}" ORDER BY created DESC`,
+    CAP,
+  );
+  const partial = issues.length >= CAP;
+  const msByAccount: Record<string, number[]> = {};
+  const allMs: number[] = [];
+  const CONC = 8;
+  for (let i = 0; i < issues.length; i += CONC) {
+    const batch = issues.slice(i, i + CONC);
+    const results = await Promise.all(batch.map(async (iss) => {
+      const createdMs = iss.created ? Date.parse(iss.created) : NaN;
+      if (!isFinite(createdMs)) return null;
+      const ms = await fetchFirstResponseMs(baseUrl, authHeader, iss.key, createdMs).catch(() => null);
+      return ms == null ? null : { ms, assignee: iss.assignee };
+    }));
+    for (const r of results) {
+      if (!r) continue;
+      allMs.push(r.ms);
+      if (r.assignee) { (msByAccount[r.assignee] = msByAccount[r.assignee] || []).push(r.ms); }
+    }
+  }
+  const HOUR = 3600000;
+  const avg = (arr: number[]) => (arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length / HOUR) * 10) / 10 : null);
+  const byAccount: Record<string, number> = {};
+  for (const k of Object.keys(msByAccount)) { const a = avg(msByAccount[k]); if (a != null) byAccount[k] = a; }
+  return { byAccount, team: avg(allMs), partial };
 }
 
 /**
@@ -261,6 +337,7 @@ export async function getJiraDevMetrics(
     openNow: await cnt(`${proj} AND statusCategory != Done`),
     updated: await cnt(`${proj} AND updated >= "${from}" AND updated <= "${to}"`),
     hours: 0,
+    responseHours: null,
   };
 
   const accByEmail: Record<string, string | null> = {};
@@ -276,6 +353,7 @@ export async function getJiraDevMetrics(
       openNow: await cnt(`assignee = "${acc}" AND statusCategory != Done`),
       updated: await cnt(`assignee = "${acc}" AND updated >= "${from}" AND updated <= "${to}"`),
       hours: 0,
+      responseHours: null,
     };
   }
 
@@ -290,6 +368,19 @@ export async function getJiraDevMetrics(
     }
   } catch (err) {
     console.error("Jira worklog-hours aggregation failed:", err);
+  }
+
+  // Avg time-to-first-response (creation → first comment/worklog), team + per dev.
+  try {
+    const { byAccount, team: teamResp, partial: rp } = await firstResponseByAccount(baseUrl, authHeader, projectKeys, from, to);
+    partial = partial || rp;
+    team.responseHours = teamResp;
+    for (const e of emails) {
+      const acc = accByEmail[e];
+      if (acc && byAccount[acc] != null) perDev[e].responseHours = byAccount[acc];
+    }
+  } catch (err) {
+    console.error("Jira first-response aggregation failed:", err);
   }
 
   const result: JiraMetrics = { configured: true, partial, countsReliable, team, perDev };
