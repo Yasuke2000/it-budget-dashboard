@@ -1235,36 +1235,40 @@ export async function getEmployees(): Promise<Employee[]> {
   // errors, fall back to demo data instead of throwing — an unhandled throw
   // here previously crashed the entire Personnel page (HTTP 500 / white screen).
   try {
-    const { fetchEmployees, fetchAssets, fetchWagesForPeople } = await import("./officient-client");
-    const [officientEmployees, officientAssets] = await Promise.all([
-      fetchEmployees(),
-      fetchAssets(),
+    const { fetchRoster, fetchITTeamMembers, fetchAssets } = await import("./officient-client");
+    // Full roster = group headcount denominator (cheap, list-only). IT team is
+    // pinned by person id and enriched with role/start-date. Assets are optional.
+    const [roster, itMembers, assets] = await Promise.all([
+      fetchRoster(),
+      fetchITTeamMembers(),
+      fetchAssets().catch(() => []),
     ]);
 
     const assetsByPerson = new Map<number, { id: number; name: string; description: string; category: string }[]>();
-    officientAssets.forEach((a) => {
+    assets.forEach((a) => {
       const list = assetsByPerson.get(a.person_id) || [];
-      list.push({ id: a.id, name: a.name, description: a.description, category: a.category });
+      list.push({ id: a.id, name: a.name, description: a.serial_number || a.vendor || "", category: "Hardware" });
       assetsByPerson.set(a.person_id, list);
     });
 
-    // Pull employer cost per person so personnel KPIs reflect real salary cost.
-    // Without this, monthlyCost stays undefined and itSalaryCost computes to 0.
-    const activeIds = officientEmployees.filter((e) => e.status === "active").map((e) => e.id);
-    const wagesByPerson = await fetchWagesForPeople(activeIds);
-
+    // Officient has no per-person wage data (payroll is in EasyPay), so
+    // monthlyCost is left undefined; IT salary cost is sourced from BC instead.
+    const itById = new Map(itMembers.map((m) => [m.id, m]));
     sourceStatus.employees = "live";
-    return officientEmployees.map((e) => ({
-      id: e.id,
-      name: e.name,
-      email: e.email,
-      department: e.department,
-      functionTitle: e.function_title,
-      startDate: e.start_date,
-      status: e.status,
-      monthlyCost: wagesByPerson.get(e.id) ?? 0,
-      assets: assetsByPerson.get(e.id) || [],
-    }));
+    return roster.map((p) => {
+      const it = itById.get(p.id);
+      return {
+        id: p.id,
+        name: p.name,
+        email: p.email,
+        department: it ? "IT" : "Other",
+        functionTitle: it?.function_title || "",
+        startDate: it?.start_date || "",
+        status: "active" as const,
+        monthlyCost: undefined,
+        assets: assetsByPerson.get(p.id) || [],
+      };
+    });
   } catch (err) {
     // Live mode: real data or empty — never demo employees. Officient isn't
     // connected yet (no credentials), so personnel shows empty with a notice.
@@ -1338,8 +1342,17 @@ export async function getPersonnelKPIs(): Promise<PersonnelKPIs> {
   const active = employees.filter((e) => e.status === "active");
   const itTeam = active.filter((e) => e.department === "IT");
 
-  // IT salary cost: sum of monthly costs for IT employees only
-  const itSalaryCost = itTeam.reduce((sum, e) => sum + (e.monthlyCost || 0), 0);
+  // IT salary cost. Officient has no per-person wage (payroll is in EasyPay), so
+  // the internal IT salary cost comes from BC (class-62 GL tagged AFDELING=IT)
+  // over a trailing 12 months, expressed as a monthly figure.
+  let itSalaryCost = 0;
+  if (!isDemoMode()) {
+    const toD = new Date();
+    const fromD = new Date(toD.getFullYear() - 1, toD.getMonth(), toD.getDate());
+    const fmt = (d: Date) => d.toISOString().split("T")[0];
+    const annual = await getITPersonnelCost("all", fmt(fromD), fmt(toD)).catch(() => 0);
+    itSalaryCost = Math.round(annual / 12);
+  }
   const totalPersonnelCost = itSalaryCost;
   const avgITCostPerEmployee = itTeam.length > 0 ? itSalaryCost / itTeam.length : 0;
 

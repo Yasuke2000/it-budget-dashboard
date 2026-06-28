@@ -60,7 +60,29 @@ async function fetchOfficient(endpoint: string): Promise<unknown> {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
   if (!response.ok) throw new Error(`Officient API error: ${response.status} on ${endpoint}`);
-  return response.json();
+  // Officient serves its SPA HTML shell (HTTP 200) for unrecognised API paths.
+  // Guard so a wrong endpoint surfaces as an error instead of HTML-as-JSON.
+  const text = await response.text();
+  if (text.trimStart().startsWith("<")) throw new Error(`Officient API returned HTML (not JSON) on ${endpoint} — wrong path?`);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Officient API returned non-JSON on ${endpoint}`);
+  }
+}
+
+/** Paginate an Officient "/…/list" endpoint (30 rows/page, page index from 0). */
+async function fetchAllPages(path: string): Promise<Record<string, unknown>[]> {
+  const PAGE_SIZE = 30;
+  const sep = path.includes("?") ? "&" : "?";
+  const out: Record<string, unknown>[] = [];
+  for (let page = 0; page < 200; page++) {
+    const data = (await fetchOfficient(`${path}${sep}page=${page}`)) as { data?: Record<string, unknown>[] };
+    const rows = data.data || [];
+    out.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+  }
+  return out;
 }
 
 export interface OfficientEmployee {
@@ -71,105 +93,99 @@ export interface OfficientEmployee {
   function_title: string;
   start_date: string;
   status: "active" | "inactive";
-  monthlyCost?: number;
 }
 
 export interface OfficientAsset {
   id: number;
   person_id: number;
   name: string;
-  description: string;
-  category: string;
+  price: number;
+  vendor: string;
+  serial_number: string;
 }
 
 export interface OfficientTeam {
   id: number;
   name: string;
-  manager_id: number | null;
-  member_count: number;
 }
 
 /**
- * List people. Officient paginates /people/list at 30 items per page (page index
- * starts at 0). We loop until a short page signals the end.
+ * Officient person IDs of the internal IT team. Officient's own team tagging
+ * (team id 36359 "GSS IT Team") is incomplete and eventually-consistent — a
+ * bulk scan of all 254 people drops members intermittently — so we pin the
+ * roster by stable person id instead of scanning:
+ *   692279 David Delporte (IT Wizard) · 553102 Stijn Vandamme (Sr. ICT Software Developer)
+ *   773276 Thibo Haneca (Jobstudent IT) · 788103 Merijn Van Belleghem
+ * Edit this list when the team changes.
  */
-export async function fetchEmployees(): Promise<OfficientEmployee[]> {
-  const PAGE_SIZE = 30;
-  const out: OfficientEmployee[] = [];
-  for (let page = 0; page < 200; page++) {
-    const data = (await fetchOfficient(
-      `/people/list?page=${page}&include_archived=0`
-    )) as { data?: Record<string, unknown>[] };
-    const rows = data.data || [];
-    for (const p of rows) {
-      out.push({
-        id: p.id as number,
-        name: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim(),
-        email: (p.email as string) || "",
-        department: (p.department as { name?: string } | undefined)?.name || "Unknown",
-        function_title: (p.function_description as string) || (p.function_title as string) || "",
-        start_date: (p.start_date as string) || "",
-        status: p.status === "active" ? "active" : "inactive",
-      });
-    }
-    if (rows.length < PAGE_SIZE) break;
-  }
-  return out;
+export const IT_TEAM_PERSON_IDS = [692279, 553102, 773276, 788103];
+
+interface OfficientPersonDetail {
+  name?: string;
+  email?: string;
+  team?: { id?: number; name?: string } | null;
+  current_role?: { name?: string } | null;
+  employment?: { first_employment_date?: string } | null;
 }
 
-export async function fetchTeams(): Promise<OfficientTeam[]> {
-  const data = (await fetchOfficient("/teams")) as { data?: Record<string, unknown>[] };
-  return (data.data || []).map((t: Record<string, unknown>) => ({
-    id: t.id as number,
-    name: t.name as string,
-    manager_id: (t.manager_id as number | null) ?? null,
-    member_count: (t.people_count as number) || 0,
-  }));
-}
-
-export async function fetchAssets(): Promise<OfficientAsset[]> {
-  const data = (await fetchOfficient("/assets")) as { data?: Record<string, unknown>[] };
-  return (data.data || []).map((a: Record<string, unknown>) => ({
-    id: a.id as number,
-    person_id: a.person_id as number,
-    name: a.name as string,
-    description: (a.description as string) || "",
-    category: (a.category as string) || "Other",
-  }));
-}
-
-export async function fetchWageData(
-  personId: number
-): Promise<{ grossMonthly: number; totalCost: number } | null> {
+async function fetchPersonDetail(id: number): Promise<OfficientPersonDetail | null> {
   try {
-    const data = (await fetchOfficient(`/people/${personId}/current_wage`)) as {
-      data?: { gross_monthly?: number; total_cost?: number };
-    };
-    return {
-      grossMonthly: data.data?.gross_monthly || 0,
-      totalCost: data.data?.total_cost || 0,
-    };
+    const data = (await fetchOfficient(`/people/${id}/detail`)) as { data?: OfficientPersonDetail };
+    return data.data ?? null;
   } catch {
     return null;
   }
 }
 
 /**
- * Fetch employer-cost (total_cost) for many people with bounded concurrency,
- * so the personnel KPIs reflect real salary cost instead of zero.
+ * Active roster (id/name/email/company). Cheap — list endpoint only, no
+ * per-person detail calls. Used as the group headcount denominator.
  */
-export async function fetchWagesForPeople(
-  personIds: number[]
-): Promise<Map<number, number>> {
-  const result = new Map<number, number>();
-  const CONCURRENCY = 5;
-  for (let i = 0; i < personIds.length; i += CONCURRENCY) {
-    const slice = personIds.slice(i, i + CONCURRENCY);
-    const wages = await Promise.all(slice.map((id) => fetchWageData(id)));
-    slice.forEach((id, idx) => {
-      const wage = wages[idx];
-      if (wage) result.set(id, wage.totalCost || wage.grossMonthly || 0);
-    });
-  }
-  return result;
+export async function fetchRoster(): Promise<{ id: number; name: string; email: string; company: string }[]> {
+  const rows = await fetchAllPages("/people/list?include_archived=0");
+  return rows.map((p) => ({
+    id: p.id as number,
+    name: (p.name as string) || "",
+    email: (p.email as string) || "",
+    company: (p.linked_integration_alias as string) || "",
+  }));
+}
+
+/**
+ * Internal IT team, enriched from /people/{id}/detail for the pinned IDs.
+ * NOTE: Officient holds NO wage/salary data for this tenant (payroll runs in
+ * EasyPay), so there is no per-person cost — IT salary cost comes from BC.
+ */
+export async function fetchITTeamMembers(): Promise<OfficientEmployee[]> {
+  const details = await Promise.all(
+    IT_TEAM_PERSON_IDS.map(async (id) => ({ id, detail: await fetchPersonDetail(id) }))
+  );
+  return details
+    .filter((x) => x.detail)
+    .map(({ id, detail }) => ({
+      id,
+      name: detail!.name || "",
+      email: detail!.email || "",
+      department: "IT",
+      function_title: detail!.current_role?.name || "",
+      start_date: detail!.employment?.first_employment_date || "",
+      status: "active" as const,
+    }));
+}
+
+export async function fetchTeams(): Promise<OfficientTeam[]> {
+  const rows = await fetchAllPages("/teams/list");
+  return rows.map((t) => ({ id: t.id as number, name: (t.name as string) || "" }));
+}
+
+export async function fetchAssets(): Promise<OfficientAsset[]> {
+  const rows = await fetchAllPages("/assets/list");
+  return rows.map((a) => ({
+    id: a.id as number,
+    person_id: (a.owner as { id?: number } | undefined)?.id ?? 0,
+    name: (a.name as string) || "",
+    price: parseFloat((a.price as string) || "0") || 0,
+    vendor: (a.vendor as string) || "",
+    serial_number: (a.serial_number as string) || "",
+  }));
 }

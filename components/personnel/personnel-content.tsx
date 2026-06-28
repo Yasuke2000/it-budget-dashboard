@@ -71,7 +71,7 @@ export function PersonnelContent({ employees, kpis }: PersonnelContentProps) {
         <div>
           <h1 className="text-2xl font-bold text-white">IT Team</h1>
           <p className="text-slate-400">
-            IT headcount, salary costs, and labor allocation — Officient HR
+            Roster from Officient HR · internal salary cost from Business Central
           </p>
         </div>
         <GDPRToggle enabled={privacyMode} onChange={setPrivacyMode} />
@@ -89,7 +89,7 @@ export function PersonnelContent({ employees, kpis }: PersonnelContentProps) {
           title="Monthly IT Salary Cost"
           value={privacyMode ? "•••" : formatCurrency(kpis.itSalaryCost)}
           iconName="DollarSign"
-          description={privacyMode ? "Enable full view to see costs" : "Sum of IT gross salaries"}
+          description={privacyMode ? "Enable full view to see costs" : "Internal IT payroll (BC, AFDELING=IT)"}
           changeType="neutral"
         />
         <KPICard
@@ -174,7 +174,7 @@ export function PersonnelContent({ employees, kpis }: PersonnelContentProps) {
         <CardHeader>
           <CardTitle className="text-white">IT Team</CardTitle>
           <p className="text-sm text-slate-400">
-            {kpis.itHeadcount} active members{privacyMode ? "" : " · monthly cost overview"}
+            {kpis.itHeadcount} active members · roster from Officient. Per-person salary isn&apos;t available (payroll runs in EasyPay), so cost shows at team level only.
           </p>
         </CardHeader>
         <CardContent>

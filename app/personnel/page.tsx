@@ -19,7 +19,7 @@ export default async function PersonnelPage() {
   return (
     <div className="space-y-6">
       {notConnected && (
-        <SampleDataBanner message="No HR data yet — Officient is not connected (awaiting API credentials). Headcount and personnel cost will populate once connected." />
+        <SampleDataBanner message="Officient HR data is temporarily unavailable — the roster could not be loaded. The IT salary cost (from Business Central) is unaffected." />
       )}
       <PersonnelContent employees={employees} kpis={kpis} />
     </div>

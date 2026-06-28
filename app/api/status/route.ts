@@ -34,11 +34,21 @@ export async function GET() {
     catch (e: unknown) { status.graph.error = e instanceof Error ? e.message : String(e); }
   }
 
-  // Officient HR — a static API token can work; the OAuth client_id/secret alone
-  // CANNOT authenticate headlessly, so don't claim "connected" without a token.
+  // Officient HR — a static API token works (Bearer); the OAuth client_id/secret
+  // alone CANNOT authenticate headlessly. Live-probe /people/list when a token is set.
   if (process.env.OFFICIENT_API_TOKEN || (process.env.OFFICIENT_CLIENT_ID && process.env.OFFICIENT_CLIENT_SECRET)) {
     status.officient.configured = true;
-    if (!process.env.OFFICIENT_API_TOKEN) status.officient.error = "OAuth app present, but a personal access token is required for server-to-server access";
+    if (!process.env.OFFICIENT_API_TOKEN) {
+      status.officient.error = "OAuth app present, but a personal access token is required for server-to-server access";
+    } else {
+      try {
+        const r = await fetch("https://api.officient.io/1.0/people/list?page=0&include_archived=0", {
+          headers: { Authorization: `Bearer ${process.env.OFFICIENT_API_TOKEN}`, Accept: "application/json" },
+        });
+        status.officient.connected = r.ok;
+        if (!r.ok) status.officient.error = `HTTP ${r.status}`;
+      } catch (e: unknown) { status.officient.error = e instanceof Error ? e.message : String(e); }
+    }
   }
 
   // Jira — probe /myself so "connected" reflects reality.
