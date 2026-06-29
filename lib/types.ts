@@ -265,6 +265,8 @@ export interface Employee {
   startDate: string;
   status: "active" | "inactive";
   monthlyCost?: number;
+  /** Jobstudent — variable hours; excluded from the IT salary cost total. */
+  isStudent?: boolean;
   assets?: EmployeeAsset[];
 }
 

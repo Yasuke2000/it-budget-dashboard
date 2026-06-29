@@ -1231,6 +1231,13 @@ async function getDemoEmployees(): Promise<Employee[]> {
 export async function getEmployees(): Promise<Employee[]> {
   if (isDemoMode()) return getDemoEmployees();
 
+  // Cache the live roster — a single page load fans out to ~22 Officient calls
+  // (roster pages + per-IT-member detail/wage + assets), and getEmployees is hit
+  // by both the Personnel page and cost insights. HR data changes rarely → 1h.
+  const cacheKey = "officient-employees";
+  const cached = getCache<Employee[]>(cacheKey);
+  if (cached) return cached;
+
   // Live mode: fetch from Officient. If credentials are missing or the API
   // errors, fall back to demo data instead of throwing — an unhandled throw
   // here previously crashed the entire Personnel page (HTTP 500 / white screen).
@@ -1251,11 +1258,12 @@ export async function getEmployees(): Promise<Employee[]> {
       assetsByPerson.set(a.person_id, list);
     });
 
-    // Officient has no per-person wage data (payroll is in EasyPay), so
-    // monthlyCost is left undefined; IT salary cost is sourced from BC instead.
+    // Per-person monthly employer cost comes from Officient /wages/{id}/current
+    // (estimated_monthly_total) for the IT team. Students carry a flag so their
+    // variable-hours cost can be excluded from the team total downstream.
     const itById = new Map(itMembers.map((m) => [m.id, m]));
     sourceStatus.employees = "live";
-    return roster.map((p) => {
+    const result: Employee[] = roster.map((p) => {
       const it = itById.get(p.id);
       return {
         id: p.id,
@@ -1265,10 +1273,13 @@ export async function getEmployees(): Promise<Employee[]> {
         functionTitle: it?.function_title || "",
         startDate: it?.start_date || "",
         status: "active" as const,
-        monthlyCost: undefined,
+        monthlyCost: it?.monthlyCost,
+        isStudent: it?.isStudent ?? false,
         assets: assetsByPerson.get(p.id) || [],
       };
     });
+    setCache(cacheKey, result, 60); // 1h
+    return result;
   } catch (err) {
     // Live mode: real data or empty — never demo employees. Officient isn't
     // connected yet (no credentials), so personnel shows empty with a notice.
@@ -1342,11 +1353,14 @@ export async function getPersonnelKPIs(): Promise<PersonnelKPIs> {
   const active = employees.filter((e) => e.status === "active");
   const itTeam = active.filter((e) => e.department === "IT");
 
-  // IT salary cost. Officient has no per-person wage (payroll is in EasyPay), so
-  // the internal IT salary cost comes from BC (class-62 GL tagged AFDELING=IT)
-  // over a trailing 12 months, expressed as a monthly figure.
-  let itSalaryCost = 0;
-  if (!isDemoMode()) {
+  // IT salary cost = sum of per-person monthly employer cost (Officient
+  // /wages/{id}/current), counting full-time staff only. Jobstudenten work
+  // variable/partial months, so their full contractual wage is excluded from
+  // the total (they still appear in the roster). Falls back to BC (class-62 GL
+  // tagged AFDELING=IT, trailing 12 months) if Officient wages are unavailable.
+  const itFullTime = itTeam.filter((e) => !e.isStudent);
+  let itSalaryCost = itFullTime.reduce((sum, e) => sum + (e.monthlyCost || 0), 0);
+  if (itSalaryCost === 0 && !isDemoMode()) {
     const toD = new Date();
     const fromD = new Date(toD.getFullYear() - 1, toD.getMonth(), toD.getDate());
     const fmt = (d: Date) => d.toISOString().split("T")[0];
@@ -1354,7 +1368,7 @@ export async function getPersonnelKPIs(): Promise<PersonnelKPIs> {
     itSalaryCost = Math.round(annual / 12);
   }
   const totalPersonnelCost = itSalaryCost;
-  const avgITCostPerEmployee = itTeam.length > 0 ? itSalaryCost / itTeam.length : 0;
+  const avgITCostPerEmployee = itFullTime.length > 0 ? itSalaryCost / itFullTime.length : 0;
 
   // External IT services and tools/licenses cost.
   // Demo mode: fixed illustrative estimates. Live mode: real monthly-average

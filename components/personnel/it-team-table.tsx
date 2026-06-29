@@ -26,6 +26,7 @@ export function ITTeamTable({ employees }: ITTeamTableProps) {
   const itTeam = employees
     .filter((e) => e.department === "IT" && e.status === "active")
     .sort((a, b) => (a.monthlyCost || 0) > (b.monthlyCost || 0) ? -1 : 1);
+  const hasStudent = itTeam.some((e) => e.isStudent);
 
   return (
     <div className="rounded-lg border border-slate-800 overflow-x-auto">
@@ -56,24 +57,36 @@ export function ITTeamTable({ employees }: ITTeamTableProps) {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge className="bg-teal-500/10 text-teal-400 border border-teal-500/20 text-[11px]">
-                    {emp.functionTitle}
-                  </Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Badge className="bg-teal-500/10 text-teal-400 border border-teal-500/20 text-[11px]">
+                      {emp.functionTitle || "—"}
+                    </Badge>
+                    {emp.isStudent && (
+                      <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px]">
+                        Student
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="text-xs text-slate-400 tabular-nums">
                   {formatDate(emp.startDate)}
                 </TableCell>
-                <TableCell className="text-right font-mono text-sm text-white tabular-nums">
-                  {emp.monthlyCost ? formatCurrency(emp.monthlyCost) : "—"}
+                <TableCell className={`text-right font-mono text-sm tabular-nums ${emp.isStudent ? "text-slate-500" : "text-white"}`}>
+                  {emp.monthlyCost ? `${formatCurrency(emp.monthlyCost)}${emp.isStudent ? "*" : ""}` : "—"}
                 </TableCell>
-                <TableCell className="text-right font-mono text-sm text-slate-300 tabular-nums pr-4">
-                  {emp.monthlyCost ? formatCurrency(emp.monthlyCost * 12) : "—"}
+                <TableCell className={`text-right font-mono text-sm tabular-nums pr-4 ${emp.isStudent ? "text-slate-500" : "text-slate-300"}`}>
+                  {emp.monthlyCost ? `${formatCurrency(emp.monthlyCost * 12)}${emp.isStudent ? "*" : ""}` : "—"}
                 </TableCell>
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
+      {hasStudent && (
+        <p className="text-[11px] text-slate-500 px-4 py-2.5 border-t border-slate-800">
+          * Jobstudent — contractual full-month rate shown for reference; works variable hours, so excluded from the IT salary cost total.
+        </p>
+      )}
     </div>
   );
 }

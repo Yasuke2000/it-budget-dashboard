@@ -93,6 +93,10 @@ export interface OfficientEmployee {
   function_title: string;
   start_date: string;
   status: "active" | "inactive";
+  /** Monthly employer cost (estimated_monthly_total from /wages/{id}/current). */
+  monthlyCost?: number;
+  /** Jobstudent — works variable/partial months, so the full monthly cost is not representative. */
+  isStudent?: boolean;
 }
 
 export interface OfficientAsset {
@@ -120,6 +124,14 @@ export interface OfficientTeam {
  */
 export const IT_TEAM_PERSON_IDS = [692279, 553102, 773276, 788103];
 
+/**
+ * IT members who are jobstudenten — they work variable/partial months, so their
+ * full contractual monthly wage overstates real cost. They appear in the roster
+ * but are excluded from the IT salary cost total.
+ *   773276 Thibo Haneca · 788103 Merijn Van Belleghem
+ */
+export const IT_TEAM_STUDENT_IDS = [773276, 788103];
+
 interface OfficientPersonDetail {
   name?: string;
   email?: string;
@@ -132,6 +144,28 @@ async function fetchPersonDetail(id: number): Promise<OfficientPersonDetail | nu
   try {
     const data = (await fetchOfficient(`/people/${id}/detail`)) as { data?: OfficientPersonDetail };
     return data.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+interface OfficientWage {
+  estimated_monthly_total?: number; // total monthly EMPLOYER cost (gross + social + provisions)
+  rate?: number;                    // base monthly gross
+  currency?: string;
+}
+
+/**
+ * Current monthly employer cost for a person, from GET /wages/{id}/current.
+ * `estimated_monthly_total` = base salary + employer social contributions +
+ * 13th-month and holiday-pay provisions. Returns null if no wage is set or the
+ * token lacks the wage scope. (Requires the wage permission scope on the token.)
+ */
+async function fetchCurrentWage(personId: number): Promise<number | null> {
+  try {
+    const data = (await fetchOfficient(`/wages/${personId}/current`)) as { data?: OfficientWage };
+    const cost = data.data?.estimated_monthly_total;
+    return typeof cost === "number" && cost > 0 ? Math.round(cost) : null;
   } catch {
     return null;
   }
@@ -152,17 +186,19 @@ export async function fetchRoster(): Promise<{ id: number; name: string; email: 
 }
 
 /**
- * Internal IT team, enriched from /people/{id}/detail for the pinned IDs.
- * NOTE: Officient holds NO wage/salary data for this tenant (payroll runs in
- * EasyPay), so there is no per-person cost — IT salary cost comes from BC.
+ * Internal IT team, enriched from /people/{id}/detail (role, start date) and
+ * /wages/{id}/current (monthly employer cost) for the pinned IDs.
  */
 export async function fetchITTeamMembers(): Promise<OfficientEmployee[]> {
-  const details = await Promise.all(
-    IT_TEAM_PERSON_IDS.map(async (id) => ({ id, detail: await fetchPersonDetail(id) }))
+  const enriched = await Promise.all(
+    IT_TEAM_PERSON_IDS.map(async (id) => {
+      const [detail, monthlyCost] = await Promise.all([fetchPersonDetail(id), fetchCurrentWage(id)]);
+      return { id, detail, monthlyCost };
+    })
   );
-  return details
+  return enriched
     .filter((x) => x.detail)
-    .map(({ id, detail }) => ({
+    .map(({ id, detail, monthlyCost }) => ({
       id,
       name: detail!.name || "",
       email: detail!.email || "",
@@ -170,6 +206,8 @@ export async function fetchITTeamMembers(): Promise<OfficientEmployee[]> {
       function_title: detail!.current_role?.name || "",
       start_date: detail!.employment?.first_employment_date || "",
       status: "active" as const,
+      monthlyCost: monthlyCost ?? undefined,
+      isStudent: IT_TEAM_STUDENT_IDS.includes(id),
     }));
 }
 
