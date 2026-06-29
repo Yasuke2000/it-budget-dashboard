@@ -123,7 +123,7 @@ export default function DevelopersPage() {
               </table>
             </div>
             <div className="px-4 py-3 text-xs text-slate-500 space-y-1 border-t border-slate-800">
-              {data.itDeptPayrollPeriod ? <p>· Internal IT-department payroll this period: <span className="text-slate-300">{formatCurrency(data.itDeptPayrollPeriod)}</span> — covers the internal devs together; per-person isn&apos;t separable in BC.</p> : null}
+              <p>· Internal devs use their per-person Officient employer cost (gross + charges + provisions), prorated over the period. External devs use BC vendor spend.{data.itDeptPayrollPeriod ? <> Total internal IT-dept payroll booked in BC this period: <span className="text-slate-300">{formatCurrency(data.itDeptPayrollPeriod)}</span>.</> : null}</p>
               <p>· Commits &amp; issues are activity proxies, not value. Invoice timing is lumpy — read € / commit over months, not days. A directional signal, not a verdict on individuals.</p>
             </div>
           </CardContent>

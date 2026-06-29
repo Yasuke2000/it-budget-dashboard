@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { getDeveloperDashboard } from "@/lib/azure-devops-client";
-import { getVendorSummary, getITPersonnelCost } from "@/lib/data-source";
+import { getVendorSummary, getITPersonnelCost, getEmployees } from "@/lib/data-source";
 import { getJiraDevMetrics } from "@/lib/jira-client";
 import type { DeveloperROIRow } from "@/lib/types";
 
 // Map each developer (by commit-author email) to a cost source. External devs map
-// to a BC vendor (exact); internal devs sit inside the IT-department payroll
-// (per-person not separable in BC); management is excluded. Editable here.
+// to a BC vendor (exact); internal devs use their per-person Officient wage
+// (employer cost), matched by email; management is excluded. Editable here.
 const COST_MAP: Record<string, { kind: "vendor" | "internal" | "excluded"; match?: string; label: string }> = {
   "jonas.willaeys@gheeraert.be": { kind: "vendor", match: "allphi", label: "ALLPHI (external)" },
   "peter.gheeraert@gheeraert.be": { kind: "excluded", label: "G-Force (management — excluded)" },
-  "stijn.vandamme@gheeraert.be": { kind: "internal", label: "Internal (IT-dept payroll)" },
+  "stijn.vandamme@gheeraert.be": { kind: "internal", label: "Internal (Officient wage)" },
 };
 
 export async function GET(request: Request) {
@@ -31,16 +31,37 @@ export async function GET(request: Request) {
       if (jira) data.jira = jira;
       // Cost sources for the same window (best-effort; lumpy invoice timing means
       // ROI is most meaningful over months, not days).
-      const [vendors, itPayroll] = await Promise.all([
+      const [vendors, itPayroll, employees] = await Promise.all([
         getVendorSummary("all", dateFrom, dateTo).catch(() => []),
         getITPersonnelCost("all", dateFrom, dateTo).catch(() => 0),
+        getEmployees().catch(() => []),
       ]);
+      // Per-person monthly employer cost (Officient), matched by email, prorated
+      // over the selected window so it's comparable to vendor spend in the period.
+      const wageByEmail = new Map<string, number>();
+      for (const e of employees) {
+        if (e.monthlyCost && e.email) wageByEmail.set(e.email.toLowerCase(), e.monthlyCost);
+      }
+      const periodDays = (Date.parse(dateTo) - Date.parse(dateFrom)) / 86_400_000;
+      const periodMonths = periodDays > 0 ? periodDays / 30.4375 : 1;
       const roi: DeveloperROIRow[] = data.developers.map((d) => {
         const m = COST_MAP[d.email.toLowerCase()];
         const base = { name: d.name, email: d.email, commits: d.commits, issues: d.issues, filesChanged: d.filesChanged };
         if (!m) return { ...base, costLabel: "Unmapped", periodCost: null, costPerCommit: null, costPerIssue: null, note: "No cost source mapped." };
         if (m.kind === "excluded") return { ...base, costLabel: m.label, periodCost: null, costPerCommit: null, costPerIssue: null, note: "Management comp — not counted as dev cost." };
-        if (m.kind === "internal") return { ...base, costLabel: m.label, periodCost: null, costPerCommit: null, costPerIssue: null, note: "Inside the IT-department payroll; per-person not separable in BC." };
+        if (m.kind === "internal") {
+          const monthly = wageByEmail.get(d.email.toLowerCase());
+          if (!monthly) {
+            return { ...base, costLabel: "Internal (IT-dept payroll)", periodCost: null, costPerCommit: null, costPerIssue: null, note: "Inside the IT-department payroll; per-person wage unavailable from Officient." };
+          }
+          const cost = Math.round(monthly * periodMonths);
+          return {
+            ...base, costLabel: m.label, periodCost: cost,
+            costPerCommit: d.commits ? Math.round(cost / d.commits) : null,
+            costPerIssue: d.issues ? Math.round(cost / d.issues) : null,
+            note: "Officient employer cost (gross + charges + provisions), prorated over the period.",
+          };
+        }
         // vendor — sum ALL matching vendors (not just the first), so split vendor
         // names aggregate. If none match, cost is UNKNOWN (null), not a misleading €0.
         const matches = vendors.filter((x) => (x.vendorName || "").toLowerCase().includes(m.match || ""));
