@@ -826,6 +826,12 @@ export async function getDashboardKPIs(
   const groupRevenue = consolidated > 0 ? consolidated : grossRevenue;
   const revenueIsConsolidated = consolidated > 0;
   const itSpendPercentOfRevenue = groupRevenue > 0 ? (totalSpendYTD / groupRevenue) * 100 : 0;
+  // Personnel-INCLUSIVE ratio. This is the figure that's comparable to the
+  // industry benchmark: Gartner/Avasant/Umbrex all define "IT spend % of revenue"
+  // to include internal IT personnel, so the benchmark line must be drawn against
+  // Total Cost of IT (external + internal labour), not tools-only spend.
+  const totalCostOfIT = Math.round(totalSpendYTD + itPersonnelCost);
+  const totalCostPercentOfRevenue = groupRevenue > 0 ? (totalCostOfIT / groupRevenue) * 100 : 0;
   const revenueBenchmarkPercent = settings?.revenueBenchmarkPercent ?? 3.3;
 
   // Accounts payable on IT spend: of the IT spend in this window, how much sits on
@@ -861,6 +867,7 @@ export async function getDashboardKPIs(
     groupRevenue: Math.round(groupRevenue),
     revenueIsConsolidated,
     itSpendPercentOfRevenue,
+    totalCostPercentOfRevenue,
     revenueBenchmarkPercent,
     spendTrend: spendChangePercent > 2 ? "up" : spendChangePercent < -2 ? "down" : "flat",
     spendChangePercent,
@@ -872,7 +879,7 @@ export async function getDashboardKPIs(
     // Internal IT-staff cost (BC, AFDELING=IT) + the fully-loaded Total Cost of IT
     // (external spend + internal labour). 0 when payroll dimension is unavailable.
     itPersonnelCost,
-    totalCostOfIT: Math.round(totalSpendYTD + itPersonnelCost),
+    totalCostOfIT,
   };
 }
 

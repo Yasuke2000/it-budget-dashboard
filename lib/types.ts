@@ -154,6 +154,9 @@ export interface DashboardKPIs {
   groupRevenue: number;
   revenueIsConsolidated: boolean;
   itSpendPercentOfRevenue: number;
+  // Personnel-INCLUSIVE ratio (Total Cost of IT ÷ revenue). This is the
+  // benchmark-comparable figure; itSpendPercentOfRevenue above is tools-only.
+  totalCostPercentOfRevenue: number;
   revenueBenchmarkPercent: number;
   spendTrend: "up" | "down" | "flat";
   spendChangePercent: number;

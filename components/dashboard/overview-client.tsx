@@ -212,7 +212,7 @@ export function OverviewClient() {
             value={formatCurrencyCompact(kpis.totalCostOfIT)}
             iconName="Building2"
             changeType="neutral"
-            description={`external + internal staff · ${kpis.groupRevenue > 0 ? (kpis.totalCostOfIT / kpis.groupRevenue * 100).toFixed(2) : "—"}% of revenue`}
+            description={`external + internal staff · ${kpis.totalCostPercentOfRevenue > 0 ? kpis.totalCostPercentOfRevenue.toFixed(2) : "—"}% of revenue`}
           />
         ) : (
           // Fallback when no payroll data: the annualised run-rate projection.
@@ -225,11 +225,18 @@ export function OverviewClient() {
           />
         )}
         <KPICard
-          title="IT Spend % of Revenue"
-          value={kpis.itSpendPercentOfRevenue > 0 ? `${kpis.itSpendPercentOfRevenue.toFixed(2)}%` : "—"}
+          // Benchmark-comparable ratio: Gartner/Avasant/Umbrex define "IT spend %
+          // of revenue" to INCLUDE internal personnel, so when we have payroll we
+          // headline Total Cost of IT ÷ revenue (vs the benchmark) and show the
+          // tools-only figure as a secondary reference.
+          title="IT Cost % of Revenue"
+          value={(() => {
+            const pct = kpis.itPersonnelCost > 0 ? kpis.totalCostPercentOfRevenue : kpis.itSpendPercentOfRevenue;
+            return pct > 0 ? `${pct.toFixed(2)}%` : "—";
+          })()}
           changeType="neutral"
           iconName="Percent"
-          description={`vs ~${kpis.revenueBenchmarkPercent}% benchmark (indicative)${kpis.revenueIsConsolidated ? "" : " · gross rev."}`}
+          description={`vs ~${kpis.revenueBenchmarkPercent}% benchmark${kpis.itPersonnelCost > 0 ? ` · incl. staff · tools-only ${kpis.itSpendPercentOfRevenue.toFixed(2)}%` : " (indicative)"}${kpis.revenueIsConsolidated ? "" : " · gross rev."}`}
         />
         <KPICard
           title="IT Asset Depreciation"
