@@ -97,6 +97,8 @@ export interface OfficientEmployee {
   monthlyCost?: number;
   /** Jobstudent — works variable/partial months, so the full monthly cost is not representative. */
   isStudent?: boolean;
+  /** External contractor (billed via a BC vendor, not Officient payroll). Cost resolved from BC. */
+  isExternal?: boolean;
 }
 
 export interface OfficientAsset {
@@ -120,9 +122,10 @@ export interface OfficientTeam {
  * roster by stable person id instead of scanning:
  *   692279 David Delporte (IT Wizard) · 553102 Stijn Vandamme (Sr. ICT Software Developer)
  *   773276 Thibo Haneca (Jobstudent IT) · 788103 Merijn Van Belleghem
+ *   727579 Jonas Willaeys (external developer, billed via ALLPHI)
  * Edit this list when the team changes.
  */
-export const IT_TEAM_PERSON_IDS = [692279, 553102, 773276, 788103];
+export const IT_TEAM_PERSON_IDS = [692279, 553102, 773276, 788103, 727579];
 
 /**
  * IT members who are jobstudenten — they work variable/partial months, so their
@@ -131,6 +134,16 @@ export const IT_TEAM_PERSON_IDS = [692279, 553102, 773276, 788103];
  *   773276 Thibo Haneca · 788103 Merijn Van Belleghem
  */
 export const IT_TEAM_STUDENT_IDS = [773276, 788103];
+
+/**
+ * IT members who are EXTERNAL contractors — not on Officient payroll, so they
+ * have no wage record. Cost is resolved from BC vendor spend (vendorMatch) in
+ * data-source. They appear in the roster, flagged external.
+ *   727579 Jonas Willaeys → ALLPHI
+ */
+export const IT_TEAM_EXTERNAL: { officientId: number; vendorMatch: string; label: string }[] = [
+  { officientId: 727579, vendorMatch: "allphi", label: "External Developer (ALLPHI)" },
+];
 
 interface OfficientPersonDetail {
   name?: string;
@@ -190,24 +203,31 @@ export async function fetchRoster(): Promise<{ id: number; name: string; email: 
  * /wages/{id}/current (monthly employer cost) for the pinned IDs.
  */
 export async function fetchITTeamMembers(): Promise<OfficientEmployee[]> {
+  const externalById = new Map(IT_TEAM_EXTERNAL.map((e) => [e.officientId, e]));
   const enriched = await Promise.all(
     IT_TEAM_PERSON_IDS.map(async (id) => {
-      const [detail, monthlyCost] = await Promise.all([fetchPersonDetail(id), fetchCurrentWage(id)]);
-      return { id, detail, monthlyCost };
+      const isExternal = externalById.has(id);
+      // External contractors have no Officient wage — skip that call; cost comes from BC.
+      const [detail, monthlyCost] = await Promise.all([
+        fetchPersonDetail(id),
+        isExternal ? Promise.resolve(null) : fetchCurrentWage(id),
+      ]);
+      return { id, detail, monthlyCost, isExternal };
     })
   );
   return enriched
     .filter((x) => x.detail)
-    .map(({ id, detail, monthlyCost }) => ({
+    .map(({ id, detail, monthlyCost, isExternal }) => ({
       id,
       name: detail!.name || "",
       email: detail!.email || "",
       department: "IT",
-      function_title: detail!.current_role?.name || "",
+      function_title: detail!.current_role?.name || externalById.get(id)?.label || "",
       start_date: detail!.employment?.first_employment_date || "",
       status: "active" as const,
       monthlyCost: monthlyCost ?? undefined,
       isStudent: IT_TEAM_STUDENT_IDS.includes(id),
+      isExternal,
     }));
 }
 

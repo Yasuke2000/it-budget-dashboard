@@ -267,6 +267,8 @@ export interface Employee {
   monthlyCost?: number;
   /** Jobstudent — variable hours; excluded from the IT salary cost total. */
   isStudent?: boolean;
+  /** External contractor (e.g. ALLPHI); cost from BC vendor spend, counted under External Services. */
+  isExternal?: boolean;
   assets?: EmployeeAsset[];
 }
 

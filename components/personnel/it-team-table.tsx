@@ -27,6 +27,7 @@ export function ITTeamTable({ employees }: ITTeamTableProps) {
     .filter((e) => e.department === "IT" && e.status === "active")
     .sort((a, b) => (a.monthlyCost || 0) > (b.monthlyCost || 0) ? -1 : 1);
   const hasStudent = itTeam.some((e) => e.isStudent);
+  const hasExternal = itTeam.some((e) => e.isExternal);
 
   return (
     <div className="rounded-lg border border-slate-800 overflow-x-auto">
@@ -66,6 +67,11 @@ export function ITTeamTable({ employees }: ITTeamTableProps) {
                         Student
                       </Badge>
                     )}
+                    {emp.isExternal && (
+                      <Badge className="bg-violet-500/10 text-violet-400 border border-violet-500/20 text-[11px]">
+                        External
+                      </Badge>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell className="text-xs text-slate-400 tabular-nums">
@@ -82,9 +88,10 @@ export function ITTeamTable({ employees }: ITTeamTableProps) {
           )}
         </TableBody>
       </Table>
-      {hasStudent && (
-        <p className="text-[11px] text-slate-500 px-4 py-2.5 border-t border-slate-800">
-          * Jobstudent — contractual full-month rate shown for reference; works variable hours, so excluded from the IT salary cost total.
+      {(hasStudent || hasExternal) && (
+        <p className="text-[11px] text-slate-500 px-4 py-2.5 border-t border-slate-800 space-y-0.5">
+          {hasStudent && <>* Jobstudent — contractual full-month rate shown for reference; works variable hours, so excluded from the internal IT salary total.<br /></>}
+          {hasExternal && <>External — contractor billed via a vendor (not payroll); cost is counted under External Services, not internal salary.</>}
         </p>
       )}
     </div>

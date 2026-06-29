@@ -1242,7 +1242,7 @@ export async function getEmployees(): Promise<Employee[]> {
   // errors, fall back to demo data instead of throwing — an unhandled throw
   // here previously crashed the entire Personnel page (HTTP 500 / white screen).
   try {
-    const { fetchRoster, fetchITTeamMembers, fetchAssets } = await import("./officient-client");
+    const { fetchRoster, fetchITTeamMembers, fetchAssets, IT_TEAM_EXTERNAL } = await import("./officient-client");
     // Full roster = group headcount denominator (cheap, list-only). IT team is
     // pinned by person id and enriched with role/start-date. Assets are optional.
     const [roster, itMembers, assets] = await Promise.all([
@@ -1250,6 +1250,22 @@ export async function getEmployees(): Promise<Employee[]> {
       fetchITTeamMembers(),
       fetchAssets().catch(() => []),
     ]);
+
+    // External IT members (e.g. Jonas/ALLPHI) aren't on Officient payroll — resolve
+    // their monthly cost from BC vendor spend over a trailing 12 months.
+    const externalCostById = new Map<number, number>();
+    if (IT_TEAM_EXTERNAL.length) {
+      const toD = new Date();
+      const fromD = new Date(toD.getFullYear() - 1, toD.getMonth(), toD.getDate());
+      const fmt = (d: Date) => d.toISOString().split("T")[0];
+      const vendors = await getVendorSummary("all", fmt(fromD), fmt(toD)).catch(() => []);
+      for (const ext of IT_TEAM_EXTERNAL) {
+        const annual = vendors
+          .filter((v) => (v.vendorName || "").toLowerCase().includes(ext.vendorMatch))
+          .reduce((s, v) => s + (v.totalSpend || 0), 0);
+        if (annual > 0) externalCostById.set(ext.officientId, Math.round(annual / 12));
+      }
+    }
 
     const assetsByPerson = new Map<number, { id: number; name: string; description: string; category: string }[]>();
     assets.forEach((a) => {
@@ -1273,8 +1289,9 @@ export async function getEmployees(): Promise<Employee[]> {
         functionTitle: it?.function_title || "",
         startDate: it?.start_date || "",
         status: "active" as const,
-        monthlyCost: it?.monthlyCost,
+        monthlyCost: it?.isExternal ? externalCostById.get(p.id) : it?.monthlyCost,
         isStudent: it?.isStudent ?? false,
+        isExternal: it?.isExternal ?? false,
         assets: assetsByPerson.get(p.id) || [],
       };
     });
@@ -1354,11 +1371,11 @@ export async function getPersonnelKPIs(): Promise<PersonnelKPIs> {
   const itTeam = active.filter((e) => e.department === "IT");
 
   // IT salary cost = sum of per-person monthly employer cost (Officient
-  // /wages/{id}/current), counting full-time staff only. Jobstudenten work
-  // variable/partial months, so their full contractual wage is excluded from
-  // the total (they still appear in the roster). Falls back to BC (class-62 GL
-  // tagged AFDELING=IT, trailing 12 months) if Officient wages are unavailable.
-  const itFullTime = itTeam.filter((e) => !e.isStudent);
+  // /wages/{id}/current), counting internal full-time staff only. Jobstudenten
+  // (variable hours) and external contractors (counted under External Services)
+  // appear in the roster but are excluded from this internal-salary total. Falls
+  // back to BC (class-62 GL tagged AFDELING=IT) if Officient wages are missing.
+  const itFullTime = itTeam.filter((e) => !e.isStudent && !e.isExternal);
   let itSalaryCost = itFullTime.reduce((sum, e) => sum + (e.monthlyCost || 0), 0);
   if (itSalaryCost === 0 && !isDemoMode()) {
     const toD = new Date();

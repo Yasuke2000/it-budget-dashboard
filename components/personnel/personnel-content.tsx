@@ -174,7 +174,7 @@ export function PersonnelContent({ employees, kpis }: PersonnelContentProps) {
         <CardHeader>
           <CardTitle className="text-white">IT Team</CardTitle>
           <p className="text-sm text-slate-400">
-            {kpis.itHeadcount} active members · monthly employer cost from Officient (gross + employer charges + provisions)
+            {kpis.itHeadcount} members · monthly employer cost — internal from Officient (gross + charges + provisions), external from BC
           </p>
         </CardHeader>
         <CardContent>
