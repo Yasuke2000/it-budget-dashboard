@@ -25,6 +25,7 @@ import type {
   Contract,
   CompanyFilter,
   Employee,
+  EntraUser,
   JiraWorklog,
   JiraProjectCost,
   PersonnelKPIs,
@@ -1508,6 +1509,25 @@ export async function getPeppolInvoices(): Promise<PeppolInvoice[]> {
   return [];
 }
 
+// ---- Entra ID (Azure AD) users ----
+// For license-reclaim / orphaned-account reconciliation. Cached 6h. Empty in
+// demo mode or if the Graph app lacks directory read.
+export async function getEntraUsers(): Promise<EntraUser[]> {
+  if (isDemoMode()) return [];
+  const cacheKey = "entra-users";
+  const cached = getCache<EntraUser[]>(cacheKey);
+  if (cached) return cached;
+  try {
+    const { fetchEntraUsers } = await import("./graph-client");
+    const users = await fetchEntraUsers();
+    setCache(cacheKey, users, 360);
+    return users;
+  } catch (err) {
+    console.warn("Entra users fetch failed:", err);
+    return [];
+  }
+}
+
 // ---- Cost Insights ----
 export async function getCostInsights(
   companyFilter: CompanyFilter = "all",
@@ -1516,15 +1536,16 @@ export async function getCostInsights(
 ): Promise<CostInsight[]> {
   // Vendor spend + budget are company-scoped like the rest of the app; licenses and
   // devices are tenant-wide (M365/Intune) and can't be split per BC company.
-  const [licenses, vendors, devices, budget, employees, categorySpend] = await Promise.all([
+  const [licenses, vendors, devices, budget, employees, categorySpend, entraUsers] = await Promise.all([
     getLicenses(),
     getVendorSummary(companyFilter, dateFrom, dateTo),
     getDevices(),
     getBudgetEntries(companyFilter, dateFrom, dateTo),
     getEmployees(),
     getCategorySpend(companyFilter, dateFrom, dateTo).catch(() => []),
+    getEntraUsers().catch(() => []),
   ]);
-  return generateAllInsights({ licenses, vendors, devices, budget, employees, categorySpend });
+  return generateAllInsights({ licenses, vendors, devices, budget, employees, categorySpend, entraUsers });
 }
 
 // Conservative vendor-name normalisation for de-duplication: same vendor written

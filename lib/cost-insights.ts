@@ -5,6 +5,7 @@ import type {
   BudgetEntry,
   Employee,
   CategorySpend,
+  EntraUser,
 } from "./types";
 
 export interface CostInsight {
@@ -264,6 +265,28 @@ export function analyzeSecuritySpend(categorySpend: CategorySpend[], devices: Ma
   }];
 }
 
+// Disabled Entra (Azure AD) accounts that still hold M365 licenses — wasted
+// spend + orphaned-account security risk that org-level seat analysis misses
+// (these seats count as "consumed").
+export function analyzeEntraAccounts(users: EntraUser[]): CostInsight[] {
+  if (!users?.length) return [];
+  const disabledLicensed = users.filter((u) => !u.accountEnabled && u.licenseCount > 0);
+  if (!disabledLicensed.length) return [];
+  const totalLic = disabledLicensed.reduce((s, u) => s + u.licenseCount, 0);
+  const names = disabledLicensed.slice(0, 3).map((u) => u.displayName || u.userPrincipalName).join(", ");
+  return [{
+    id: "entra-disabled-licensed",
+    category: "license_waste",
+    severity: "warning",
+    title: `${disabledLicensed.length} disabled accounts still hold ${totalLic} M365 license${totalLic > 1 ? "s" : ""}`,
+    description: `These Entra accounts are disabled but still assigned paid licenses — wasted spend and orphaned-account risk (e.g. ${names}). Org-level seat counts miss this because the seats read as "assigned".`,
+    potentialSavings: 0,
+    action: "Reclaim licenses from disabled accounts (or delete stale accounts). Full stale-active-account detection needs Graph AuditLog.Read.All.",
+    dataSource: "Microsoft Graph — Entra users",
+    detectedAt: new Date().toISOString().split("T")[0],
+  }];
+}
+
 // Master function that runs all analyses
 export function generateAllInsights(data: {
   licenses: M365License[];
@@ -272,6 +295,7 @@ export function generateAllInsights(data: {
   budget: BudgetEntry[];
   employees: Employee[];
   categorySpend?: CategorySpend[];
+  entraUsers?: EntraUser[];
 }): CostInsight[] {
   return [
     ...analyzeLicenseWaste(data.licenses),
@@ -280,6 +304,7 @@ export function generateAllInsights(data: {
     ...analyzeBudgetOverruns(data.budget),
     ...analyzePersonnelCosts(data.employees),
     ...analyzeSecuritySpend(data.categorySpend || [], data.devices),
+    ...analyzeEntraAccounts(data.entraUsers || []),
   ].sort((a, b) => {
     const severityOrder = { critical: 0, warning: 1, info: 2 };
     return severityOrder[a.severity] - severityOrder[b.severity];

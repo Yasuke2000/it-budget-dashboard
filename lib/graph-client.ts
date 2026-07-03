@@ -1,5 +1,5 @@
 import { ConfidentialClientApplication } from "@azure/msal-node";
-import type { M365License, ManagedDevice } from "./types";
+import type { M365License, ManagedDevice, EntraUser } from "./types";
 import { SKU_NAMES, DEFAULT_LICENSE_PRICES } from "./constants";
 import { fetchWithRetry } from "./http";
 
@@ -57,6 +57,32 @@ async function fetchAllGraphPages<T>(url: string, token: string): Promise<T[]> {
 export async function fetchSubscribedSkus(): Promise<Record<string, unknown>[]> {
   const data = await fetchGraph("/subscribedSkus") as { value: Record<string, unknown>[] };
   return data.value;
+}
+
+/**
+ * Entra ID (Azure AD) users with account state + license count — for
+ * license-reclaim / orphaned-account reconciliation. Uses the existing Graph
+ * app registration (User.Read.All). Sign-in activity is NOT included (needs
+ * AuditLog.Read.All, not granted).
+ */
+export async function fetchEntraUsers(): Promise<EntraUser[]> {
+  const token = await getGraphToken();
+  type GraphUser = {
+    id: string; displayName?: string; userPrincipalName?: string; mail?: string | null;
+    accountEnabled?: boolean; assignedLicenses?: { skuId: string }[];
+  };
+  const raw = await fetchAllGraphPages<GraphUser>(
+    "https://graph.microsoft.com/v1.0/users?$top=999&$select=id,displayName,userPrincipalName,mail,accountEnabled,assignedLicenses",
+    token
+  );
+  return raw.map((u) => ({
+    id: u.id,
+    displayName: u.displayName || "",
+    userPrincipalName: u.userPrincipalName || "",
+    mail: u.mail ?? null,
+    accountEnabled: u.accountEnabled !== false,
+    licenseCount: (u.assignedLicenses || []).length,
+  }));
 }
 
 // Split one CSV line, honouring double-quoted fields (which may contain commas).

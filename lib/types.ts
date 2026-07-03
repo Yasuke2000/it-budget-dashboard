@@ -285,6 +285,16 @@ export interface Employee {
   assets?: EmployeeAsset[];
 }
 
+// Entra ID (Azure AD) user — for license-reclaim / orphaned-account reconciliation.
+export interface EntraUser {
+  id: string;
+  displayName: string;
+  userPrincipalName: string;
+  mail: string | null;
+  accountEnabled: boolean;
+  licenseCount: number;
+}
+
 export interface EmployeeAsset {
   id: number;
   name: string;
