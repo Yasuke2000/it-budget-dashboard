@@ -126,6 +126,8 @@ export function OverviewClient() {
 
   const { kpis, monthly, entities, vendors, categories } = data;
   const spendSparkline = monthly.slice(-6).map((m) => m.actual);
+  // Genuinely aged AP (>90 days) — the only overdue that signals a real problem.
+  const aged90 = (kpis.overdueAging?.d91_180 ?? 0) + (kpis.overdueAging?.d180plus ?? 0);
 
   return (
     <div className="space-y-6">
@@ -261,11 +263,19 @@ export function OverviewClient() {
         <KPICard
           title="Open IT Invoices"
           value={formatCurrencyCompact(kpis.openInvoiceAmount)}
-          changeType={kpis.overdueAmount > 0 ? "negative" : "neutral"}
+          // Only genuinely aged debt (>90 days) flags red; overdue within ~90 days
+          // is normal payment-terms lag, not a problem.
+          changeType={aged90 > 0 ? "negative" : "neutral"}
           iconName="Clock"
           description={
             kpis.openInvoiceCount > 0
-              ? `${kpis.openInvoiceCount} unpaid${kpis.overdueAmount > 0 ? ` · ${formatCurrencyCompact(kpis.overdueAmount)} overdue` : ""}`
+              ? `${kpis.openInvoiceCount} unpaid${
+                  aged90 > 0
+                    ? ` · ${formatCurrencyCompact(aged90)} aged >90d`
+                    : kpis.overdueAmount > 0
+                      ? ` · ${formatCurrencyCompact(kpis.overdueAmount)} overdue (recent)`
+                      : ""
+                }`
               : "All settled — nothing outstanding"
           }
         />

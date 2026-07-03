@@ -39,7 +39,7 @@ export function ForecastPanel({ company, initial }: { company: string; initial: 
           <span className="text-sm font-normal text-slate-400">
             Next 12 months ≈ <span className="text-amber-300 font-semibold">{formatCurrencyCompact(data.annualForecast)}</span>
             {hasBudget && (
-              <> · budget {formatCurrencyCompact(data.annualBudget)} · <span className={over ? "text-red-400" : "text-emerald-400"}>{over ? "over" : "under"} {formatCurrencyCompact(diff)}</span></>
+              <> · {data.budgetProvisional ? "baseline" : "budget"} {formatCurrencyCompact(data.annualBudget)} · <span className={over ? "text-red-400" : "text-emerald-400"}>{over ? "over" : "under"} {formatCurrencyCompact(diff)}</span></>
             )}
           </span>
         </CardTitle>
@@ -64,7 +64,7 @@ export function ForecastPanel({ company, initial }: { company: string; initial: 
         <ForecastChart points={data.points} />
         <p className="text-xs text-slate-500 mt-2">
           {data.method}. Each future month is projected from the same calendar month last year (so Q1-clustered annual licences land in the right months){growth !== 0 ? `, variable spend ×${(1 + growth / 100).toFixed(2)}` : ""}{extra ? `, +${formatCurrencyCompact(extra)}/mo` : ""}.
-          {hasBudget ? " Tracked against your configured budget." : " Set per-category budgets in Settings → Budget to track against this."}
+          {hasBudget ? (data.budgetProvisional ? " Tracked against a provisional baseline (trailing-year actuals) — set an approved budget in Settings → Budget to replace it." : " Tracked against your configured budget.") : " Set per-category budgets in Settings → Budget to track against this."}
         </p>
       </CardContent>
     </Card>

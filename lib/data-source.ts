@@ -655,15 +655,28 @@ export async function getBudgetEntries(
   } catch {
     return [];
   }
-  const cats = Object.keys(budgets).filter((c) => (budgets[c] || 0) > 0);
-  if (!cats.length) return [];
   const yr = new Date().getFullYear();
   const from = dateFrom ?? `${yr}-01-01`;
   const to = dateTo ?? `${yr}-12-31`;
   const months = monthsBetween(from, to);
+
+  // Approved budget from Settings wins. When none is configured, fall back to a
+  // PROVISIONAL baseline = trailing-12-month actual per IT category ÷ 12 (a
+  // standard flat/last-year budget), flagged so the UI can label it and finance
+  // can replace it with real numbers in Settings → Budget.
+  let effective: Record<string, number> = Object.fromEntries(
+    Object.entries(budgets).filter(([, v]) => (v || 0) > 0)
+  );
+  let provisional = false;
+  if (!Object.keys(effective).length) {
+    effective = await computeBaselineBudget(companyFilter).catch(() => ({}));
+    provisional = Object.keys(effective).length > 0;
+  }
+  if (!Object.keys(effective).length) return [];
+
   const entries: BudgetEntry[] = [];
-  for (const cat of cats) {
-    const monthly = budgets[cat];
+  for (const cat of Object.keys(effective)) {
+    const monthly = effective[cat];
     for (const month of months) {
       entries.push({
         id: `bud-${cat}-${month}`,
@@ -674,10 +687,29 @@ export async function getBudgetEntries(
         variance: 0,
         variancePercent: 0,
         companyId: "all",
+        provisional,
       });
     }
   }
   return entries;
+}
+
+// Provisional budget baseline: trailing-12-month actual per IT tools/services
+// category ÷ 12 (monthly). Used only when no approved budget is configured, so
+// the budget-vs-actual and forecast layers work against a sensible default.
+async function computeBaselineBudget(companyFilter: CompanyFilter): Promise<Record<string, number>> {
+  const to = new Date();
+  const from = new Date(to.getFullYear() - 1, to.getMonth(), to.getDate());
+  const fmt = (d: Date) => d.toISOString().split("T")[0];
+  const invoices = await getInvoices(companyFilter, fmt(from), fmt(to));
+  const byCat: Record<string, number> = {};
+  for (const inv of invoices) {
+    if (!isToolsSpendCategory(inv.costCategory)) continue;
+    byCat[inv.costCategory] = (byCat[inv.costCategory] || 0) + inv.totalAmountExcludingTax;
+  }
+  const monthly: Record<string, number> = {};
+  for (const c of Object.keys(byCat)) monthly[c] = Math.round(byCat[c] / 12);
+  return monthly;
 }
 
 // True when an ISO date "YYYY-MM-DD" is the last calendar day of its month.
@@ -838,14 +870,24 @@ export async function getDashboardKPIs(
   // invoices BC still marks "Open" (posted, unpaid), and how much is past due. This
   // is a cash/AP view — the accrual spend total above is unaffected by it.
   const todayIso = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
+  const nowMs = Date.now();
   let openInvoiceAmount = 0, openInvoiceCount = 0, overdueAmount = 0, overdueCount = 0;
+  const overdueAging = { d0_30: 0, d31_90: 0, d91_180: 0, d180plus: 0 };
   for (const inv of itInvoices) {
     if (inv.status !== "Open") continue;
     openInvoiceAmount += inv.totalAmountExcludingTax;
     openInvoiceCount++;
     if (inv.dueDate && inv.dueDate < todayIso) {
-      overdueAmount += inv.totalAmountExcludingTax;
+      const amt = inv.totalAmountExcludingTax;
+      overdueAmount += amt;
       overdueCount++;
+      // Age the overdue amount so recent lag (0–90d, normal payment terms) is
+      // separated from genuinely aged debt (>90d).
+      const days = Math.floor((nowMs - new Date(`${inv.dueDate}T00:00:00`).getTime()) / 86_400_000);
+      if (days <= 30) overdueAging.d0_30 += amt;
+      else if (days <= 90) overdueAging.d31_90 += amt;
+      else if (days <= 180) overdueAging.d91_180 += amt;
+      else overdueAging.d180plus += amt;
     }
   }
 
@@ -876,6 +918,13 @@ export async function getDashboardKPIs(
     openInvoiceCount,
     overdueAmount: Math.round(overdueAmount),
     overdueCount,
+    overdueAging: {
+      d0_30: Math.round(overdueAging.d0_30),
+      d31_90: Math.round(overdueAging.d31_90),
+      d91_180: Math.round(overdueAging.d91_180),
+      d180plus: Math.round(overdueAging.d180plus),
+    },
+    budgetIsProvisional: budget.some((b) => b.provisional),
     // Internal IT-staff cost (BC, AFDELING=IT) + the fully-loaded Total Cost of IT
     // (external spend + internal labour). 0 when payroll dimension is unavailable.
     itPersonnelCost,
@@ -1105,6 +1154,7 @@ export async function getSpendForecast(
   ]);
   const monthlyPersonnel = Math.round(personnelAnnual / 12);
   const annualBudget = Math.round(fcBudget.reduce((s, b) => s + (b.budgetAmount || 0), 0));
+  const budgetProvisional = fcBudget.some((b) => b.provisional);
 
   // Seasonal baseline: latest actual seen for each calendar month (MM) + the average
   // as a fallback for any missing month.
@@ -1143,6 +1193,7 @@ export async function getSpendForecast(
     monthlyPersonnel,
     includesPersonnel: monthlyPersonnel > 0,
     annualBudget,
+    budgetProvisional,
     growthPct,
     extraMonthly,
     method: "Seasonal baseline (same calendar month, trailing year) + recurring internal IT staff",
@@ -1465,14 +1516,15 @@ export async function getCostInsights(
 ): Promise<CostInsight[]> {
   // Vendor spend + budget are company-scoped like the rest of the app; licenses and
   // devices are tenant-wide (M365/Intune) and can't be split per BC company.
-  const [licenses, vendors, devices, budget, employees] = await Promise.all([
+  const [licenses, vendors, devices, budget, employees, categorySpend] = await Promise.all([
     getLicenses(),
     getVendorSummary(companyFilter, dateFrom, dateTo),
     getDevices(),
     getBudgetEntries(companyFilter, dateFrom, dateTo),
     getEmployees(),
+    getCategorySpend(companyFilter, dateFrom, dateTo).catch(() => []),
   ]);
-  return generateAllInsights({ licenses, vendors, devices, budget, employees });
+  return generateAllInsights({ licenses, vendors, devices, budget, employees, categorySpend });
 }
 
 // Conservative vendor-name normalisation for de-duplication: same vendor written

@@ -110,6 +110,9 @@ export interface BudgetEntry {
   variance: number;
   variancePercent: number;
   companyId: string;
+  // True when this is a provisional baseline derived from trailing-year actuals
+  // (no approved budget configured in Settings). UI labels it as such.
+  provisional?: boolean;
 }
 
 export interface VendorSummary {
@@ -173,6 +176,12 @@ export interface DashboardKPIs {
   openInvoiceCount: number;
   overdueAmount: number;
   overdueCount: number;
+  // Overdue amount split by how far past due — so "1 day late" isn't shown the
+  // same as "6 months late". Only the aged buckets (>90d) are a real concern.
+  overdueAging: { d0_30: number; d31_90: number; d91_180: number; d180plus: number };
+  // True when budget vs actual is running against a provisional baseline
+  // (trailing-year actuals) rather than an approved budget from Settings.
+  budgetIsProvisional: boolean;
   // Internal IT-staff cost (from BC, AFDELING=IT department dimension on class-62)
   // and the fully-loaded Total Cost of IT = external spend + internal labour.
   itPersonnelCost: number;
@@ -198,7 +207,8 @@ export interface SpendForecast {
   annualForecast: number;       // sum of the next 12 forecast months (incl. personnel + scenario)
   monthlyPersonnel: number;     // flat recurring internal IT-staff cost / month
   includesPersonnel: boolean;
-  annualBudget: number;         // sum of configured budgets over the forecast window (0 = none set)
+  annualBudget: number;         // sum of budgets over the forecast window (0 = none)
+  budgetProvisional: boolean;   // true = baseline from trailing-year actuals, not an approved budget
   growthPct: number;            // scenario: % growth applied to the variable (tools) part
   extraMonthly: number;         // scenario: flat extra €/month (new tool / hire)
   method: string;

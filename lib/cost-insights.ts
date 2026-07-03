@@ -4,6 +4,7 @@ import type {
   VendorSummary,
   BudgetEntry,
   Employee,
+  CategorySpend,
 } from "./types";
 
 export interface CostInsight {
@@ -240,6 +241,29 @@ export function analyzePersonnelCosts(employees: Employee[]): CostInsight[] {
   return insights;
 }
 
+// Flags under-investment in security: near-zero dedicated security spend while
+// devices are failing compliance. Low security spend is a risk, not a saving.
+export function analyzeSecuritySpend(categorySpend: CategorySpend[], devices: ManagedDevice[]): CostInsight[] {
+  if (!categorySpend?.length) return [];
+  const total = categorySpend.reduce((s, c) => s + (c.amount || 0), 0);
+  if (total <= 0) return [];
+  const sec = categorySpend.filter((c) => /security/i.test(c.category)).reduce((s, c) => s + (c.amount || 0), 0);
+  const pct = (sec / total) * 100;
+  const nonCompliant = devices.filter((d) => d.complianceState === "noncompliant").length;
+  if (pct >= 2 || nonCompliant === 0) return [];
+  return [{
+    id: "security-underinvestment",
+    category: "optimization",
+    severity: "warning",
+    title: `Security is ${pct.toFixed(1)}% of IT spend (€${Math.round(sec).toLocaleString("nl-BE")}) with ${nonCompliant} non-compliant device${nonCompliant > 1 ? "s" : ""}`,
+    description: `Dedicated security spend is only €${Math.round(sec).toLocaleString("nl-BE")}/yr — a fraction of IT spend — while ${nonCompliant} device${nonCompliant > 1 ? "s are" : " is"} non-compliant. Under-investing in security is unmanaged risk, not efficiency (NIS2 exposure).`,
+    potentialSavings: 0,
+    action: "Budget a security baseline: endpoint protection/MDM coverage, patching, and remediation of the non-compliant devices.",
+    dataSource: "BC spend by category + Intune compliance",
+    detectedAt: new Date().toISOString().split("T")[0],
+  }];
+}
+
 // Master function that runs all analyses
 export function generateAllInsights(data: {
   licenses: M365License[];
@@ -247,6 +271,7 @@ export function generateAllInsights(data: {
   devices: ManagedDevice[];
   budget: BudgetEntry[];
   employees: Employee[];
+  categorySpend?: CategorySpend[];
 }): CostInsight[] {
   return [
     ...analyzeLicenseWaste(data.licenses),
@@ -254,6 +279,7 @@ export function generateAllInsights(data: {
     ...analyzeHardwareLifecycle(data.devices),
     ...analyzeBudgetOverruns(data.budget),
     ...analyzePersonnelCosts(data.employees),
+    ...analyzeSecuritySpend(data.categorySpend || [], data.devices),
   ].sort((a, b) => {
     const severityOrder = { critical: 0, warning: 1, info: 2 };
     return severityOrder[a.severity] - severityOrder[b.severity];
