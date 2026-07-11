@@ -24,6 +24,11 @@ const STORE_PATH = path.join(DATA_DIR, "settings.json");
 
 let memoryStore: Record<string, unknown> = {};
 
+function envNumber(name: string): number | null {
+  const v = Number(process.env[name]);
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
 export interface AppSettings {
   glMappings: Record<string, string>;
   licensePrices: Record<string, number>;
@@ -48,42 +53,21 @@ export interface AppSettings {
   licenseBufferSeats: number;
 }
 
-async function getSetting<T>(key: string): Promise<T | null> {
-  if (isDbEnabled()) {
-    await ensureSchema();
-    return withClient(async (c) => {
-      const { rows } = await c.query(`SELECT value FROM app_settings WHERE key = $1`, [key]);
-      return rows.length ? (rows[0].value as T) : null;
-    });
-  }
+// Resilience: settings are written to BOTH Postgres (when enabled) and the
+// JSON file on the data PVC, and reads fall back DB → file → memory. A DB
+// wipe/outage therefore never loses configuration (the file copy backfills
+// the DB on the next read), and a broken read degrades instead of throwing.
+
+async function readFileStore(): Promise<Record<string, unknown> | null> {
   try {
-    const raw = await fs.readFile(STORE_PATH, "utf8");
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    return (parsed[key] as T) ?? null;
+    return JSON.parse(await fs.readFile(STORE_PATH, "utf8")) as Record<string, unknown>;
   } catch {
-    return (memoryStore[key] as T) ?? null;
+    return null;
   }
 }
 
-async function setSetting(key: string, value: unknown): Promise<void> {
-  if (isDbEnabled()) {
-    await ensureSchema();
-    await withClient((c) =>
-      c.query(
-        `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, NOW())
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-        [key, JSON.stringify(value)]
-      )
-    );
-    return;
-  }
-  // File fallback (best-effort), then in-memory.
-  let current: Record<string, unknown> = {};
-  try {
-    current = JSON.parse(await fs.readFile(STORE_PATH, "utf8"));
-  } catch {
-    current = { ...memoryStore };
-  }
+async function writeFileStore(key: string, value: unknown): Promise<void> {
+  const current = (await readFileStore()) ?? { ...memoryStore };
   current[key] = value;
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
@@ -91,6 +75,53 @@ async function setSetting(key: string, value: unknown): Promise<void> {
   } catch {
     memoryStore = current;
   }
+}
+
+async function dbUpsert(key: string, value: unknown): Promise<void> {
+  await ensureSchema();
+  await withClient((c) =>
+    c.query(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+      [key, JSON.stringify(value)]
+    )
+  );
+}
+
+async function getSetting<T>(key: string): Promise<T | null> {
+  // 1) Postgres (best effort — a DB outage must not take settings down).
+  if (isDbEnabled()) {
+    try {
+      await ensureSchema();
+      const fromDb = await withClient(async (c) => {
+        const { rows } = await c.query(`SELECT value FROM app_settings WHERE key = $1`, [key]);
+        return rows.length ? (rows[0].value as T) : null;
+      });
+      if (fromDb !== null) return fromDb;
+    } catch (err) {
+      console.warn(`settings: DB read failed for "${key}" — falling back to file store:`, err);
+    }
+  }
+  // 2) JSON file on the data PVC (survives DB wipes; backfills the DB).
+  const fileStore = await readFileStore();
+  if (fileStore && fileStore[key] !== undefined && fileStore[key] !== null) {
+    if (isDbEnabled()) dbUpsert(key, fileStore[key]).catch(() => {});
+    return fileStore[key] as T;
+  }
+  // 3) In-memory last resort.
+  return (memoryStore[key] as T) ?? null;
+}
+
+async function setSetting(key: string, value: unknown): Promise<void> {
+  if (isDbEnabled()) {
+    try {
+      await dbUpsert(key, value);
+    } catch (err) {
+      console.warn(`settings: DB write failed for "${key}" — keeping file copy:`, err);
+    }
+  }
+  // Always keep a durable copy on the PVC too.
+  await writeFileStore(key, value);
 }
 
 /** Settings merged over the compiled defaults. */
@@ -121,9 +152,11 @@ export async function getAppSettings(): Promise<AppSettings> {
     operationalSoftwareVendors: opVendors ?? OPERATIONAL_SOFTWARE_VENDORS,
     // Default: count operational software in the IT total (true) unless told otherwise.
     includeOperationalSoftware: includeOp ?? true,
-    consolidatedRevenue: consolidatedRev ?? 0,
+    // Env vars are the last-resort default so a full storage loss still shows
+    // the audited consolidated figure instead of silently reverting to gross.
+    consolidatedRevenue: consolidatedRev ?? envNumber("CONSOLIDATED_REVENUE") ?? 0,
     // Gartner transport-industry median IT-spend-of-revenue.
-    revenueBenchmarkPercent: benchmarkPct ?? 3.3,
+    revenueBenchmarkPercent: benchmarkPct ?? envNumber("REVENUE_BENCHMARK_PERCENT") ?? 3.3,
     showPeppol: showPeppol ?? false,
     licenseBufferSeats: licBuffer ?? 0,
   };
