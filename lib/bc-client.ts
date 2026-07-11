@@ -203,7 +203,9 @@ export async function fetchITDepartmentPayroll(
   let total = 0;
   for (const r of rows) {
     const dims = (r.dimensionSetLines as { code?: string; valueCode?: string }[] | undefined) || [];
-    if (dims.some((d) => d.code === "AFDELING" && d.valueCode === "IT")) {
+    // Dimension code varies per company: GSS uses AFDELING, WHS uses AFD.
+    // Accept both so IT-tagged payroll outside GSS isn't silently missed.
+    if (dims.some((d) => (d.code === "AFDELING" || d.code === "AFD") && d.valueCode === "IT")) {
       total += ((r.debitAmount as number) || 0) - ((r.creditAmount as number) || 0);
     }
   }
