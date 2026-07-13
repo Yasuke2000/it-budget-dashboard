@@ -14,6 +14,7 @@ export async function GET() {
     bc: { configured: false, connected: false, error: null },
     graph: { configured: false, connected: false, error: null },
     officient: { configured: false, connected: false, error: null },
+    sharepoint: { configured: false, connected: false, error: null },
     jira: { configured: false, connected: false, error: null },
     azureDevops: { configured: false, connected: false, error: null },
     dell: { configured: false, connected: false, error: null },
@@ -48,6 +49,19 @@ export async function GET() {
         status.officient.connected = r.ok;
         if (!r.ok) status.officient.error = `HTTP ${r.status}`;
       } catch (e: unknown) { status.officient.error = e instanceof Error ? e.message : String(e); }
+    }
+  }
+
+  // SharePoint (contractdocumenten) — zelfde app-registratie als Graph; vereist
+  // de APPLICATION-machtiging Sites.Read.All. Probe = de contractenmap listen.
+  if (process.env.BC_CLIENT_ID && process.env.BC_CLIENT_SECRET && process.env.BC_TENANT_ID) {
+    status.sharepoint.configured = true;
+    try {
+      const { probeContractsFolder } = await import("@/lib/sharepoint-client");
+      await probeContractsFolder();
+      status.sharepoint.connected = true;
+    } catch (e: unknown) {
+      status.sharepoint.error = e instanceof Error ? e.message : String(e);
     }
   }
 
