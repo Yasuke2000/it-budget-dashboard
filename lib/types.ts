@@ -523,6 +523,141 @@ export interface DeveloperDashboard {
   jira?: JiraMetrics;             // Jira ticket + hours KPIs, assembled in the API route
 }
 
+// === CFO Cockpit (group financials — P&L, cash, working capital) ===
+// A drill-downable financial statement view sourced from BC general-ledger
+// entries (PCMN classes 6/7 for the P&L, class 55 for cash) + open vendor
+// ledger for AP aging. Each P&L line carries the underlying accounts so the UI
+// can drill from a headline number down to its source GL accounts.
+
+export interface CfoAccountRow {
+  accountNumber: string;
+  accountName: string;
+  amount: number; // positive magnitude in EUR
+}
+
+// One block of the P&L waterfall. `kind` drives colour/sign in the chart.
+export interface CfoPnlLine {
+  key: string;
+  label: string;
+  amount: number;                 // signed: income +, expense −, subtotal = running result
+  kind: "income" | "expense" | "subtotal";
+  pnlClass: string;               // PCMN class prefix ("70", "61", …) or "" for subtotals
+  accounts: CfoAccountRow[];      // underlying GL accounts (the drill-down "source")
+}
+
+export interface CfoEntityRow {
+  code: string;                   // BC company code (GTR, GDI, …)
+  companyName: string;
+  revenue: number;
+  costs: number;
+  result: number;
+  marginPct: number;
+}
+
+export interface CfoMonthPoint {
+  month: string;                  // "YYYY-MM"
+  revenue: number;
+  costs: number;
+  result: number;
+}
+
+export interface CfoAgingBucket {
+  label: string;                  // "Niet vervallen", "< 30d", …
+  amount: number;
+  extern?: number;                // external-only portion (intercompany removed)
+}
+
+// Liquidity & working-capital ratios (working-capital view; not a full balance sheet).
+export interface CfoRatios {
+  currentRatio: number;           // current assets / current liabilities
+  quickRatio: number;             // (cash + AR) / current liabilities
+  solvencyPct: number;            // equity / total assets ×100 (approx)
+  dso: number;                    // days sales outstanding (AR ÷ revenue × days)
+  dpo: number;                    // days payable outstanding (AP ÷ costs × days)
+  dio: number;                    // days inventory outstanding
+  ccc: number;                    // cash conversion cycle = DSO + DIO − DPO
+  approx: boolean;                // true when current liabilities ≈ AP (no full BS)
+}
+
+export interface CfoBalanceLine {
+  label: string;
+  amount: number;
+  group: "asset" | "liability" | "equity";
+}
+export interface CfoBalanceSheet {
+  assets: CfoBalanceLine[];
+  claims: CfoBalanceLine[];       // liabilities + equity
+  totalAssets: number;
+  totalClaims: number;
+  complete: boolean;              // false = condensed (reliable pieces only)
+  asOf: string;
+}
+
+export interface CfoCashWeek {
+  weekStart: string;              // "YYYY-MM-DD" (Monday)
+  label: string;                  // "wk 01", …
+  inflow: number;
+  outflow: number;
+  net: number;
+  closing: number;                // projected cash balance at end of week
+}
+export interface CfoCashForecast {
+  openingCash: number;
+  weeks: CfoCashWeek[];           // 13 rolling weeks
+  lowestClosing: number;
+  lowestWeekLabel: string;
+  assumptions: string[];
+}
+
+export interface CfoBudget {
+  configured: boolean;
+  revenueTarget: number;          // annual
+  costTarget: number;             // annual
+  monthlyRevenueTarget: number;
+  monthlyCostTarget: number;
+  revenueVariancePct: number;     // YTD actual vs pro-rata target
+  resultVariancePct: number;
+}
+
+export interface CfoKpis {
+  revenue: number;
+  costs: number;
+  operatingResult: number;        // EBIT
+  operatingMarginPct: number;
+  ebitda: number;
+  cash: number;
+  apOpen: number;                 // open payables (money out)
+  arOpen: number;                 // open receivables (money in); 0/null when not available
+  apOpenExtern: number;           // AP excluding intercompany
+  arOpenExtern: number;           // AR excluding intercompany
+}
+
+export interface CfoSource {
+  label: string;
+  detail: string;
+}
+
+export interface CfoFinancials {
+  period: { from: string; to: string; label: string };
+  company: string;                // "all" or a company code
+  isLive: boolean;                // false = demo/sample data
+  generatedAt: string;
+  kpis: CfoKpis;
+  pnl: CfoPnlLine[];              // ordered waterfall (revenue → … → operating result)
+  costStructure: CfoAccountRow[]; // expense classes for the donut (accountName = class label)
+  monthly: CfoMonthPoint[];
+  apAging: CfoAgingBucket[];
+  entities: CfoEntityRow[];
+  sources: CfoSource[];           // provenance shown in the drill/source panel
+  notes: string[];
+  // --- extended sections (working capital, cash forecast, balance, budget) ---
+  arAging?: CfoAgingBucket[];
+  ratios?: CfoRatios;
+  balanceSheet?: CfoBalanceSheet;
+  cashForecast?: CfoCashForecast;
+  budget?: CfoBudget;
+}
+
 // === Warranty ===
 
 export interface WarrantyInfo {

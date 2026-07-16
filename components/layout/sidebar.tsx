@@ -21,6 +21,7 @@ import {
   ScrollText,
   Coins,
   GitBranch,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -34,6 +35,7 @@ const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
 
 const navItems = [
   { label: "Overview", icon: LayoutDashboard, href: "/" },
+  { label: "CFO", icon: Landmark, href: "/cfo" },
   { label: "Invoices", icon: FileText, href: "/invoices" },
   { label: "Licenses", icon: Key, href: "/licenses" },
   { label: "Optimization", icon: Coins, href: "/savings" },
@@ -56,17 +58,24 @@ const PEPPOL_ITEM = { label: "Peppol", icon: FileCheck, href: "/peppol" };
 function SidebarContent() {
   const pathname = usePathname();
   const [showPeppol, setShowPeppol] = useState(false);
+  const [cfoAllowed, setCfoAllowed] = useState(true); // optimistic; hidden only if explicitly denied
 
   useEffect(() => {
     fetch("/api/settings")
       .then((r) => r.json())
       .then((d) => setShowPeppol(Boolean(d?.showPeppol)))
       .catch(() => {});
+    fetch("/api/cfo-access")
+      .then((r) => r.json())
+      .then((d) => setCfoAllowed(d?.allowed !== false))
+      .catch(() => {});
   }, []);
 
-  const items = showPeppol
-    ? [...navItems.slice(0, 10), PEPPOL_ITEM, ...navItems.slice(10)]
-    : navItems;
+  const base = cfoAllowed ? navItems : navItems.filter((i) => i.href !== "/cfo");
+  const peppolAt = base.findIndex((i) => i.href === "/import") + 1;
+  const items = showPeppol && peppolAt > 0
+    ? [...base.slice(0, peppolAt), PEPPOL_ITEM, ...base.slice(peppolAt)]
+    : base;
 
   return (
     <div className="flex h-full flex-col bg-slate-950">

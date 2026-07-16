@@ -102,6 +102,17 @@ CREATE TABLE IF NOT EXISTS software_licenses (
   UNIQUE (vendor, product)
 );
 
+-- Materialized GL balances for the CFO cockpit's full balance sheet. Refreshed by
+-- POST /api/cfo/refresh-snapshot (pulls all GL once, aggregates net per account),
+-- so BI-scale all-company balance reporting is a fast read instead of a live scan.
+CREATE TABLE IF NOT EXISTS cfo_gl_snapshot (
+  company_code TEXT NOT NULL,
+  account      TEXT NOT NULL,
+  net_balance  NUMERIC(18,2) NOT NULL DEFAULT 0,
+  refreshed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (company_code, account)
+);
+
 CREATE TABLE IF NOT EXISTS contracts (
   id                 TEXT PRIMARY KEY,
   vendor             TEXT NOT NULL,

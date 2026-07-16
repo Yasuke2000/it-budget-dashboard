@@ -220,6 +220,174 @@ export async function fetchBCAccounts(companyId: string): Promise<Record<string,
   return data.value;
 }
 
+// ============================================================
+// CFO cockpit data — group financials from the general ledger
+// ============================================================
+// NOTE: the `accounts` entity's balance/netChange fields are unreliable via the
+// API (balance returns 0, netChange is lifetime-cumulative), so the P&L is built
+// from posted generalLedgerEntries aggregated per account with a period filter.
+// PCMN class 7 = income (credit-normal), class 6 = expenses (debit-normal).
+
+const BC_ODATA_ROOT = `https://api.businesscentral.dynamics.com/v2.0/${process.env.BC_TENANT_ID}/${process.env.BC_ENVIRONMENT || "production"}`;
+
+export interface BCPnlRow {
+  accountNumber: string;
+  postingDate: string; // "YYYY-MM-DD"
+  debit: number;
+  credit: number;
+}
+
+// Posted P&L movements (classes 6 & 7) for one company over a period. Minimal
+// projection; aggregation (by account / month / class) happens in lib/cfo.
+export async function fetchBCPnlRows(
+  companyId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<BCPnlRow[]> {
+  const token = await getBCToken();
+  const out: BCPnlRow[] = [];
+  for (const cls of ["6", "7"]) {
+    const filter = `postingDate ge ${dateFrom} and postingDate le ${dateTo} and startswith(accountNumber,'${cls}')`;
+    const url = `${BC_BASE_URL}/companies(${companyId})/generalLedgerEntries?$filter=${encodeURIComponent(
+      filter
+    )}&$select=accountNumber,postingDate,debitAmount,creditAmount`;
+    const rows = await fetchAllPages<Record<string, unknown>>(url, token);
+    for (const r of rows) {
+      out.push({
+        accountNumber: String(r.accountNumber || ""),
+        postingDate: String(r.postingDate || "").slice(0, 10),
+        debit: (r.debitAmount as number) || 0,
+        credit: (r.creditAmount as number) || 0,
+      });
+    }
+  }
+  return out;
+}
+
+// number → displayName map, so drill-down can name the source accounts.
+export async function fetchBCAccountNames(companyId: string): Promise<Record<string, string>> {
+  const data = (await fetchBC(`accounts?$select=number,displayName`, companyId)) as {
+    value: { number?: string; displayName?: string }[];
+  };
+  const m: Record<string, string> = {};
+  for (const a of data.value || []) if (a.number) m[a.number] = a.displayName || a.number;
+  return m;
+}
+
+// Current cash position = net balance of PCMN class 55 (bank) from GL entries.
+// (bankAccounts.balance is a FlowField that the API returns as 0.)
+export async function fetchBCCashBalance(companyId: string): Promise<number> {
+  const token = await getBCToken();
+  const url = `${BC_BASE_URL}/companies(${companyId})/generalLedgerEntries?$filter=startswith(accountNumber,'55')&$select=debitAmount,creditAmount`;
+  const rows = await fetchAllPages<Record<string, unknown>>(url, token);
+  return rows.reduce(
+    (s, r) => s + (((r.debitAmount as number) || 0) - ((r.creditAmount as number) || 0)),
+    0
+  );
+}
+
+// Sum of open customer balances (money-in) via the customers master flowfield.
+// Best-effort: full AR aging needs the CustomerLedgerEntries web service, which
+// is not published in this tenant.
+export async function fetchBCCustomerOpen(companyId: string): Promise<number> {
+  try {
+    const data = (await fetchBC(`customers?$select=balanceDue`, companyId)) as {
+      value: { balanceDue?: number }[];
+    };
+    return (data.value || []).reduce((s, c) => s + (c.balanceDue || 0), 0);
+  } catch {
+    return 0;
+  }
+}
+
+export interface BCOpenAPRow {
+  oweEUR: number; // positive = we owe
+  due: string;    // "YYYY-MM-DD" or ""
+  vendor: string;
+}
+
+// Open vendor ledger entries (money-out) via the ODataV4 published web service.
+// vendorLedgerEntries is NOT in api/v2.0 — only as a published OData V4 service.
+// Payable = −Remaining_Amt_LCY (invoice negative, credit/payment positive).
+export async function fetchBCOpenAP(companyCode: string): Promise<BCOpenAPRow[]> {
+  const token = await getBCToken();
+  const out: BCOpenAPRow[] = [];
+  let url: string | null =
+    `${BC_ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(
+      companyCode
+    )}')/VendorLedgerEntries?$filter=Open eq true&$select=Remaining_Amt_LCY,Due_Date,Vendor_Name`;
+  let page = 0;
+  while (url && page < 40) {
+    const res: Response = await fetchWithRetry(url, {
+      headers: { Authorization: `Bearer ${token}`, "Data-Access-Intent": "ReadOnly", Accept: "application/json" },
+    }, { timeoutMs: 90_000, maxAttempts: 2 });
+    if (!res.ok) break;
+    const data: { value?: Record<string, unknown>[]; "@odata.nextLink"?: string } = await res.json();
+    for (const e of data.value || []) {
+      const rem = (e.Remaining_Amt_LCY as number) || 0;
+      const dueRaw = String(e.Due_Date || "");
+      out.push({ oweEUR: -rem, due: dueRaw && !dueRaw.startsWith("0001") ? dueRaw.slice(0, 10) : "", vendor: String(e.Vendor_Name || "") });
+    }
+    url = data["@odata.nextLink"] || null;
+    page++;
+  }
+  return out;
+}
+
+export interface BCOpenARRow {
+  amount: number;  // remaining receivable (positive = they owe us)
+  due: string;     // "YYYY-MM-DD" or ""
+  customer: string;
+}
+
+// Open receivables (money-in) from posted sales invoices. salesInvoices carries
+// remainingAmount + dueDate + customerName, so full AR aging works WITHOUT the
+// (unpublished) CustomerLedgerEntries service. Credit memos are not netted here.
+export async function fetchBCOpenAR(companyId: string): Promise<BCOpenARRow[]> {
+  const token = await getBCToken();
+  const url = `${BC_BASE_URL}/companies(${companyId})/salesInvoices?$filter=${encodeURIComponent(
+    "status eq 'Open'"
+  )}&$select=remainingAmount,dueDate,customerName`;
+  const rows = await fetchAllPages<Record<string, unknown>>(url, token);
+  return rows.map((r) => {
+    const d = String(r.dueDate || "");
+    return {
+      amount: (r.remainingAmount as number) || 0,
+      due: d && !d.startsWith("0001") ? d.slice(0, 10) : "",
+      customer: String(r.customerName || ""),
+    };
+  });
+}
+
+// Full-history net balance (debit − credit) per GL account for one company — the
+// heavy pull that backs the materialized snapshot (POST /api/cfo/refresh-snapshot).
+// Pages the ENTIRE ledger (no $top), so run it as a background/nightly job.
+export async function fetchBCGlNetByAccount(companyId: string): Promise<Record<string, number>> {
+  const token = await getBCToken();
+  const url = `${BC_BASE_URL}/companies(${companyId})/generalLedgerEntries?$select=accountNumber,debitAmount,creditAmount`;
+  const rows = await fetchAllPages<Record<string, unknown>>(url, token);
+  const m: Record<string, number> = {};
+  for (const r of rows) {
+    const a = String(r.accountNumber || "");
+    if (!a) continue;
+    m[a] = (m[a] || 0) + (((r.debitAmount as number) || 0) - ((r.creditAmount as number) || 0));
+  }
+  return m;
+}
+
+// Cumulative net balance (debit − credit) of all GL accounts under a class prefix.
+// Used for the condensed balance sheet: '1' equity/provisions, '2' fixed assets,
+// '3' inventory. NOTE: broad prefixes like '4'/'5' can exceed the row cap and are
+// better served from the materialized snapshot — keep prefixes narrow.
+export async function fetchBCClassNetBalance(companyId: string, prefix: string): Promise<number> {
+  const token = await getBCToken();
+  const url = `${BC_BASE_URL}/companies(${companyId})/generalLedgerEntries?$filter=${encodeURIComponent(
+    `startswith(accountNumber,'${prefix}')`
+  )}&$select=debitAmount,creditAmount`;
+  const rows = await fetchAllPages<Record<string, unknown>>(url, token);
+  return rows.reduce((s, r) => s + (((r.debitAmount as number) || 0) - ((r.creditAmount as number) || 0)), 0);
+}
+
 // --- BC API response → typed PurchaseInvoice mapper ---
 export function mapBCInvoiceToPurchaseInvoice(
   raw: Record<string, unknown>,

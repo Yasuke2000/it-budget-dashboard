@@ -51,6 +51,9 @@ export interface AppSettings {
   // License-optimization buffer: spare seats per SKU NOT counted as reclaimable
   // waste (you keep a few for new hires). 0 = flag every unused seat.
   licenseBufferSeats: number;
+  // CFO cockpit — annual group budget/target for budget-vs-actual (0 = none set).
+  cfoRevenueTarget: number;
+  cfoCostTarget: number;
 }
 
 // Resilience: settings are written to BOTH Postgres (when enabled) and the
@@ -126,7 +129,7 @@ async function setSetting(key: string, value: unknown): Promise<void> {
 
 /** Settings merged over the compiled defaults. */
 export async function getAppSettings(): Promise<AppSettings> {
-  const [gl, prices, vendors, budgets, opVendors, includeOp, consolidatedRev, benchmarkPct, showPeppol, licBuffer] = await Promise.all([
+  const [gl, prices, vendors, budgets, opVendors, includeOp, consolidatedRev, benchmarkPct, showPeppol, licBuffer, cfoRev, cfoCost] = await Promise.all([
     getSetting<Record<string, string>>("glMappings"),
     getSetting<Record<string, number>>("licensePrices"),
     getSetting<Record<string, string>>("itVendorRules"),
@@ -137,6 +140,8 @@ export async function getAppSettings(): Promise<AppSettings> {
     getSetting<number>("revenueBenchmarkPercent"),
     getSetting<boolean>("showPeppol"),
     getSetting<number>("licenseBufferSeats"),
+    getSetting<number>("cfoRevenueTarget"),
+    getSetting<number>("cfoCostTarget"),
   ]);
   // Merge stored GL overrides over defaults, then strip any forbidden account
   // (depreciation 63x / suspense 49x) so it can never leak into the spend total.
@@ -159,6 +164,8 @@ export async function getAppSettings(): Promise<AppSettings> {
     revenueBenchmarkPercent: benchmarkPct ?? envNumber("REVENUE_BENCHMARK_PERCENT") ?? 3.3,
     showPeppol: showPeppol ?? false,
     licenseBufferSeats: licBuffer ?? 0,
+    cfoRevenueTarget: cfoRev ?? envNumber("CFO_REVENUE_TARGET") ?? 0,
+    cfoCostTarget: cfoCost ?? envNumber("CFO_COST_TARGET") ?? 0,
   };
 }
 
@@ -173,5 +180,7 @@ export async function saveAppSettings(settings: Partial<AppSettings>): Promise<A
   if (settings.revenueBenchmarkPercent !== undefined) await setSetting("revenueBenchmarkPercent", settings.revenueBenchmarkPercent);
   if (settings.showPeppol !== undefined) await setSetting("showPeppol", settings.showPeppol);
   if (settings.licenseBufferSeats !== undefined) await setSetting("licenseBufferSeats", settings.licenseBufferSeats);
+  if (settings.cfoRevenueTarget !== undefined) await setSetting("cfoRevenueTarget", settings.cfoRevenueTarget);
+  if (settings.cfoCostTarget !== undefined) await setSetting("cfoCostTarget", settings.cfoCostTarget);
   return getAppSettings();
 }
