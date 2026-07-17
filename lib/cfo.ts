@@ -365,6 +365,14 @@ function combine(
   ];
   const notes: string[] = [];
   notes.push("P&L t/m nettoresultaat (financieel 65/75, niet-recurrent 66/76, belastingen 67/77); resultaatverwerking (68/69/78/79) uitgesloten.");
+  // Interim-caveats (data-gedreven): bij Gheeraert worden afschrijvingen en belastingen
+  // grotendeels op jaareinde geboekt — zonder deze noten oogt YTD-winst geflatteerd.
+  if (isLive && cls("63") < 0.02 * Math.max(income, 1)) {
+    notes.push("LET OP: afschrijvingen (klasse 63) zijn YTD amper geboekt (jaareinde-boeking) — EBIT en nettoresultaat zijn daardoor geflatteerd.");
+  }
+  if (isLive && Math.abs(cls("67") - cls("77")) < 1000) {
+    notes.push("LET OP: belastingen (klasse 67) zijn nog niet geboekt (jaareinde) — nettoresultaat is vóór effectieve belastingdruk.");
+  }
   notes.push("Ratio's: vlottende schulden ≈ handelsschulden (geen volledige korte-termijnschuld-split); balans condensed tot betrouwbare posten.");
   notes.push("Bedragen bruto per vennootschap — intercompany-eliminatie via de IC-schakelaar (naam-gebaseerd op AP/AR; P&L-IC vereist dimensies).");
 
@@ -432,7 +440,16 @@ async function buildLiveCfo(
     for (const a of part) aggs.push(a);
   }
 
-  const result = combine(aggs, names, company, f, t, label, true, today, budgetTargets, pyAcc);
+  // ΔPY alleen tonen als vorig jaar VOLLEDIG in BC staat: 2025 is het migratiejaar
+  // (vroege 2025-boekingen zitten in de uitgesloten _OPSTART-kopieën), dus een
+  // "+120% vs vorig jaar"-chip zou misleidend zijn. Heuristiek: PY-omzet < 50% van
+  // de huidige omzet in een gelijke periode = onvolledig → chips verbergen.
+  const curIncome = aggs.reduce((s, a) => s + a.opIncome, 0);
+  const pyReliable = pyAcc.revenue >= 0.5 * curIncome;
+  const result = combine(aggs, names, company, f, t, label, true, today, budgetTargets, pyReliable ? pyAcc : undefined);
+  if (!pyReliable) {
+    result.notes.push("ΔPY-vergelijking verborgen: 2025 staat onvolledig in Business Central (migratiejaar — vroege 2025-boekingen zitten in de _OPSTART-kopieën). Vanaf boekjaar 2027 verschijnt de vergelijking automatisch.");
+  }
   setCache(cacheKey, result, 720); // 12h — verse pull via de vernieuwen-link of pod-herstart
   return result;
 }
