@@ -30,7 +30,7 @@ export function EChart({ option, height = 320, className, onSelect, ariaLabel }:
   const elRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
   const onSelectRef = useRef(onSelect);
-  onSelectRef.current = onSelect;
+  useEffect(() => { onSelectRef.current = onSelect; }); // ref niet tijdens render beschrijven
 
   useEffect(() => {
     if (!elRef.current) return;

@@ -24,6 +24,24 @@ function eurAxis(v: number): string {
   return `€${Math.round(v)}`;
 }
 
+function agingValue(b: CfoAgingBucket, eliminateIC: boolean): number {
+  return eliminateIC && b.extern != null ? b.extern : b.amount;
+}
+
+// Pure (module-scope) zodat useMemo stabiel kan memoizen op [buckets, eliminateIC].
+function buildAgingOption(buckets: CfoAgingBucket[], eliminateIC: boolean): echarts.EChartsOption {
+  return {
+    tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (v) => formatCurrency(Number(v)) },
+    grid: { top: 24, left: 6, right: 8, bottom: 20, containLabel: true },
+    xAxis: { type: "category", data: buckets.map((a) => a.label), axisLabel: { color: TXT, fontSize: 10 }, axisLine: { lineStyle: { color: AX } }, axisTick: { show: false } },
+    yAxis: { type: "value", axisLabel: { color: TXT2, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: GRID } } },
+    series: [{
+      type: "bar", barMaxWidth: 40, data: buckets.map((a, i) => ({ value: agingValue(a, eliminateIC), itemStyle: { color: AGING[i % AGING.length], borderRadius: [3, 3, 0, 0] } })),
+      label: { show: true, position: "top", color: TXT, fontSize: 9, formatter: (p: LP) => eurAxis(Number(p.value)) },
+    }],
+  };
+}
+
 interface DrillRow { label: string; value: number }
 interface Drill { title: string; subtitle?: string; total?: number; rows: DrillRow[]; note?: string }
 
@@ -88,18 +106,8 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
     };
   }, [data.monthly, data.budget]);
 
-  const buildAging = (buckets: CfoAgingBucket[]): echarts.EChartsOption => ({
-    tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (v) => formatCurrency(Number(v)) },
-    grid: { top: 24, left: 6, right: 8, bottom: 20, containLabel: true },
-    xAxis: { type: "category", data: buckets.map((a) => a.label), axisLabel: { color: TXT, fontSize: 10 }, axisLine: { lineStyle: { color: AX } }, axisTick: { show: false } },
-    yAxis: { type: "value", axisLabel: { color: TXT2, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: GRID } } },
-    series: [{
-      type: "bar", barMaxWidth: 40, data: buckets.map((a, i) => ({ value: agingVal(a), itemStyle: { color: AGING[i % AGING.length], borderRadius: [3, 3, 0, 0] } })),
-      label: { show: true, position: "top", color: TXT, fontSize: 9, formatter: (p: LP) => eurAxis(Number(p.value)) },
-    }],
-  });
-  const apAging = useMemo(() => buildAging(data.apAging), [data.apAging, eliminateIC]); // eslint-disable-line react-hooks/exhaustive-deps
-  const arAging = useMemo(() => (data.arAging ? buildAging(data.arAging) : null), [data.arAging, eliminateIC]); // eslint-disable-line react-hooks/exhaustive-deps
+  const apAging = useMemo(() => buildAgingOption(data.apAging, eliminateIC), [data.apAging, eliminateIC]);
+  const arAging = useMemo(() => (data.arAging ? buildAgingOption(data.arAging, eliminateIC) : null), [data.arAging, eliminateIC]);
 
   const forecast = useMemo<echarts.EChartsOption | null>(() => {
     const f = data.cashForecast; if (!f) return null;
