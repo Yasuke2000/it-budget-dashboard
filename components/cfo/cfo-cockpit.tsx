@@ -24,6 +24,14 @@ function eurAxis(v: number): string {
   return `€${Math.round(v)}`;
 }
 
+function fmtStamp(isoStr: string): string {
+  const d = new Date(isoStr);
+  if (Number.isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("nl-BE", {
+    timeZone: "Europe/Brussels", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+  }).format(d);
+}
+
 function agingValue(b: CfoAgingBucket, eliminateIC: boolean): number {
   return eliminateIC && b.extern != null ? b.extern : b.amount;
 }
@@ -61,12 +69,12 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
       labels.push(line.label);
       if (line.kind === "income") { base.push(0); vals.push({ value: line.amount, itemStyle: { color: C.income } }); running += line.amount; }
       else if (line.kind === "expense") { const mag = -line.amount; base.push(running - mag); vals.push({ value: mag, itemStyle: { color: C.expense } }); running -= mag; }
-      else { base.push(0); vals.push({ value: line.amount, itemStyle: { color: line.key === "ebit" ? C.ebit : C.ebitda } }); }
+      else { base.push(0); vals.push({ value: line.amount, itemStyle: { color: line.key === "ebit" || line.key === "net" ? C.ebit : C.ebitda } }); }
     }
     return {
-      grid: { top: 28, left: 6, right: 14, bottom: 74, containLabel: true },
+      grid: { top: 28, left: 6, right: 14, bottom: 88, containLabel: true },
       tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (v) => formatCurrency(Number(v)) },
-      xAxis: { type: "category", data: labels, axisLabel: { color: TXT, interval: 0, rotate: 32, fontSize: 10 }, axisLine: { lineStyle: { color: AX } }, axisTick: { show: false } },
+      xAxis: { type: "category", data: labels, axisLabel: { color: TXT, interval: 0, rotate: 36, fontSize: 9.5 }, axisLine: { lineStyle: { color: AX } }, axisTick: { show: false } },
       yAxis: { type: "value", axisLabel: { color: TXT2, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: GRID } } },
       series: [
         { name: "base", type: "bar", stack: "t", itemStyle: { color: "transparent" }, emphasis: { disabled: true }, data: base, silent: true, tooltip: { show: false } },
@@ -152,10 +160,15 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
 
   const apShown = eliminateIC ? k.apOpenExtern : k.apOpen;
   const arShown = eliminateIC ? k.arOpenExtern : k.arOpen;
-  const kpis = [
-    { label: "Bedrijfsopbrengsten", value: formatCurrencyCompact(k.revenue), sub: data.period.label, icon: ArrowUpCircle, accent: "text-teal-300", ring: "ring-teal-400/20", glow: "from-teal-500/15" },
-    { label: "EBITDA", value: formatCurrencyCompact(k.ebitda), sub: `${k.revenue ? Math.round((k.ebitda / k.revenue) * 1000) / 10 : 0}% van omzet`, icon: Activity, accent: "text-amber-300", ring: "ring-amber-400/20", glow: "from-amber-500/15" },
-    { label: "Bedrijfsresultaat (EBIT)", value: formatCurrencyCompact(k.operatingResult), sub: `marge ${k.operatingMarginPct}%`, icon: TrendingUp, accent: "text-emerald-300", ring: "ring-emerald-400/20", glow: "from-emerald-500/15" },
+  // ΔPY: elke resultaat-KPI draagt een vergelijking met dezelfde periode vorig jaar.
+  const py = data.prevYear;
+  const pct = (cur: number, prev?: number): number | null =>
+    prev ? Math.round(((cur - prev) / Math.abs(prev)) * 1000) / 10 : null;
+  const kpis: { label: string; value: string; sub: string; icon: typeof Wallet; accent: string; ring: string; glow: string; delta?: number | null }[] = [
+    { label: "Bedrijfsopbrengsten", value: formatCurrencyCompact(k.revenue), sub: data.period.label, icon: ArrowUpCircle, accent: "text-teal-300", ring: "ring-teal-400/20", glow: "from-teal-500/15", delta: pct(k.revenue, py?.revenue) },
+    { label: "EBITDA", value: formatCurrencyCompact(k.ebitda), sub: `${k.revenue ? Math.round((k.ebitda / k.revenue) * 1000) / 10 : 0}% van omzet`, icon: Activity, accent: "text-amber-300", ring: "ring-amber-400/20", glow: "from-amber-500/15", delta: pct(k.ebitda, py?.ebitda) },
+    { label: "EBIT", value: formatCurrencyCompact(k.operatingResult), sub: `marge ${k.operatingMarginPct}%`, icon: TrendingUp, accent: "text-emerald-300", ring: "ring-emerald-400/20", glow: "from-emerald-500/15", delta: pct(k.operatingResult, py?.ebit) },
+    { label: "Nettoresultaat", value: formatCurrencyCompact(k.netResult), sub: "na financieel & belastingen", icon: Landmark, accent: "text-lime-300", ring: "ring-lime-400/20", glow: "from-lime-500/15", delta: pct(k.netResult, py?.netResult) },
     { label: "Cashpositie", value: formatCurrencyCompact(k.cash), sub: "banksaldo (klasse 55)", icon: Wallet, accent: "text-sky-300", ring: "ring-sky-400/20", glow: "from-sky-500/15" },
     { label: "Te betalen (AP)", value: formatCurrencyCompact(apShown), sub: eliminateIC ? "extern" : "incl. intercompany", icon: ArrowDownCircle, accent: "text-rose-300", ring: "ring-rose-400/20", glow: "from-rose-500/15" },
     { label: "Te ontvangen (AR)", value: arShown ? formatCurrencyCompact(arShown) : "—", sub: eliminateIC ? "extern" : "incl. intercompany", icon: ArrowUpCircle, accent: "text-violet-300", ring: "ring-violet-400/20", glow: "from-violet-500/15" },
@@ -188,6 +201,11 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
             <p className="text-sm text-slate-400">
               {data.company === "all" ? "Alle vennootschappen · geconsolideerd (bruto)" : `Vennootschap ${data.company}`} · {data.period.label}
             </p>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              {data.isLive ? `Data opgehaald: ${fmtStamp(data.generatedAt)}` : "Voorbeelddata"}
+              {" · "}
+              <a href="/cfo?refresh=1" className="text-teal-400 hover:text-teal-300 underline underline-offset-2">vernieuwen</a>
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -206,7 +224,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
       </div>
 
       {/* KPI tiles */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {kpis.map((t) => (
           <div key={t.label} className={`relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-4 ring-1 ${t.ring} backdrop-blur`}>
             <div className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br ${t.glow} to-transparent blur-2xl`} />
@@ -216,6 +234,11 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
             </div>
             <div className={`mt-2 text-xl font-bold ${t.accent}`}>{t.value}</div>
             <div className="mt-0.5 text-[11px] text-slate-500">{t.sub}</div>
+            {t.delta != null && (
+              <div className={`mt-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${t.delta >= 0 ? "bg-emerald-500/10 text-emerald-300" : "bg-rose-500/10 text-rose-300"}`}>
+                {t.delta >= 0 ? "▲" : "▼"} {Math.abs(t.delta)}% vs vorig jaar
+              </div>
+            )}
           </div>
         ))}
       </div>

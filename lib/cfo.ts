@@ -1,14 +1,16 @@
 // ============================================================
 // CFO Cockpit — group financials (P&L, cash, working capital)
 // ============================================================
-// Self-contained data layer for the /cfo page. Builds a drill-downable operating
-// P&L from BC general-ledger entries (PCMN classes 6/7), plus cash (class 55),
-// group AP aging (open vendor ledger) and a best-effort AR figure. Falls back to
-// rich sample data in demo mode. Cached 2h like the rest of the sync layer.
+// Self-contained data layer for the /cfo page. Builds a drill-downable P&L from
+// BC general-ledger entries (PCMN classes 6/7) THROUGH to net result (financial
+// result 65/75, non-recurring 66/76, taxes 67/77 — appropriation 68/69/78/79 is
+// excluded), plus cash (class 55), group AP/AR aging, a 13-week cash forecast,
+// ratios, a condensed balance sheet and same-period-last-year comparisons.
+// Falls back to rich sample data in demo mode. Cached 2h; `force` busts the cache.
 
 import type {
   CfoFinancials, CfoPnlLine, CfoAccountRow, CfoEntityRow, CfoMonthPoint, CfoAgingBucket, CfoKpis,
-  CfoRatios, CfoBalanceSheet, CfoBalanceLine, CfoCashForecast, CfoCashWeek, CfoBudget,
+  CfoRatios, CfoBalanceSheet, CfoCashForecast, CfoCashWeek, CfoBudget, CfoPrevYear,
 } from "./types";
 import { getCache, setCache } from "./sync-cache";
 import {
@@ -26,7 +28,7 @@ function isOperatingCompany(name: string): boolean {
 const r0 = (n: number) => Math.round(n);
 
 // Intercompany counterparty (own group entity as vendor/customer) — name-based.
-const IC_RX = /gheeraert|\bde\s*rudder\b|dr logistics|\brudder\b|marcel lamberts|lamberts en zonen|trans[\s-]?form|\bwarehouse\b/i;
+const IC_RX = /gheeraert|\bde\s*rudder\b|dr logistics|\brudder\b|marcel lamberts|lamberts en zonen|trans[\s-]?form|\bwarehouse\b|m[\s-]?express/i;
 const isIcName = (name: string) => IC_RX.test(name || "");
 
 // Monday of the week containing `d` (UTC).
@@ -38,10 +40,15 @@ function mondayOf(d: Date): Date {
 }
 function addDays(d: Date, n: number): Date { const x = new Date(d); x.setUTCDate(x.getUTCDate() + n); return x; }
 function iso(d: Date): string { return d.toISOString().slice(0, 10); }
+function shiftYear(isoDate: string, delta: number): string {
+  return `${Number(isoDate.slice(0, 4)) + delta}${isoDate.slice(4)}`;
+}
 
-// PCMN (Belgian MAR) class labels used in the operating P&L.
-const INCOME_CLASSES = ["70", "71", "72", "74"];
-const EXPENSE_CLASSES = ["60", "61", "62", "63", "64"];
+// ---- PCMN (Belgian MAR) class semantics ----
+const OP_INCOME = ["70", "71", "72", "74"];          // operating income (credit-normal)
+const OP_EXPENSE = ["60", "61", "62", "63", "64"];   // operating expense (debit-normal)
+const INCOME_NORMAL = new Set([...OP_INCOME, "75", "76", "77"]);
+const EXPENSE_NORMAL = new Set([...OP_EXPENSE, "65", "66", "67"]);
 const CLASS_LABEL: Record<string, string> = {
   "70": "Omzet",
   "71": "Voorraadwijziging",
@@ -52,6 +59,12 @@ const CLASS_LABEL: Record<string, string> = {
   "62": "Bezoldigingen & sociale lasten",
   "63": "Afschrijvingen & waardeverm.",
   "64": "Andere bedrijfskosten",
+  "65": "Financiële kosten",
+  "75": "Financiële opbrengsten",
+  "66": "Niet-recurrente kosten",
+  "76": "Niet-recurrente opbrengsten",
+  "67": "Belastingen",
+  "77": "Regularisatie belastingen",
 };
 
 const AGING_ORDER = ["Niet vervallen", "< 30d", "< 60d", "< 90d", "> 90d", "Onbekend"];
@@ -67,6 +80,29 @@ function agingBucket(due: string, today: Date): string {
   return "> 90d";
 }
 
+// Signed value of one GL row for its class kind (income credit-normal, expense debit-normal).
+function rowValue(row: BCPnlRow): { c2: string; val: number; kind: "income" | "expense" } | null {
+  const c2 = row.accountNumber.slice(0, 2);
+  if (INCOME_NORMAL.has(c2)) return { c2, val: row.credit - row.debit, kind: "income" };
+  if (EXPENSE_NORMAL.has(c2)) return { c2, val: row.debit - row.credit, kind: "expense" };
+  return null; // 68/69/78/79 (appropriation etc.) — excluded
+}
+
+// Headline totals from raw P&L rows — used for the same-period-last-year comparison.
+function computePnlTotals(rows: BCPnlRow[]): CfoPrevYear {
+  const cls: Record<string, number> = {};
+  for (const row of rows) {
+    const rv = rowValue(row);
+    if (rv) cls[rv.c2] = (cls[rv.c2] || 0) + rv.val;
+  }
+  const g = (c: string) => cls[c] || 0;
+  const revenue = OP_INCOME.reduce((s, c) => s + g(c), 0);
+  const ebitda = revenue - (g("60") + g("61") + g("62") + g("64"));
+  const ebit = ebitda - g("63");
+  const netResult = ebit + (g("75") - g("65")) + (g("76") - g("66")) - (g("67") - g("77"));
+  return { revenue: r0(revenue), ebitda: r0(ebitda), ebit: r0(ebit), netResult: r0(netResult) };
+}
+
 // ---- per-company aggregate from raw GL rows ----
 interface CompanyExtras {
   cash: number;
@@ -79,36 +115,35 @@ interface CompanyExtras {
 interface CompanyAgg extends CompanyExtras {
   code: string;
   name: string;
-  income: number;
-  expenseByClass: Record<string, number>;         // "60".."64" → total
+  opIncome: number;                                     // operating income only
+  byClass: Record<string, number>;                      // per 2-digit class, signed by kind
   accountsByClass: Record<string, Map<string, number>>; // class → (accountNumber → amount)
-  monthly: Map<string, { rev: number; cost: number }>;
+  monthly: Map<string, { rev: number; cost: number }>;  // operating only
 }
 
 function aggregateCompany(
   code: string, name: string, rows: BCPnlRow[], extras: CompanyExtras
 ): CompanyAgg {
-  const expenseByClass: Record<string, number> = {};
+  const byClass: Record<string, number> = {};
   const accountsByClass: Record<string, Map<string, number>> = {};
   const monthly = new Map<string, { rev: number; cost: number }>();
-  let income = 0;
+  let opIncome = 0;
   for (const row of rows) {
-    const c2 = row.accountNumber.slice(0, 2);
-    const isIncome = INCOME_CLASSES.includes(c2);
-    const isExpense = EXPENSE_CLASSES.includes(c2);
-    if (!isIncome && !isExpense) continue; // skip 65/66/67/75/76/77 (below EBIT)
-    const val = isIncome ? row.credit - row.debit : row.debit - row.credit;
-    const month = row.postingDate.slice(0, 7);
-    const m = monthly.get(month) || { rev: 0, cost: 0 };
-    if (isIncome) { income += val; m.rev += val; }
-    else { expenseByClass[c2] = (expenseByClass[c2] || 0) + val; m.cost += val; }
-    // track per-account totals for BOTH income and expense classes (drill-down source)
-    (accountsByClass[c2] = accountsByClass[c2] || new Map()).set(
-      row.accountNumber, (accountsByClass[c2].get(row.accountNumber) || 0) + val
+    const rv = rowValue(row);
+    if (!rv) continue;
+    byClass[rv.c2] = (byClass[rv.c2] || 0) + rv.val;
+    (accountsByClass[rv.c2] = accountsByClass[rv.c2] || new Map()).set(
+      row.accountNumber, (accountsByClass[rv.c2].get(row.accountNumber) || 0) + rv.val
     );
-    monthly.set(month, m);
+    if (OP_INCOME.includes(rv.c2) || OP_EXPENSE.includes(rv.c2)) {
+      const month = row.postingDate.slice(0, 7);
+      const m = monthly.get(month) || { rev: 0, cost: 0 };
+      if (rv.kind === "income") { opIncome += rv.val; m.rev += rv.val; }
+      else m.cost += rv.val;
+      monthly.set(month, m);
+    }
   }
-  return { code, name, income, expenseByClass, accountsByClass, monthly, ...extras };
+  return { code, name, opIncome, byClass, accountsByClass, monthly, ...extras };
 }
 
 // ---- combine company aggregates into the final CfoFinancials ----
@@ -172,14 +207,14 @@ function buildBudget(
 function combine(
   aggs: CompanyAgg[], names: Record<string, string>, company: string,
   from: string, to: string, label: string, isLive: boolean, today: Date,
-  budgetTargets: { rev: number; cost: number }
+  budgetTargets: { rev: number; cost: number }, prevYear?: CfoPrevYear
 ): CfoFinancials {
-  const income = aggs.reduce((s, a) => s + a.income, 0);
-  const expenseByClass: Record<string, number> = {};
+  const income = aggs.reduce((s, a) => s + a.opIncome, 0);
+  const byClass: Record<string, number> = {};
   const accountsByClass: Record<string, Map<string, number>> = {};
   const monthly = new Map<string, { rev: number; cost: number }>();
   for (const a of aggs) {
-    for (const [c, v] of Object.entries(a.expenseByClass)) expenseByClass[c] = (expenseByClass[c] || 0) + v;
+    for (const [c, v] of Object.entries(a.byClass)) byClass[c] = (byClass[c] || 0) + v;
     for (const [c, m] of Object.entries(a.accountsByClass)) {
       const dst = (accountsByClass[c] = accountsByClass[c] || new Map());
       for (const [acc, v] of m) dst.set(acc, (dst.get(acc) || 0) + v);
@@ -189,32 +224,53 @@ function combine(
       cur.rev += v.rev; cur.cost += v.cost; monthly.set(mo, cur);
     }
   }
-  const exp = (c: string) => expenseByClass[c] || 0;
-  const totalCosts = EXPENSE_CLASSES.reduce((s, c) => s + exp(c), 0);
-  const ebitda = income - (exp("60") + exp("61") + exp("62") + exp("64"));
-  const ebit = ebitda - exp("63");
+  const cls = (c: string) => byClass[c] || 0;
+  const totalCosts = OP_EXPENSE.reduce((s, c) => s + cls(c), 0);
+  const ebitda = income - (cls("60") + cls("61") + cls("62") + cls("64"));
+  const ebit = ebitda - cls("63");
+  const finRes = cls("75") - cls("65");
+  const excRes = cls("76") - cls("66");
+  const taxes = cls("67") - cls("77");
+  const resultBeforeTax = ebit + finRes + excRes;
+  const netResult = resultBeforeTax - taxes;
 
-  const accRows = (c: string): CfoAccountRow[] =>
+  const accRows = (c: string, negate = false): CfoAccountRow[] =>
     [...(accountsByClass[c] || new Map()).entries()]
-      .map(([accountNumber, amount]) => ({ accountNumber, accountName: names[accountNumber] || accountNumber, amount: r0(amount) }))
-      .filter((a) => Math.abs(a.amount) > 0)
-      .sort((a, b) => b.amount - a.amount);
+      .map(([accountNumber, amount]) => ({
+        accountNumber,
+        accountName: names[accountNumber] || accountNumber,
+        amount: r0(negate ? -amount : amount),
+      }))
+      .filter((a) => Math.abs(a.amount) > 0);
+  const byAbs = (rows: CfoAccountRow[]) => rows.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
 
-  const revenueAccounts: CfoAccountRow[] = INCOME_CLASSES.flatMap((c) => accRows(c)).sort((a, b) => b.amount - a.amount);
+  const revenueAccounts = byAbs(OP_INCOME.flatMap((c) => accRows(c)));
+  const finAccounts = byAbs([...accRows("75"), ...accRows("65", true)]);
+  const excAccounts = byAbs([...accRows("76"), ...accRows("66", true)]);
+  const taxAccounts = byAbs([...accRows("77"), ...accRows("67", true)]);
 
   const pnl: CfoPnlLine[] = [
     { key: "revenue", label: "Bedrijfsopbrengsten", amount: r0(income), kind: "income", pnlClass: "70", accounts: revenueAccounts },
-    { key: "c60", label: CLASS_LABEL["60"], amount: -r0(exp("60")), kind: "expense", pnlClass: "60", accounts: accRows("60") },
-    { key: "c61", label: CLASS_LABEL["61"], amount: -r0(exp("61")), kind: "expense", pnlClass: "61", accounts: accRows("61") },
-    { key: "c62", label: CLASS_LABEL["62"], amount: -r0(exp("62")), kind: "expense", pnlClass: "62", accounts: accRows("62") },
-    { key: "c64", label: CLASS_LABEL["64"], amount: -r0(exp("64")), kind: "expense", pnlClass: "64", accounts: accRows("64") },
+    { key: "c60", label: CLASS_LABEL["60"], amount: -r0(cls("60")), kind: "expense", pnlClass: "60", accounts: byAbs(accRows("60")) },
+    { key: "c61", label: CLASS_LABEL["61"], amount: -r0(cls("61")), kind: "expense", pnlClass: "61", accounts: byAbs(accRows("61")) },
+    { key: "c62", label: CLASS_LABEL["62"], amount: -r0(cls("62")), kind: "expense", pnlClass: "62", accounts: byAbs(accRows("62")) },
+    { key: "c64", label: CLASS_LABEL["64"], amount: -r0(cls("64")), kind: "expense", pnlClass: "64", accounts: byAbs(accRows("64")) },
     { key: "ebitda", label: "EBITDA", amount: r0(ebitda), kind: "subtotal", pnlClass: "", accounts: [] },
-    { key: "c63", label: CLASS_LABEL["63"], amount: -r0(exp("63")), kind: "expense", pnlClass: "63", accounts: accRows("63") },
+    { key: "c63", label: CLASS_LABEL["63"], amount: -r0(cls("63")), kind: "expense", pnlClass: "63", accounts: byAbs(accRows("63")) },
     { key: "ebit", label: "Bedrijfsresultaat (EBIT)", amount: r0(ebit), kind: "subtotal", pnlClass: "", accounts: [] },
+    { key: "fin", label: "Financieel resultaat", amount: r0(finRes), kind: finRes >= 0 ? "income" : "expense", pnlClass: "65/75", accounts: finAccounts },
   ];
+  if (Math.abs(excRes) >= 1) {
+    pnl.push({ key: "exc", label: "Niet-recurrent resultaat", amount: r0(excRes), kind: excRes >= 0 ? "income" : "expense", pnlClass: "66/76", accounts: excAccounts });
+  }
+  pnl.push(
+    { key: "rbt", label: "Resultaat vóór belastingen", amount: r0(resultBeforeTax), kind: "subtotal", pnlClass: "", accounts: [] },
+    { key: "tax", label: "Belastingen", amount: -r0(taxes), kind: taxes >= 0 ? "expense" : "income", pnlClass: "67/77", accounts: taxAccounts },
+    { key: "net", label: "Nettoresultaat", amount: r0(netResult), kind: "subtotal", pnlClass: "", accounts: [] },
+  );
 
-  const costStructure: CfoAccountRow[] = EXPENSE_CLASSES
-    .map((c) => ({ accountNumber: c, accountName: CLASS_LABEL[c], amount: r0(exp(c)) }))
+  const costStructure: CfoAccountRow[] = OP_EXPENSE
+    .map((c) => ({ accountNumber: c, accountName: CLASS_LABEL[c], amount: r0(cls(c)) }))
     .filter((x) => x.amount > 0)
     .sort((a, b) => b.amount - a.amount);
 
@@ -224,8 +280,8 @@ function combine(
 
   const entities: CfoEntityRow[] = aggs
     .map((a) => {
-      const rev = a.income;
-      const costs = EXPENSE_CLASSES.reduce((s, c) => s + (a.expenseByClass[c] || 0), 0);
+      const rev = a.opIncome;
+      const costs = OP_EXPENSE.reduce((s, c) => s + (a.byClass[c] || 0), 0);
       const result = rev - costs;
       return { code: a.code, companyName: a.name, revenue: r0(rev), costs: r0(costs), result: r0(result), marginPct: rev ? Math.round((result / rev) * 1000) / 10 : 0 };
     })
@@ -244,7 +300,6 @@ function combine(
   }
   const apAging: CfoAgingBucket[] = AGING_ORDER.filter((b) => apB[b]).map((b) => ({ label: b, amount: r0(apB[b].all), extern: r0(apB[b].ext) }));
 
-  // ---- AR aging (+ external split via IC customer name) ----
   const arB: Record<string, { all: number; ext: number }> = {};
   let arOpen = 0, arOpenExtern = 0;
   for (const row of arRowsAll) {
@@ -256,15 +311,14 @@ function combine(
   const arAging: CfoAgingBucket[] = AGING_ORDER.filter((b) => arB[b]).map((b) => ({ label: b, amount: r0(arB[b].all), extern: r0(arB[b].ext) }));
 
   const cash = aggs.reduce((s, a) => s + a.cash, 0);
-  const equity = aggs.reduce((s, a) => s + a.equity, 0);        // credit-normal (usually negative)
+  const equity = aggs.reduce((s, a) => s + a.equity, 0);
   const fixedAssets = aggs.reduce((s, a) => s + a.fixedAssets, 0);
   const inventory = Math.max(aggs.reduce((s, a) => s + a.inventory, 0), 0);
   const equityPos = -equity;
 
-  // ---- working-capital & liquidity ratios ----
   const elapsed = daysElapsed(from, today);
   const currentAssets = cash + arOpen + inventory;
-  const currentLiab = apOpen; // approximation: trade payables only
+  const currentLiab = apOpen;
   const totalAssetsApprox = fixedAssets + inventory + arOpen + cash;
   const ratios: CfoRatios = {
     currentRatio: currentLiab ? Math.round((currentAssets / currentLiab) * 100) / 100 : 0,
@@ -272,12 +326,11 @@ function combine(
     solvencyPct: totalAssetsApprox ? Math.round((equityPos / totalAssetsApprox) * 1000) / 10 : 0,
     dso: income ? Math.round((arOpen / income) * elapsed) : 0,
     dpo: totalCosts ? Math.round((apOpen / totalCosts) * elapsed) : 0,
-    dio: exp("60") ? Math.round((inventory / exp("60")) * elapsed) : 0,
+    dio: cls("60") ? Math.round((inventory / cls("60")) * elapsed) : 0,
     ccc: 0, approx: true,
   };
   ratios.ccc = ratios.dso + ratios.dio - ratios.dpo;
 
-  // ---- condensed balance sheet ----
   const balanceSheet: CfoBalanceSheet = {
     assets: [
       { label: "Vaste activa (klasse 2)", amount: r0(fixedAssets), group: "asset" },
@@ -292,36 +345,33 @@ function combine(
     totalAssets: r0(totalAssetsApprox), totalClaims: r0(equityPos + apOpen), complete: false, asOf: to,
   };
 
-  // ---- 13-week cash forecast ----
-  const weeklyPayroll = exp("62") / Math.max(1, elapsed / 7);
+  const weeklyPayroll = cls("62") / Math.max(1, elapsed / 7);
   const cashForecast = buildForecast(cash, arRowsAll, apRowsAll, weeklyPayroll, today);
-
-  // ---- budget vs actual ----
   const budget = buildBudget(budgetTargets, income, totalCosts, ebit, elapsed);
 
   const kpis: CfoKpis = {
     revenue: r0(income), costs: r0(totalCosts), operatingResult: r0(ebit),
     operatingMarginPct: income ? Math.round((ebit / income) * 1000) / 10 : 0,
-    ebitda: r0(ebitda), cash: r0(cash), apOpen: r0(apOpen), arOpen: r0(arOpen),
+    ebitda: r0(ebitda), netResult: r0(netResult), cash: r0(cash), apOpen: r0(apOpen), arOpen: r0(arOpen),
     apOpenExtern: r0(apOpenExtern), arOpenExtern: r0(arOpenExtern),
   };
 
   const sources = [
-    { label: "Winst & verlies", detail: "BC grootboek, PCMN-klasse 6 (kosten) & 7 (opbrengsten), postingDate in de periode. Klik een balk voor de onderliggende rekeningen." },
+    { label: "Winst & verlies", detail: "BC grootboek, PCMN-klasse 6 & 7 (excl. resultaatverwerking 68/69/78/79), postingDate in de periode. Klik een balk voor de onderliggende rekeningen. ΔPY = zelfde periode vorig jaar." },
     { label: "Cash & balans", detail: "Nettosaldo grootboekklassen: 55 (bank), 1 (eigen vermogen), 2 (vaste activa), 3 (voorraden). Volledige balans (kl. 4/5) via de gematerialiseerde snapshot." },
     { label: "Openstaand leveranciers (AP)", detail: "Open leveranciersposten (VendorLedgerEntries), −Remaining_Amt_LCY, gebucket op vervaldatum. IC = intercompany (naam-match)." },
     { label: "Openstaand klanten (AR)", detail: "Open verkoopfacturen (salesInvoices, remainingAmount), gebucket op vervaldatum." },
     { label: "Cashflowprognose", detail: "Directe methode: openingssaldo + AR-inning − AP-betaling − loon, 13 weken rollend op vervaldatum." },
   ];
   const notes: string[] = [];
-  notes.push("Operationeel resultaat (EBIT); financieel/uitzonderlijk resultaat (klasse 65/66/75/76) en belastingen nog niet meegeteld.");
+  notes.push("P&L t/m nettoresultaat (financieel 65/75, niet-recurrent 66/76, belastingen 67/77); resultaatverwerking (68/69/78/79) uitgesloten.");
   notes.push("Ratio's: vlottende schulden ≈ handelsschulden (geen volledige korte-termijnschuld-split); balans condensed tot betrouwbare posten.");
-  notes.push("Bedragen bruto per vennootschap — intercompany-eliminatie via de IC-schakelaar (nu naam-gebaseerd op AP/AR; P&L-IC vereist dimensies).");
+  notes.push("Bedragen bruto per vennootschap — intercompany-eliminatie via de IC-schakelaar (naam-gebaseerd op AP/AR; P&L-IC vereist dimensies).");
 
   return {
     period: { from, to, label }, company, isLive, generatedAt: new Date().toISOString(),
     kpis, pnl, costStructure, monthly: monthlyArr, apAging, entities, sources, notes,
-    arAging, ratios, balanceSheet, cashForecast, budget,
+    arAging, ratios, balanceSheet, cashForecast, budget, prevYear,
   };
 }
 
@@ -329,7 +379,7 @@ function combine(
 // Public getter
 // ============================================================
 export async function getCfoFinancials(
-  company: string = "all", from?: string, to?: string
+  company: string = "all", from?: string, to?: string, force = false
 ): Promise<CfoFinancials> {
   const year = new Date().getUTCFullYear();
   const f = from || `${year}-01-01`;
@@ -339,8 +389,10 @@ export async function getCfoFinancials(
   if (isDemoMode()) return demoCfo(company, f, t, label);
 
   const cacheKey = `cfo-${company}-${f}-${t}`;
-  const cached = getCache<CfoFinancials>(cacheKey);
-  if (cached) return cached;
+  if (!force) {
+    const cached = getCache<CfoFinancials>(cacheKey);
+    if (cached) return cached;
+  }
 
   try {
     const raw = await fetchBCCompanies();
@@ -356,9 +408,12 @@ export async function getCfoFinancials(
     const budgetTargets = { rev: settings?.cfoRevenueTarget || 0, cost: settings?.cfoCostTarget || 0 };
     const names: Record<string, string> = {};
     const today = new Date();
+    const pyF = shiftYear(f, -1), pyT = shiftYear(t, -1);
+    const pyAll: BCPnlRow[] = [];
     const aggs = await Promise.all(targets.map(async (c) => {
-      const [rows, nameMap, cash, ap, ar, equity, fixedAssets, inventory] = await Promise.all([
+      const [rows, pyRows, nameMap, cash, ap, ar, equity, fixedAssets, inventory] = await Promise.all([
         fetchBCPnlRows(c.id, f, t),
+        fetchBCPnlRows(c.id, pyF, pyT).catch(() => [] as BCPnlRow[]),
         fetchBCAccountNames(c.id).catch(() => ({} as Record<string, string>)),
         fetchBCCashBalance(c.id).catch(() => 0),
         fetchBCOpenAP(c.code).catch(() => [] as BCOpenAPRow[]),
@@ -368,10 +423,15 @@ export async function getCfoFinancials(
         fetchBCClassNetBalance(c.id, "3").catch(() => 0),
       ]);
       Object.assign(names, nameMap);
+      pyAll.push(...pyRows);
       return aggregateCompany(c.code, c.name, rows, { cash, equity, fixedAssets, inventory, apRows: ap, arRows: ar });
     }));
 
-    const result = combine(aggs, names, company, f, t, label, true, today, budgetTargets);
+    // ΔPY: same period last year, capped at "today minus 1 year" so YTD compares like-for-like.
+    const pyCutoff = shiftYear(today.toISOString().slice(0, 10), -1);
+    const prevYear = computePnlTotals(pyAll.filter((r) => r.postingDate <= pyCutoff));
+
+    const result = combine(aggs, names, company, f, t, label, true, today, budgetTargets, prevYear);
     setCache(cacheKey, result, 120);
     return result;
   } catch (err) {
@@ -389,6 +449,9 @@ function demoCfo(company: string, from: string, to: string, label: string): CfoF
   const income = 32_410_000;
   const ebitda = income - (c60 + c61 + c62 + c64);
   const ebit = ebitda - c63;
+  const finRes = -412_000, excRes = 58_000, taxes = 486_000;
+  const rbt = ebit + finRes + excRes;
+  const net = rbt - taxes;
   const pnl: CfoPnlLine[] = [
     { key: "revenue", label: "Bedrijfsopbrengsten", amount: income, kind: "income", pnlClass: "70", accounts: [
       acc("700000", "Omzet transport", 27_650_000), acc("700100", "Omzet logistiek/warehousing", 3_120_000), acc("740000", "Andere bedrijfsopbrengsten", 1_640_000),
@@ -410,6 +473,17 @@ function demoCfo(company: string, from: string, to: string, label: string): CfoF
       acc("630000", "Afschrijvingen rollend materieel", 1_360_000), acc("630200", "Afschrijvingen gebouwen", 300_000), acc("631000", "Waardeverminderingen", 150_000),
     ] },
     { key: "ebit", label: "Bedrijfsresultaat (EBIT)", amount: ebit, kind: "subtotal", pnlClass: "", accounts: [] },
+    { key: "fin", label: "Financieel resultaat", amount: finRes, kind: "expense", pnlClass: "65/75", accounts: [
+      acc("650000", "Rente kredieten & leasing", -365_000), acc("650090", "Bankkosten", -78_000), acc("756000", "Diverse financiële opbrengsten", 31_000),
+    ] },
+    { key: "exc", label: "Niet-recurrent resultaat", amount: excRes, kind: "income", pnlClass: "66/76", accounts: [
+      acc("763000", "Meerwaarde verkoop activa", 96_000), acc("664000", "Niet-recurrente kosten", -38_000),
+    ] },
+    { key: "rbt", label: "Resultaat vóór belastingen", amount: rbt, kind: "subtotal", pnlClass: "", accounts: [] },
+    { key: "tax", label: "Belastingen", amount: -taxes, kind: "expense", pnlClass: "67/77", accounts: [
+      acc("670200", "Geraamde belastingen", -486_000),
+    ] },
+    { key: "net", label: "Nettoresultaat", amount: net, kind: "subtotal", pnlClass: "", accounts: [] },
   ];
   const costStructure: CfoAccountRow[] = [
     { accountNumber: "61", accountName: CLASS_LABEL["61"], amount: c61 },
@@ -425,13 +499,12 @@ function demoCfo(company: string, from: string, to: string, label: string): CfoF
     const cost = Math.round(((c60 + c61 + c62 + c63 + c64) / 6) * (0.94 + i * 0.02));
     return { month: `${yr}-${m}`, revenue: rev, costs: cost, result: rev - cost };
   });
-  // real 13/07 group AP aging as a realistic sample
   const apAging: CfoAgingBucket[] = [
-    { label: "Niet vervallen", amount: 3_121_142 },
-    { label: "< 30d", amount: 2_701_919 },
-    { label: "< 60d", amount: 2_123_483 },
-    { label: "< 90d", amount: 1_239_009 },
-    { label: "> 90d", amount: 3_063_609 },
+    { label: "Niet vervallen", amount: 3_121_142, extern: 2_530_000 },
+    { label: "< 30d", amount: 2_701_919, extern: 2_140_000 },
+    { label: "< 60d", amount: 2_123_483, extern: 1_680_000 },
+    { label: "< 90d", amount: 1_239_009, extern: 940_000 },
+    { label: "> 90d", amount: 3_063_609, extern: 709_345 },
   ];
   const entities: CfoEntityRow[] = [
     { code: "GDI", companyName: "Gheeraert Distribution NV", revenue: 9_540_000, costs: 9_010_000, result: 530_000, marginPct: 5.6 },
@@ -479,21 +552,23 @@ function demoCfo(company: string, from: string, to: string, label: string): CfoF
   };
   const kpis: CfoKpis = {
     revenue: income, costs: c60 + c61 + c62 + c63 + c64, operatingResult: ebit,
-    operatingMarginPct: Math.round((ebit / income) * 1000) / 10, ebitda,
+    operatingMarginPct: Math.round((ebit / income) * 1000) / 10, ebitda, netResult: net,
     cash: 1_178_550, apOpen: 12_249_162, arOpen: 9_480_000, apOpenExtern: 7_999_345, arOpenExtern: 8_260_000,
   };
+  const prevYear: CfoPrevYear = { revenue: 30_120_000, ebitda: 3_310_000, ebit: 1_620_000, netResult: 890_000 };
   return {
     period: { from, to, label }, company, isLive: false, generatedAt: new Date(0).toISOString(),
-    kpis, pnl, costStructure, monthly, apAging, entities, arAging, ratios, balanceSheet, cashForecast, budget,
+    kpis, pnl, costStructure, monthly, apAging, entities, arAging, ratios, balanceSheet, cashForecast, budget, prevYear,
     sources: [
-      { label: "Winst & verlies", detail: "BC grootboek, PCMN-klasse 6 (kosten) & 7 (opbrengsten). Klik een balk voor de onderliggende rekeningen." },
-      { label: "Cash", detail: "Nettosaldo klasse 55 (banken)." },
+      { label: "Winst & verlies", detail: "BC grootboek, PCMN-klasse 6 & 7 t/m nettoresultaat. Klik een balk voor de onderliggende rekeningen." },
+      { label: "Cash & balans", detail: "Nettosaldo klasse 55 (banken), 1, 2, 3." },
       { label: "Openstaand leveranciers (AP)", detail: "Open leveranciersposten, gebucket op vervaldatum." },
-      { label: "Openstaand klanten (AR)", detail: "customers.balanceDue." },
+      { label: "Openstaand klanten (AR)", detail: "Open verkoopfacturen (remainingAmount)." },
+      { label: "Cashflowprognose", detail: "Directe methode, 13 weken rollend." },
     ],
     notes: [
       "Voorbeelddata (demomodus) — orde van grootte gebaseerd op de echte groep.",
-      "Operationeel resultaat (EBIT); financieel/uitzonderlijk resultaat en belastingen nog niet meegeteld.",
+      "P&L t/m nettoresultaat; resultaatverwerking (68/69/78/79) uitgesloten.",
     ],
   };
 }

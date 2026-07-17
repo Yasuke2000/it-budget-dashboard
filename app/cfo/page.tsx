@@ -27,8 +27,9 @@ export default async function CfoPage({
   const year = new Date().getFullYear();
   const from = sp.from || `${year}-01-01`;
   const to = sp.to || `${year}-12-31`;
+  const force = sp.refresh === "1"; // "vernieuwen"-link: cache overslaan, vers uit BC
 
-  const data = await getCfoFinancials(company, from, to).catch(() => null);
+  const data = await getCfoFinancials(company, from, to, force).catch(() => null);
 
   if (!data) {
     return (

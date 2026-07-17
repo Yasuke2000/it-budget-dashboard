@@ -625,11 +625,20 @@ export interface CfoKpis {
   operatingResult: number;        // EBIT
   operatingMarginPct: number;
   ebitda: number;
+  netResult: number;              // after financial result, non-recurring items and taxes
   cash: number;
   apOpen: number;                 // open payables (money out)
   arOpen: number;                 // open receivables (money in); 0/null when not available
   apOpenExtern: number;           // AP excluding intercompany
   arOpenExtern: number;           // AR excluding intercompany
+}
+
+// Same-period-last-year totals, so every headline KPI carries a ΔPY comparison.
+export interface CfoPrevYear {
+  revenue: number;
+  ebitda: number;
+  ebit: number;
+  netResult: number;
 }
 
 export interface CfoSource {
@@ -656,6 +665,7 @@ export interface CfoFinancials {
   balanceSheet?: CfoBalanceSheet;
   cashForecast?: CfoCashForecast;
   budget?: CfoBudget;
+  prevYear?: CfoPrevYear;
 }
 
 // === Warranty ===
