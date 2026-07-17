@@ -56,6 +56,9 @@ interface Drill { title: string; subtitle?: string; total?: number; rows: DrillR
 export function CfoCockpit({ data }: { data: CfoFinancials }) {
   const [drill, setDrill] = useState<Drill | null>(null);
   const [eliminateIC, setEliminateIC] = useState(false);
+  // P&L-weergave: "brug" = klassieke resultaatbrug (balken zweven op het lopende
+  // totaal); "nul" = elke balk vanaf 0 (pure groottes, geen cumulatief verloop).
+  const [pnlView, setPnlView] = useState<"brug" | "nul">("brug");
   const k = data.kpis;
 
   const agingVal = (b: CfoAgingBucket) => (eliminateIC && b.extern != null ? b.extern : b.amount);
@@ -67,9 +70,17 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
     let running = 0;
     for (const line of data.pnl) {
       labels.push(line.label);
-      if (line.kind === "income") { base.push(0); vals.push({ value: line.amount, itemStyle: { color: C.income } }); running += line.amount; }
+      const subColor = line.key === "ebit" || line.key === "net" ? C.ebit : C.ebitda;
+      if (pnlView === "nul") {
+        // "Vanaf nul": elke balk vanaf 0 — hoogte = absolute grootte, kleur = soort.
+        base.push(0);
+        vals.push({ value: Math.abs(line.amount), itemStyle: { color: line.kind === "income" ? C.income : line.kind === "expense" ? C.expense : subColor } });
+        continue;
+      }
+      // "Brug" (standaard resultaatbrug): balken zweven op het lopende totaal.
+      if (line.kind === "income") { base.push(running); vals.push({ value: line.amount, itemStyle: { color: C.income } }); running += line.amount; }
       else if (line.kind === "expense") { const mag = -line.amount; base.push(running - mag); vals.push({ value: mag, itemStyle: { color: C.expense } }); running -= mag; }
-      else { base.push(0); vals.push({ value: line.amount, itemStyle: { color: line.key === "ebit" || line.key === "net" ? C.ebit : C.ebitda } }); }
+      else { base.push(0); vals.push({ value: line.amount, itemStyle: { color: subColor } }); }
     }
     return {
       grid: { top: 28, left: 6, right: 14, bottom: 88, containLabel: true },
@@ -81,7 +92,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
         { name: "P&L", type: "bar", stack: "t", data: vals, barMaxWidth: 46, label: { show: true, position: "top", color: "#cbd5e1", fontSize: 10, formatter: (p: LP) => eurAxis(Number(p.value)) } },
       ],
     };
-  }, [data.pnl]);
+  }, [data.pnl, pnlView]);
 
   const donut = useMemo<echarts.EChartsOption>(() => ({
     tooltip: { trigger: "item", valueFormatter: (v) => formatCurrency(Number(v)) },
@@ -280,9 +291,25 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
       {/* Main grid */}
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
-          <Card title="Winst & verlies — brug naar bedrijfsresultaat" hint="Klik een balk voor de brongegevens" source="PCMN-klasse 6 & 7 · BC grootboek">
+          <Card title="Winst & verlies — brug naar nettoresultaat" hint="Klik een balk voor de brongegevens" source="PCMN-klasse 6 & 7 · BC grootboek">
+            <div className="mb-2 flex items-center gap-1.5">
+              {(["brug", "nul"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setPnlView(v)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 transition ${pnlView === v ? "bg-teal-500/20 text-teal-200 ring-teal-400/40" : "bg-white/5 text-slate-400 ring-white/10 hover:text-white"}`}
+                >
+                  {v === "brug" ? "Brug (waterfall)" : "Vanaf nul"}
+                </button>
+              ))}
+              <span className="ml-2 text-[10px] text-slate-500">
+                {pnlView === "brug"
+                  ? "elke balk start waar de vorige eindigde — het cumulatieve pad van omzet naar netto"
+                  : "elke balk vanaf 0 — pure groottes, geen cumulatief verloop"}
+              </span>
+            </div>
             <EChart option={waterfall} height={360} onSelect={onWaterfall} ariaLabel="P&L waterfall" />
-            <Legend items={[["Opbrengsten", C.income], ["Kosten", C.expense], ["EBITDA", C.ebitda], ["EBIT", C.ebit]]} />
+            <Legend items={[["Opbrengsten", C.income], ["Kosten", C.expense], ["EBITDA / vóór belastingen", C.ebitda], ["EBIT / Nettoresultaat", C.ebit]]} />
           </Card>
 
           {forecast && (
