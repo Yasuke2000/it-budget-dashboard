@@ -51,7 +51,9 @@ async function fetchAllPages<T>(url: string, token: string): Promise<T[]> {
     }, { timeoutMs: 90_000, maxAttempts: 2 });
     if (!res.ok) throw new Error(`BC API ${res.status}: ${await res.text()}`);
     const data = await res.json();
-    results.push(...(data.value || []));
+    // Loop, never push(...page): a 20k-row page as spread arguments can blow the
+    // call stack ("Maximum call stack size exceeded").
+    for (const v of data.value || []) results.push(v);
     nextUrl = data["@odata.nextLink"] || null;
   }
   return results;

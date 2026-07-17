@@ -666,6 +666,9 @@ export interface CfoFinancials {
   cashForecast?: CfoCashForecast;
   budget?: CfoBudget;
   prevYear?: CfoPrevYear;
+  // Honest failure/refresh surfacing — never silently present sample data as live.
+  loadError?: string;   // live fetch failed → demo shown WITH this reason banner
+  refreshing?: boolean; // background rebuild running; page shows cached data meanwhile
 }
 
 // === Warranty ===

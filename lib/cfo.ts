@@ -378,39 +378,39 @@ function combine(
 // ============================================================
 // Public getter
 // ============================================================
-export async function getCfoFinancials(
-  company: string = "all", from?: string, to?: string, force = false
+
+// One in-flight build per cache key: dedupes concurrent cold loads AND backs the
+// fire-and-forget background refresh (?refresh=1 on a warm cache).
+const inflightCfo = new Map<string, Promise<CfoFinancials>>();
+
+async function buildLiveCfo(
+  company: string, f: string, t: string, label: string, cacheKey: string
 ): Promise<CfoFinancials> {
-  const year = new Date().getUTCFullYear();
-  const f = from || `${year}-01-01`;
-  const t = to || `${year}-12-31`;
-  const label = `FY ${year} (YTD)`;
+  const raw = await fetchBCCompanies();
+  const companies = raw
+    .map((c) => ({ id: String(c.id), code: String(c.name), name: String(c.displayName || c.name) }))
+    .filter((c) => isOperatingCompany(c.code));
+  const targets = company === "all"
+    ? companies
+    : companies.filter((c) => c.id === company || c.code === company || c.name === company);
+  if (!targets.length) throw new Error(`geen vennootschap gevonden voor "${company}"`);
 
-  if (isDemoMode()) return demoCfo(company, f, t, label);
+  const settings = await getAppSettings().catch(() => null);
+  const budgetTargets = { rev: settings?.cfoRevenueTarget || 0, cost: settings?.cfoCostTarget || 0 };
+  const names: Record<string, string> = {};
+  const today = new Date();
+  const pyF = shiftYear(f, -1), pyT = shiftYear(t, -1);
+  // ΔPY: same period last year, capped at "today minus 1 year" so YTD compares like-for-like.
+  const pyCutoff = shiftYear(today.toISOString().slice(0, 10), -1);
+  const pyAcc: CfoPrevYear = { revenue: 0, ebitda: 0, ebit: 0, netResult: 0 };
 
-  const cacheKey = `cfo-${company}-${f}-${t}`;
-  if (!force) {
-    const cached = getCache<CfoFinancials>(cacheKey);
-    if (cached) return cached;
-  }
-
-  try {
-    const raw = await fetchBCCompanies();
-    const companies = raw
-      .map((c) => ({ id: String(c.id), code: String(c.name), name: String(c.displayName || c.name) }))
-      .filter((c) => isOperatingCompany(c.code));
-    const targets = company === "all"
-      ? companies
-      : companies.filter((c) => c.id === company || c.code === company || c.name === company);
-    if (!targets.length) return demoCfo(company, f, t, label);
-
-    const settings = await getAppSettings().catch(() => null);
-    const budgetTargets = { rev: settings?.cfoRevenueTarget || 0, cost: settings?.cfoCostTarget || 0 };
-    const names: Record<string, string> = {};
-    const today = new Date();
-    const pyF = shiftYear(f, -1), pyT = shiftYear(t, -1);
-    const pyAll: BCPnlRow[] = [];
-    const aggs = await Promise.all(targets.map(async (c) => {
+  // Process companies in small batches: 11 × 9 concurrent BC calls at once holds two
+  // full-year GL datasets in RAM simultaneously (the earlier stack/memory blow-up).
+  const aggs: CompanyAgg[] = [];
+  const CHUNK = 3;
+  for (let i = 0; i < targets.length; i += CHUNK) {
+    const batch = targets.slice(i, i + CHUNK);
+    const part = await Promise.all(batch.map(async (c) => {
       const [rows, pyRows, nameMap, cash, ap, ar, equity, fixedAssets, inventory] = await Promise.all([
         fetchBCPnlRows(c.id, f, t),
         fetchBCPnlRows(c.id, pyF, pyT).catch(() => [] as BCPnlRow[]),
@@ -423,20 +423,57 @@ export async function getCfoFinancials(
         fetchBCClassNetBalance(c.id, "3").catch(() => 0),
       ]);
       Object.assign(names, nameMap);
-      pyAll.push(...pyRows);
+      // PY meteen tot 4 totalen reduceren — NOOIT alle rauwe PY-rijen bewaren of
+      // spreiden (push(...100k rijen) = "Maximum call stack size exceeded").
+      const pt = computePnlTotals(pyRows.filter((r) => r.postingDate <= pyCutoff));
+      pyAcc.revenue += pt.revenue; pyAcc.ebitda += pt.ebitda; pyAcc.ebit += pt.ebit; pyAcc.netResult += pt.netResult;
       return aggregateCompany(c.code, c.name, rows, { cash, equity, fixedAssets, inventory, apRows: ap, arRows: ar });
     }));
+    for (const a of part) aggs.push(a);
+  }
 
-    // ΔPY: same period last year, capped at "today minus 1 year" so YTD compares like-for-like.
-    const pyCutoff = shiftYear(today.toISOString().slice(0, 10), -1);
-    const prevYear = computePnlTotals(pyAll.filter((r) => r.postingDate <= pyCutoff));
+  const result = combine(aggs, names, company, f, t, label, true, today, budgetTargets, pyAcc);
+  setCache(cacheKey, result, 720); // 12h — verse pull via de vernieuwen-link of pod-herstart
+  return result;
+}
 
-    const result = combine(aggs, names, company, f, t, label, true, today, budgetTargets, prevYear);
-    setCache(cacheKey, result, 120);
-    return result;
+export async function getCfoFinancials(
+  company: string = "all", from?: string, to?: string, force = false
+): Promise<CfoFinancials> {
+  const year = new Date().getUTCFullYear();
+  const f = from || `${year}-01-01`;
+  const t = to || `${year}-12-31`;
+  const label = `FY ${year} (YTD)`;
+
+  if (isDemoMode()) return demoCfo(company, f, t, label);
+
+  const cacheKey = `cfo-${company}-${f}-${t}`;
+  const cached = getCache<CfoFinancials>(cacheKey);
+  if (cached && !force) return cached;
+
+  // Warm cache + expliciete refresh: achtergrond-rebuild starten en de bestaande
+  // data meteen teruggeven (Cloudflare kapt requests >100s af — nooit blokkeren).
+  if (cached && force) {
+    if (!inflightCfo.has(cacheKey)) {
+      const p = buildLiveCfo(company, f, t, label, cacheKey).finally(() => inflightCfo.delete(cacheKey));
+      inflightCfo.set(cacheKey, p);
+      p.catch((e) => console.error("cfo background refresh failed:", e));
+    }
+    return { ...cached, refreshing: true };
+  }
+
+  // Koude lading — gededuped zodat gelijktijdige bezoekers één build delen.
+  try {
+    let p = inflightCfo.get(cacheKey);
+    if (!p) {
+      p = buildLiveCfo(company, f, t, label, cacheKey).finally(() => inflightCfo.delete(cacheKey));
+      inflightCfo.set(cacheKey, p);
+    }
+    return await p;
   } catch (err) {
     console.error("getCfoFinancials live fetch failed, serving demo:", err);
-    return demoCfo(company, f, t, label);
+    const d = demoCfo(company, f, t, label);
+    return { ...d, loadError: String(err).slice(0, 250) };
   }
 }
 

@@ -255,6 +255,20 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
         </div>
       )}
 
+      {/* Eerlijkheid eerst: live-load mislukt of achtergrond-vernieuwing bezig */}
+      {data.loadError && (
+        <div className="mt-4 flex items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-300">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span><strong>Live laden uit Business Central is mislukt</strong> — onderstaande cijfers zijn VOORBEELDDATA. Reden: {data.loadError}</span>
+        </div>
+      )}
+      {data.refreshing && (
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-teal-500/30 bg-teal-500/10 px-4 py-2.5 text-sm text-teal-300">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+          Vernieuwing gestart — de data wordt op de achtergrond vers uit BC getrokken (± 2 min). Herlaad de pagina straks; tot dan zie je de vorige stand.
+        </div>
+      )}
+
       {/* Cash-crunch banner */}
       {data.cashForecast && data.cashForecast.lowestClosing < 0 && (
         <div className="mt-4 flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-300">

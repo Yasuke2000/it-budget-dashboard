@@ -38,6 +38,13 @@ export async function register() {
           await ds.getDashboardKPIs("all", f, t);
         }
         console.log("[startup] IT Finance cache warmed");
+
+        // Warm the CFO cockpit too (heavy: two years of GL across all companies).
+        // Sequential, after the dashboard, so the first /cfo visit is cache-served
+        // instead of hitting a multi-minute cold build (Cloudflare cuts off >100s).
+        const cfo = await import("@/lib/cfo");
+        await cfo.getCfoFinancials();
+        console.log("[startup] CFO cockpit warmed");
       } catch (err) {
         console.warn("[startup] cache warm failed:", err);
       }

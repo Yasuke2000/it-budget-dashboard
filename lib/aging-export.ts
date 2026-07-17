@@ -49,7 +49,7 @@ async function pageAll(url: string, token: string): Promise<Record<string, unkno
     }, { timeoutMs: 90_000, maxAttempts: 2 });
     if (!res.ok) throw new Error(`BC ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const data: { value?: Record<string, unknown>[]; "@odata.nextLink"?: string } = await res.json();
-    out.push(...(data.value || []));
+    for (const v of data.value || []) out.push(v); // geen push(...page): stack-limiet bij 20k-rijen-pagina's
     next = data["@odata.nextLink"] || null;
     page++;
   }
