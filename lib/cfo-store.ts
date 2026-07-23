@@ -10,6 +10,7 @@
 
 import { isDbEnabled, ensureSchema, withClient } from "./db/client";
 import { fetchBCCompanies, fetchBCGlNetByAccount } from "./bc-client";
+import type { CfoFinancials } from "./types";
 
 function isOperatingCompany(name: string): boolean {
   return !/^_/.test(name) && !/test|copie|fleetmate/i.test(name);
@@ -39,6 +40,73 @@ export async function getGlSnapshot(codes: string[]): Promise<Record<string, Rec
     console.warn("cfo snapshot read failed:", err);
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Point-in-time cockpit snapshots (SAP-achtig "cijfers zoals op dag X").
+// ---------------------------------------------------------------------------
+
+export interface CfoSnapshotMeta {
+  id: number;
+  takenAt: string;   // ISO timestamp
+  takenOn: string;   // "YYYY-MM-DD"
+  company: string;
+  excluded: string;  // "GPR,GRE" of ""
+  manual: boolean;
+  revenue: number;   // headline voor de lijstweergave
+}
+
+/** Sla de volledige berekende cockpit-dataset op. `manual` = via de knop (vs auto-daily). */
+export async function saveCfoSnapshot(data: CfoFinancials, manual: boolean): Promise<number | null> {
+  if (!isDbEnabled()) return null;
+  await ensureSchema();
+  const excluded = (data.scope?.excluded || []).join(",");
+  return withClient(async (c) => {
+    const { rows } = await c.query(
+      `INSERT INTO cfo_snapshots (company, excluded, manual, payload) VALUES ($1, $2, $3, $4) RETURNING id`,
+      [data.company, excluded, manual, JSON.stringify(data)]
+    );
+    return Number(rows[0].id);
+  });
+}
+
+/** Bestaat er vandaag al een auto-snapshot voor deze view? (dedupe voor de daily) */
+export async function hasSnapshotToday(company: string, excluded: string): Promise<boolean> {
+  if (!isDbEnabled()) return true; // zonder DB nooit auto-saven
+  await ensureSchema();
+  return withClient(async (c) => {
+    const { rows } = await c.query(
+      `SELECT 1 FROM cfo_snapshots WHERE taken_on = CURRENT_DATE AND company = $1 AND excluded = $2 AND manual = FALSE LIMIT 1`,
+      [company, excluded]
+    );
+    return rows.length > 0;
+  });
+}
+
+export async function listCfoSnapshots(limit = 60): Promise<CfoSnapshotMeta[]> {
+  if (!isDbEnabled()) return [];
+  await ensureSchema();
+  return withClient(async (c) => {
+    const { rows } = await c.query(
+      `SELECT id, taken_at, taken_on, company, excluded, manual, payload->'kpis'->>'revenue' AS revenue
+       FROM cfo_snapshots ORDER BY taken_at DESC LIMIT $1`,
+      [limit]
+    );
+    return rows.map((r) => ({
+      id: Number(r.id), takenAt: new Date(r.taken_at).toISOString(), takenOn: new Date(r.taken_on).toISOString().slice(0, 10),
+      company: r.company, excluded: r.excluded, manual: r.manual, revenue: Number(r.revenue) || 0,
+    }));
+  });
+}
+
+export async function getCfoSnapshot(id: number): Promise<{ takenAt: string; payload: CfoFinancials } | null> {
+  if (!isDbEnabled()) return null;
+  await ensureSchema();
+  return withClient(async (c) => {
+    const { rows } = await c.query(`SELECT taken_at, payload FROM cfo_snapshots WHERE id = $1`, [id]);
+    if (!rows.length) return null;
+    return { takenAt: new Date(rows[0].taken_at).toISOString(), payload: rows[0].payload as CfoFinancials };
+  });
 }
 
 /** Pull the full ledger for every operating company and upsert per-account net balances. Heavy — background job. */

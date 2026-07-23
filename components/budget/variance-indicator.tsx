@@ -19,17 +19,17 @@ export function VarianceIndicator({
   const dotClass = cn(
     "rounded-full shrink-0",
     size === "sm" ? "h-2 w-2" : "h-2.5 w-2.5",
-    status === "green" && "bg-emerald-500",
-    status === "amber" && "bg-amber-500",
-    status === "red" && "bg-red-500"
+    status === "green" && "bg-positive",
+    status === "amber" && "bg-warning",
+    status === "red" && "bg-negative"
   );
 
   const textClass = cn(
     "font-medium tabular-nums",
     size === "sm" ? "text-xs" : "text-sm",
-    status === "green" && "text-emerald-400",
-    status === "amber" && "text-amber-400",
-    status === "red" && "text-red-400"
+    status === "green" && "text-positive",
+    status === "amber" && "text-warning",
+    status === "red" && "text-negative"
   );
 
   const absVal = Math.abs(variancePercent);

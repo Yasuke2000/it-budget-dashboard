@@ -10,12 +10,14 @@ export default async function SignInPage() {
   const isAuthConfigured = !!process.env.AUTH_MICROSOFT_ENTRA_ID_ID;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950">
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 w-full max-w-md text-center space-y-6">
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="bg-card border border-border rounded-2xl p-8 w-full max-w-md text-center space-y-6 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_24px_60px_-32px_rgba(0,0,0,0.4)]">
         <div className="space-y-2">
-          <Building2 className="h-12 w-12 text-teal-400 mx-auto" />
-          <h1 className="text-2xl font-bold text-white">IT Finance Dashboard</h1>
-          <p className="text-slate-400 text-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/25 to-gold/15 ring-1 ring-primary/30">
+            <Building2 className="h-7 w-7 text-primary" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">IT Finance Dashboard</h1>
+          <p className="text-muted-foreground text-sm">
             Budget management &amp; cost analysis
           </p>
         </div>
@@ -42,23 +44,23 @@ export default async function SignInPage() {
           </form>
         ) : (
           <div className="space-y-4">
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
-              <p className="text-amber-400 text-sm font-medium">Demo Mode</p>
-              <p className="text-slate-400 text-xs mt-1">
+            <div className="bg-warning/10 border border-warning/20 rounded-lg p-4">
+              <p className="text-warning text-sm font-medium">Demo Mode</p>
+              <p className="text-muted-foreground text-xs mt-1">
                 Authentication is not configured. Set AUTH_MICROSOFT_ENTRA_ID_ID
                 and AUTH_MICROSOFT_ENTRA_ID_SECRET to enable Entra ID sign-in.
               </p>
             </div>
             <Link
               href="/"
-              className="inline-block w-full bg-teal-600 hover:bg-teal-500 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+              className="inline-block w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-3 px-4 rounded-lg transition-colors"
             >
               Continue to Dashboard
             </Link>
           </div>
         )}
 
-        <p className="text-slate-600 text-xs">
+        <p className="text-muted-foreground/70 text-xs">
           Sign in with your organization&apos;s Microsoft account
         </p>
       </div>

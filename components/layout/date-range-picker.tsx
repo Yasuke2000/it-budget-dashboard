@@ -21,15 +21,15 @@ export function DateRangePicker() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 h-9 px-3 rounded-md border border-slate-700 bg-slate-800 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+        className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-card text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
       >
-        <Calendar className="h-3.5 w-3.5 text-slate-400" />
+        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="font-medium">{selectedRange.label}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/70" />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-56 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden">
+        <div className="absolute right-0 top-full mt-1 z-50 w-56 bg-popover border border-border rounded-lg shadow-xl overflow-hidden">
           <div className="p-1.5 max-h-80 overflow-y-auto">
             {presets.map((preset) => (
               <button
@@ -40,13 +40,13 @@ export function DateRangePicker() {
                 }}
                 className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
                   selectedRange.value === preset.value
-                    ? "bg-teal-500/20 text-teal-400"
-                    : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <span>{preset.label}</span>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-muted-foreground/70">
                     {preset.from.slice(5)} → {preset.to.slice(5)}
                   </span>
                 </div>

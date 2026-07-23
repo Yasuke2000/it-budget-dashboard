@@ -10,8 +10,9 @@
 
 import type {
   CfoFinancials, CfoPnlLine, CfoAccountRow, CfoEntityRow, CfoMonthPoint, CfoAgingBucket, CfoKpis,
-  CfoRatios, CfoBalanceSheet, CfoCashForecast, CfoCashWeek, CfoBudget, CfoPrevYear,
+  CfoRatios, CfoBalanceSheet, CfoCashForecast, CfoCashWeek, CfoBudget, CfoPrevYear, CfoAgingItem,
 } from "./types";
+import { vendorLedgerDocLink, salesInvoiceLink } from "./bc-links";
 import { getCache, setCache } from "./sync-cache";
 import {
   fetchBCCompanies, fetchBCPnlRows, fetchBCAccountNames, fetchBCCashBalance,
@@ -112,13 +113,14 @@ interface CompanyExtras {
   apRows: BCOpenAPRow[];
   arRows: BCOpenARRow[];
 }
+interface MonthAgg { rev: number; cost: number; byClass: Record<string, number> }
 interface CompanyAgg extends CompanyExtras {
   code: string;
   name: string;
   opIncome: number;                                     // operating income only
   byClass: Record<string, number>;                      // per 2-digit class, signed by kind
   accountsByClass: Record<string, Map<string, number>>; // class → (accountNumber → amount)
-  monthly: Map<string, { rev: number; cost: number }>;  // operating only
+  monthly: Map<string, MonthAgg>;                       // operating only, + per expense class
 }
 
 function aggregateCompany(
@@ -126,7 +128,7 @@ function aggregateCompany(
 ): CompanyAgg {
   const byClass: Record<string, number> = {};
   const accountsByClass: Record<string, Map<string, number>> = {};
-  const monthly = new Map<string, { rev: number; cost: number }>();
+  const monthly = new Map<string, MonthAgg>();
   let opIncome = 0;
   for (const row of rows) {
     const rv = rowValue(row);
@@ -137,9 +139,9 @@ function aggregateCompany(
     );
     if (OP_INCOME.includes(rv.c2) || OP_EXPENSE.includes(rv.c2)) {
       const month = row.postingDate.slice(0, 7);
-      const m = monthly.get(month) || { rev: 0, cost: 0 };
+      const m = monthly.get(month) || { rev: 0, cost: 0, byClass: {} };
       if (rv.kind === "income") { opIncome += rv.val; m.rev += rv.val; }
-      else m.cost += rv.val;
+      else { m.cost += rv.val; m.byClass[rv.c2] = (m.byClass[rv.c2] || 0) + rv.val; }
       monthly.set(month, m);
     }
   }
@@ -188,31 +190,50 @@ function buildForecast(
   };
 }
 
+export interface BudgetTargets { rev: number; cost: number; byClass?: Record<string, number> }
+
 function buildBudget(
-  targets: { rev: number; cost: number }, income: number, costs: number, ebit: number, elapsed: number
+  targets: BudgetTargets, income: number, costs: number, ebit: number, elapsed: number,
+  classActuals?: Record<string, number>
 ): CfoBudget {
-  if (!targets.rev && !targets.cost) {
+  const hasClassTargets = Object.values(targets.byClass || {}).some((v) => v > 0);
+  if (!targets.rev && !targets.cost && !hasClassTargets) {
     return { configured: false, revenueTarget: 0, costTarget: 0, monthlyRevenueTarget: 0, monthlyCostTarget: 0, revenueVariancePct: 0, resultVariancePct: 0 };
   }
   const frac = Math.min(1, elapsed / 365);
   const proRataRev = targets.rev * frac, proRataResult = (targets.rev - targets.cost) * frac;
+  // Per-kostenklasse: jaardoel pro-rata vs YTD-actual. Positief = boven doel (slecht).
+  const classVariance = hasClassTargets
+    ? Object.entries(targets.byClass || {})
+        .filter(([, t]) => t > 0)
+        .map(([cls, target]) => {
+          const actual = classActuals?.[cls] || 0;
+          const proRata = target * frac;
+          return {
+            cls, label: CLASS_LABEL[cls] || cls, target: r0(target), actual: r0(actual), proRata: r0(proRata),
+            variancePct: proRata ? Math.round(((actual - proRata) / proRata) * 1000) / 10 : 0,
+          };
+        })
+        .sort((a, b) => a.cls.localeCompare(b.cls))
+    : undefined;
   return {
     configured: true, revenueTarget: targets.rev, costTarget: targets.cost,
     monthlyRevenueTarget: r0(targets.rev / 12), monthlyCostTarget: r0(targets.cost / 12),
     revenueVariancePct: proRataRev ? Math.round(((income - proRataRev) / proRataRev) * 1000) / 10 : 0,
     resultVariancePct: proRataResult ? Math.round(((ebit - proRataResult) / proRataResult) * 1000) / 10 : 0,
+    classVariance,
   };
 }
 
 function combine(
   aggs: CompanyAgg[], names: Record<string, string>, company: string,
   from: string, to: string, label: string, isLive: boolean, today: Date,
-  budgetTargets: { rev: number; cost: number }, prevYear?: CfoPrevYear
+  budgetTargets: BudgetTargets, prevYear?: CfoPrevYear
 ): CfoFinancials {
   const income = aggs.reduce((s, a) => s + a.opIncome, 0);
   const byClass: Record<string, number> = {};
   const accountsByClass: Record<string, Map<string, number>> = {};
-  const monthly = new Map<string, { rev: number; cost: number }>();
+  const monthly = new Map<string, MonthAgg>();
   for (const a of aggs) {
     for (const [c, v] of Object.entries(a.byClass)) byClass[c] = (byClass[c] || 0) + v;
     for (const [c, m] of Object.entries(a.accountsByClass)) {
@@ -220,8 +241,10 @@ function combine(
       for (const [acc, v] of m) dst.set(acc, (dst.get(acc) || 0) + v);
     }
     for (const [mo, v] of a.monthly) {
-      const cur = monthly.get(mo) || { rev: 0, cost: 0 };
-      cur.rev += v.rev; cur.cost += v.cost; monthly.set(mo, cur);
+      const cur = monthly.get(mo) || { rev: 0, cost: 0, byClass: {} };
+      cur.rev += v.rev; cur.cost += v.cost;
+      for (const [c, x] of Object.entries(v.byClass)) cur.byClass[c] = (cur.byClass[c] || 0) + x;
+      monthly.set(mo, cur);
     }
   }
   const cls = (c: string) => byClass[c] || 0;
@@ -276,7 +299,10 @@ function combine(
 
   const monthlyArr: CfoMonthPoint[] = [...monthly.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([month, v]) => ({ month, revenue: r0(v.rev), costs: r0(v.cost), result: r0(v.rev - v.cost) }));
+    .map(([month, v]) => ({
+      month, revenue: r0(v.rev), costs: r0(v.cost), result: r0(v.rev - v.cost),
+      byClass: Object.fromEntries(Object.entries(v.byClass).map(([c, x]) => [c, r0(x)])),
+    }));
 
   const entities: CfoEntityRow[] = aggs
     .map((a) => {
@@ -287,28 +313,55 @@ function combine(
     })
     .sort((a, b) => b.revenue - a.revenue);
 
-  // ---- AP aging (+ external split via IC vendor name) ----
+  // ---- AP/AR aging (+ external split via IC name) — with drillable open items ----
+  // Iterate per company (not the flat list) so every item keeps its firma-code and
+  // can carry a BC deep-link. Per bucket only the largest ITEM_CAP items ship to
+  // the client; itemCount/amount stay exact.
+  const ITEM_CAP = 40;
   const apRowsAll: BCOpenAPRow[] = aggs.flatMap((a) => a.apRows);
   const arRowsAll: BCOpenARRow[] = aggs.flatMap((a) => a.arRows);
-  const apB: Record<string, { all: number; ext: number }> = {};
-  let apOpen = 0, apOpenExtern = 0;
-  for (const row of apRowsAll) {
-    const b = agingBucket(row.due, today);
-    const ext = isIcName(row.vendor) ? 0 : row.oweEUR;
-    (apB[b] = apB[b] || { all: 0, ext: 0 }); apB[b].all += row.oweEUR; apB[b].ext += ext;
-    apOpen += row.oweEUR; apOpenExtern += ext;
-  }
-  const apAging: CfoAgingBucket[] = AGING_ORDER.filter((b) => apB[b]).map((b) => ({ label: b, amount: r0(apB[b].all), extern: r0(apB[b].ext) }));
 
-  const arB: Record<string, { all: number; ext: number }> = {};
-  let arOpen = 0, arOpenExtern = 0;
-  for (const row of arRowsAll) {
-    const b = agingBucket(row.due, today);
-    const ext = isIcName(row.customer) ? 0 : row.amount;
-    (arB[b] = arB[b] || { all: 0, ext: 0 }); arB[b].all += row.amount; arB[b].ext += ext;
-    arOpen += row.amount; arOpenExtern += ext;
+  const apB: Record<string, { all: number; ext: number; items: CfoAgingItem[] }> = {};
+  let apOpen = 0, apOpenExtern = 0;
+  for (const a of aggs) {
+    for (const row of a.apRows) {
+      const b = agingBucket(row.due, today);
+      const ic = isIcName(row.vendor);
+      (apB[b] = apB[b] || { all: 0, ext: 0, items: [] });
+      apB[b].all += row.oweEUR; apB[b].ext += ic ? 0 : row.oweEUR;
+      apB[b].items.push({
+        name: row.vendor, company: a.code, docNo: row.docNo, due: row.due,
+        amount: r0(row.oweEUR), ic, bcUrl: row.docNo ? vendorLedgerDocLink(a.code, row.docNo) : "",
+      });
+      apOpen += row.oweEUR; apOpenExtern += ic ? 0 : row.oweEUR;
+    }
   }
-  const arAging: CfoAgingBucket[] = AGING_ORDER.filter((b) => arB[b]).map((b) => ({ label: b, amount: r0(arB[b].all), extern: r0(arB[b].ext) }));
+  const apAging: CfoAgingBucket[] = AGING_ORDER.filter((b) => apB[b]).map((b) => ({
+    label: b, amount: r0(apB[b].all), extern: r0(apB[b].ext),
+    itemCount: apB[b].items.length,
+    items: apB[b].items.sort((x, y) => Math.abs(y.amount) - Math.abs(x.amount)).slice(0, ITEM_CAP),
+  }));
+
+  const arB: Record<string, { all: number; ext: number; items: CfoAgingItem[] }> = {};
+  let arOpen = 0, arOpenExtern = 0;
+  for (const a of aggs) {
+    for (const row of a.arRows) {
+      const b = agingBucket(row.due, today);
+      const ic = isIcName(row.customer);
+      (arB[b] = arB[b] || { all: 0, ext: 0, items: [] });
+      arB[b].all += row.amount; arB[b].ext += ic ? 0 : row.amount;
+      arB[b].items.push({
+        name: row.customer, company: a.code, docNo: row.docNo, due: row.due,
+        amount: r0(row.amount), ic, bcUrl: row.docNo ? salesInvoiceLink(a.code, row.docNo) : "",
+      });
+      arOpen += row.amount; arOpenExtern += ic ? 0 : row.amount;
+    }
+  }
+  const arAging: CfoAgingBucket[] = AGING_ORDER.filter((b) => arB[b]).map((b) => ({
+    label: b, amount: r0(arB[b].all), extern: r0(arB[b].ext),
+    itemCount: arB[b].items.length,
+    items: arB[b].items.sort((x, y) => Math.abs(y.amount) - Math.abs(x.amount)).slice(0, ITEM_CAP),
+  }));
 
   const cash = aggs.reduce((s, a) => s + a.cash, 0);
   const equity = aggs.reduce((s, a) => s + a.equity, 0);
@@ -320,12 +373,15 @@ function combine(
   const currentAssets = cash + arOpen + inventory;
   const currentLiab = apOpen;
   const totalAssetsApprox = fixedAssets + inventory + arOpen + cash;
+  // DPO over inkopen (60/61/64) — bezoldigingen (62) en afschrijvingen (63) lopen
+  // niet via leveranciers, meenemen zou DPO kunstmatig drukken.
+  const purchases = cls("60") + cls("61") + cls("64");
   const ratios: CfoRatios = {
     currentRatio: currentLiab ? Math.round((currentAssets / currentLiab) * 100) / 100 : 0,
     quickRatio: currentLiab ? Math.round(((cash + arOpen) / currentLiab) * 100) / 100 : 0,
     solvencyPct: totalAssetsApprox ? Math.round((equityPos / totalAssetsApprox) * 1000) / 10 : 0,
     dso: income ? Math.round((arOpen / income) * elapsed) : 0,
-    dpo: totalCosts ? Math.round((apOpen / totalCosts) * elapsed) : 0,
+    dpo: purchases ? Math.round((apOpen / purchases) * elapsed) : 0,
     dio: cls("60") ? Math.round((inventory / cls("60")) * elapsed) : 0,
     ccc: 0, approx: true,
   };
@@ -347,7 +403,7 @@ function combine(
 
   const weeklyPayroll = cls("62") / Math.max(1, elapsed / 7);
   const cashForecast = buildForecast(cash, arRowsAll, apRowsAll, weeklyPayroll, today);
-  const budget = buildBudget(budgetTargets, income, totalCosts, ebit, elapsed);
+  const budget = buildBudget(budgetTargets, income, totalCosts, ebit, elapsed, byClass);
 
   const kpis: CfoKpis = {
     revenue: r0(income), costs: r0(totalCosts), operatingResult: r0(ebit),
@@ -374,6 +430,7 @@ function combine(
     notes.push("LET OP: belastingen (klasse 67) zijn nog niet geboekt (jaareinde) — nettoresultaat is vóór effectieve belastingdruk.");
   }
   notes.push("Ratio's: vlottende schulden ≈ handelsschulden (geen volledige korte-termijnschuld-split); balans condensed tot betrouwbare posten.");
+  notes.push("DSO/DPO: open posten zijn incl. btw, omzet/inkopen excl. btw — dagenwaarden zijn daardoor licht overschat (btw-mix transport deels 0%/verlegd). DPO = op inkopen (60/61/64).");
   notes.push("Bedragen bruto per vennootschap — intercompany-eliminatie via de IC-schakelaar (naam-gebaseerd op AP/AR; P&L-IC vereist dimensies).");
 
   return {
@@ -391,23 +448,67 @@ function combine(
 // fire-and-forget background refresh (?refresh=1 on a warm cache).
 const inflightCfo = new Map<string, Promise<CfoFinancials>>();
 
+// Per-company bundle (aggregate + PY totals + account names), individually cached.
+// The combine step is pure/instant, so any consolidation SCOPE (exclude one or more
+// entities) is served from these bundles without re-pulling BC — a scope change on a
+// warm cache costs ~0s instead of a 2-minute rebuild that Cloudflare would kill.
+interface CompanyBundle { agg: CompanyAgg; pyTotals: CfoPrevYear; names: Record<string, string> }
+
+async function buildCompanyBundle(
+  c: { id: string; code: string; name: string }, f: string, t: string, pyCutoff: string
+): Promise<CompanyBundle> {
+  // v2: rijvorm gewijzigd (docNo op AP/AR, byClass op monthly) — nieuwe prefix zodat
+  // een oude in-memory bundle nooit met de nieuwe vorm mengt.
+  const key = `cfo-co2-${c.id}-${f}-${t}`;
+  const cached = getCache<CompanyBundle>(key);
+  if (cached) return cached;
+  const pyF = shiftYear(f, -1), pyT = shiftYear(t, -1);
+  const [rows, pyRows, nameMap, cash, ap, ar, equity, fixedAssets, inventory] = await Promise.all([
+    fetchBCPnlRows(c.id, f, t),
+    fetchBCPnlRows(c.id, pyF, pyT).catch(() => [] as BCPnlRow[]),
+    fetchBCAccountNames(c.id).catch(() => ({} as Record<string, string>)),
+    fetchBCCashBalance(c.id).catch(() => 0),
+    fetchBCOpenAP(c.code).catch(() => [] as BCOpenAPRow[]),
+    fetchBCOpenAR(c.id).catch(() => [] as BCOpenARRow[]),
+    fetchBCClassNetBalance(c.id, "1").catch(() => 0),
+    fetchBCClassNetBalance(c.id, "2").catch(() => 0),
+    fetchBCClassNetBalance(c.id, "3").catch(() => 0),
+  ]);
+  // PY meteen tot 4 totalen reduceren — NOOIT alle rauwe PY-rijen bewaren of
+  // spreiden (push(...100k rijen) = "Maximum call stack size exceeded").
+  const pyTotals = computePnlTotals(pyRows.filter((r) => r.postingDate <= pyCutoff));
+  const bundle: CompanyBundle = {
+    agg: aggregateCompany(c.code, c.name, rows, { cash, equity, fixedAssets, inventory, apRows: ap, arRows: ar }),
+    pyTotals,
+    names: nameMap,
+  };
+  setCache(key, bundle, 720); // 12h, zelfde levensduur als het gecombineerde resultaat
+  return bundle;
+}
+
 async function buildLiveCfo(
-  company: string, f: string, t: string, label: string, cacheKey: string
+  company: string, f: string, t: string, label: string, cacheKey: string, exclude: string[] = []
 ): Promise<CfoFinancials> {
   const raw = await fetchBCCompanies();
   const companies = raw
     .map((c) => ({ id: String(c.id), code: String(c.name), name: String(c.displayName || c.name) }))
     .filter((c) => isOperatingCompany(c.code));
-  const targets = company === "all"
+  let targets = company === "all"
     ? companies
     : companies.filter((c) => c.id === company || c.code === company || c.name === company);
+  // Consolidatiescope: expliciet uitgesloten vennootschappen (alleen zinvol op "all").
+  const excluded = company === "all" ? exclude.filter((x) => companies.some((c) => c.code === x)) : [];
+  if (excluded.length) targets = targets.filter((c) => !excluded.includes(c.code));
   if (!targets.length) throw new Error(`geen vennootschap gevonden voor "${company}"`);
 
   const settings = await getAppSettings().catch(() => null);
-  const budgetTargets = { rev: settings?.cfoRevenueTarget || 0, cost: settings?.cfoCostTarget || 0 };
+  const budgetTargets: BudgetTargets = {
+    rev: settings?.cfoRevenueTarget || 0,
+    cost: settings?.cfoCostTarget || 0,
+    byClass: settings?.cfoClassTargets || {},
+  };
   const names: Record<string, string> = {};
   const today = new Date();
-  const pyF = shiftYear(f, -1), pyT = shiftYear(t, -1);
   // ΔPY: same period last year, capped at "today minus 1 year" so YTD compares like-for-like.
   const pyCutoff = shiftYear(today.toISOString().slice(0, 10), -1);
   const pyAcc: CfoPrevYear = { revenue: 0, ebitda: 0, ebit: 0, netResult: 0 };
@@ -418,26 +519,13 @@ async function buildLiveCfo(
   const CHUNK = 3;
   for (let i = 0; i < targets.length; i += CHUNK) {
     const batch = targets.slice(i, i + CHUNK);
-    const part = await Promise.all(batch.map(async (c) => {
-      const [rows, pyRows, nameMap, cash, ap, ar, equity, fixedAssets, inventory] = await Promise.all([
-        fetchBCPnlRows(c.id, f, t),
-        fetchBCPnlRows(c.id, pyF, pyT).catch(() => [] as BCPnlRow[]),
-        fetchBCAccountNames(c.id).catch(() => ({} as Record<string, string>)),
-        fetchBCCashBalance(c.id).catch(() => 0),
-        fetchBCOpenAP(c.code).catch(() => [] as BCOpenAPRow[]),
-        fetchBCOpenAR(c.id).catch(() => [] as BCOpenARRow[]),
-        fetchBCClassNetBalance(c.id, "1").catch(() => 0),
-        fetchBCClassNetBalance(c.id, "2").catch(() => 0),
-        fetchBCClassNetBalance(c.id, "3").catch(() => 0),
-      ]);
-      Object.assign(names, nameMap);
-      // PY meteen tot 4 totalen reduceren — NOOIT alle rauwe PY-rijen bewaren of
-      // spreiden (push(...100k rijen) = "Maximum call stack size exceeded").
-      const pt = computePnlTotals(pyRows.filter((r) => r.postingDate <= pyCutoff));
-      pyAcc.revenue += pt.revenue; pyAcc.ebitda += pt.ebitda; pyAcc.ebit += pt.ebit; pyAcc.netResult += pt.netResult;
-      return aggregateCompany(c.code, c.name, rows, { cash, equity, fixedAssets, inventory, apRows: ap, arRows: ar });
-    }));
-    for (const a of part) aggs.push(a);
+    const part = await Promise.all(batch.map((c) => buildCompanyBundle(c, f, t, pyCutoff)));
+    for (const b of part) {
+      Object.assign(names, b.names);
+      pyAcc.revenue += b.pyTotals.revenue; pyAcc.ebitda += b.pyTotals.ebitda;
+      pyAcc.ebit += b.pyTotals.ebit; pyAcc.netResult += b.pyTotals.netResult;
+      aggs.push(b.agg);
+    }
   }
 
   // ΔPY alleen tonen als vorig jaar VOLLEDIG in BC staat: 2025 is het migratiejaar
@@ -447,24 +535,48 @@ async function buildLiveCfo(
   const curIncome = aggs.reduce((s, a) => s + a.opIncome, 0);
   const pyReliable = pyAcc.revenue >= 0.5 * curIncome;
   const result = combine(aggs, names, company, f, t, label, true, today, budgetTargets, pyReliable ? pyAcc : undefined);
+  result.scope = { all: companies.map((c) => ({ code: c.code, name: c.name })), excluded };
+  if (excluded.length) {
+    result.notes.push(`Consolidatiescope: ${excluded.join(", ")} uitgesloten — alle cijfers (P&L, cash, AP/AR, ratio's) volgen de scope.`);
+  }
   if (!pyReliable) {
     result.notes.push("ΔPY-vergelijking verborgen: 2025 staat onvolledig in Business Central (migratiejaar — vroege 2025-boekingen zitten in de _OPSTART-kopieën). Vanaf boekjaar 2027 verschijnt de vergelijking automatisch.");
   }
   setCache(cacheKey, result, 720); // 12h — verse pull via de vernieuwen-link of pod-herstart
+
+  // Auto-snapshot: één per dag per view (fire-and-forget; alleen mét Postgres).
+  // Zo groeit vanzelf een reproduceerbare historiek "cijfers zoals op dag X".
+  import("./cfo-store").then(async (store) => {
+    if (!store.snapshotEnabled()) return;
+    const excludedStr = (result.scope?.excluded || []).join(",");
+    if (!(await store.hasSnapshotToday(company, excludedStr))) {
+      await store.saveCfoSnapshot(result, false);
+    }
+  }).catch((e) => console.warn("cfo auto-snapshot failed:", e));
+
   return result;
 }
 
 export async function getCfoFinancials(
-  company: string = "all", from?: string, to?: string, force = false
+  company: string = "all", from?: string, to?: string, force = false, exclude: string[] = []
 ): Promise<CfoFinancials> {
-  const year = new Date().getUTCFullYear();
+  const today = new Date();
+  const year = today.getUTCFullYear();
   const f = from || `${year}-01-01`;
-  const t = to || `${year}-12-31`;
-  const label = `FY ${year} (YTD)`;
+  // Einde = vandaag (echte YTD), NIET 31/12: het grootboek bevat al vooruit-gedateerde
+  // boekingen (probe 23/07/2026: max postingDate 01/12/2026) die anders stil in de
+  // "YTD"-cijfers meetellen. Expliciete ?to= blijft mogelijk voor een vaste periode.
+  const t = to || today.toISOString().slice(0, 10);
+  // Label volgt de werkelijke periode: default = YTD; expliciete range = "dd/mm – dd/mm/jjjj".
+  const fmtD = (s: string) => `${s.slice(8, 10)}/${s.slice(5, 7)}`;
+  const label = !from && !to
+    ? `FY ${year} (YTD)`
+    : `${fmtD(f)} – ${fmtD(t)}/${t.slice(0, 4)}`;
 
-  if (isDemoMode()) return demoCfo(company, f, t, label);
+  const excl = [...new Set(exclude.map((x) => x.trim().toUpperCase()).filter(Boolean))].sort();
+  if (isDemoMode()) return demoCfo(company, f, t, label, excl);
 
-  const cacheKey = `cfo-${company}-${f}-${t}`;
+  const cacheKey = `cfo-${company}-${f}-${t}-x:${excl.join(",")}`;
   const cached = getCache<CfoFinancials>(cacheKey);
   if (cached && !force) return cached;
 
@@ -472,7 +584,7 @@ export async function getCfoFinancials(
   // data meteen teruggeven (Cloudflare kapt requests >100s af — nooit blokkeren).
   if (cached && force) {
     if (!inflightCfo.has(cacheKey)) {
-      const p = buildLiveCfo(company, f, t, label, cacheKey).finally(() => inflightCfo.delete(cacheKey));
+      const p = buildLiveCfo(company, f, t, label, cacheKey, excl).finally(() => inflightCfo.delete(cacheKey));
       inflightCfo.set(cacheKey, p);
       p.catch((e) => console.error("cfo background refresh failed:", e));
     }
@@ -483,13 +595,13 @@ export async function getCfoFinancials(
   try {
     let p = inflightCfo.get(cacheKey);
     if (!p) {
-      p = buildLiveCfo(company, f, t, label, cacheKey).finally(() => inflightCfo.delete(cacheKey));
+      p = buildLiveCfo(company, f, t, label, cacheKey, excl).finally(() => inflightCfo.delete(cacheKey));
       inflightCfo.set(cacheKey, p);
     }
     return await p;
   } catch (err) {
     console.error("getCfoFinancials live fetch failed, serving demo:", err);
-    const d = demoCfo(company, f, t, label);
+    const d = demoCfo(company, f, t, label, excl);
     return { ...d, loadError: String(err).slice(0, 250) };
   }
 }
@@ -497,7 +609,7 @@ export async function getCfoFinancials(
 // ============================================================
 // Demo / sample data (grounded in the real group order-of-magnitude)
 // ============================================================
-function demoCfo(company: string, from: string, to: string, label: string): CfoFinancials {
+function demoCfo(company: string, from: string, to: string, label: string, exclude: string[] = []): CfoFinancials {
   const acc = (n: string, name: string, a: number): CfoAccountRow => ({ accountNumber: n, accountName: name, amount: a });
   const c60 = 4_180_000, c61 = 14_820_000, c62 = 8_940_000, c63 = 1_810_000, c64 = 910_000;
   const income = 32_410_000;
@@ -551,14 +663,34 @@ function demoCfo(company: string, from: string, to: string, label: string): CfoF
   const monthly: CfoMonthPoint[] = monthLabels.map((m, i) => {
     const rev = Math.round((income / 6) * (0.92 + i * 0.03));
     const cost = Math.round(((c60 + c61 + c62 + c63 + c64) / 6) * (0.94 + i * 0.02));
-    return { month: `${yr}-${m}`, revenue: rev, costs: cost, result: rev - cost };
+    // Per-klasse spreiding met een lichte variatie zodat de heatmap iets te zien geeft.
+    const wob = (base: number, j: number) => Math.round((base / 6) * (0.85 + ((i * 3 + j * 5) % 7) * 0.05));
+    return {
+      month: `${yr}-${m}`, revenue: rev, costs: cost, result: rev - cost,
+      byClass: { "60": wob(c60, 0), "61": wob(c61, 1), "62": wob(c62, 2), "63": wob(c63, 3), "64": wob(c64, 4) },
+    };
   });
+  // Voorbeeld-openposten per bucket, met BC-links in het echte formaat.
+  const demoApItems = (n: number, base: number): CfoAgingItem[] =>
+    Array.from({ length: 5 }, (_, j) => {
+      const co = ["GTR", "GDI", "WHS"][j % 3];
+      const doc = `26${n}${String(40250 + j * 17)}`;
+      const ic = j === 4;
+      return { name: ic ? "Gheeraert Garage NV" : `Leverancier ${n * 5 + j}`, company: co, docNo: doc, due: iso(addDays(new Date(), -n * 22 + j * 3)), amount: Math.round(base * (1 - j * 0.15)), ic, bcUrl: vendorLedgerDocLink(co, doc) };
+    });
+  const demoArItems = (n: number, base: number): CfoAgingItem[] =>
+    Array.from({ length: 5 }, (_, j) => {
+      const co = ["GDI", "GTR", "TDR"][j % 3];
+      const doc = `1221103${String(52 + n * 7 + j)}`;
+      const ic = j === 4;
+      return { name: ic ? "Gheeraert Distribution NV" : `Klant ${n * 5 + j}`, company: co, docNo: doc, due: iso(addDays(new Date(), -n * 22 + j * 3)), amount: Math.round(base * (1 - j * 0.15)), ic, bcUrl: salesInvoiceLink(co, doc) };
+    });
   const apAging: CfoAgingBucket[] = [
-    { label: "Niet vervallen", amount: 3_121_142, extern: 2_530_000 },
-    { label: "< 30d", amount: 2_701_919, extern: 2_140_000 },
-    { label: "< 60d", amount: 2_123_483, extern: 1_680_000 },
-    { label: "< 90d", amount: 1_239_009, extern: 940_000 },
-    { label: "> 90d", amount: 3_063_609, extern: 709_345 },
+    { label: "Niet vervallen", amount: 3_121_142, extern: 2_530_000, itemCount: 212, items: demoApItems(0, 310_000) },
+    { label: "< 30d", amount: 2_701_919, extern: 2_140_000, itemCount: 178, items: demoApItems(1, 270_000) },
+    { label: "< 60d", amount: 2_123_483, extern: 1_680_000, itemCount: 143, items: demoApItems(2, 220_000) },
+    { label: "< 90d", amount: 1_239_009, extern: 940_000, itemCount: 96, items: demoApItems(3, 140_000) },
+    { label: "> 90d", amount: 3_063_609, extern: 709_345, itemCount: 251, items: demoApItems(4, 350_000) },
   ];
   const entities: CfoEntityRow[] = [
     { code: "GDI", companyName: "Gheeraert Distribution NV", revenue: 9_540_000, costs: 9_010_000, result: 530_000, marginPct: 5.6 },
@@ -577,17 +709,21 @@ function demoCfo(company: string, from: string, to: string, label: string): CfoF
   const demoAR: BCOpenARRow[] = [];
   const demoAP: BCOpenAPRow[] = [];
   for (let i = 0; i < 34; i++) {
-    demoAR.push({ amount: 90_000 + (i % 6) * 45_000, due: iso(addDays(today, i * 3 - 14)), customer: i % 7 === 0 ? "Gheeraert Distribution NV" : `Klant ${i}` });
-    demoAP.push({ oweEUR: 70_000 + (i % 5) * 55_000, due: iso(addDays(today, i * 3 - 18)), vendor: i % 6 === 0 ? "Gheeraert Garage NV" : `Leverancier ${i}` });
+    demoAR.push({ amount: 90_000 + (i % 6) * 45_000, due: iso(addDays(today, i * 3 - 14)), customer: i % 7 === 0 ? "Gheeraert Distribution NV" : `Klant ${i}`, docNo: `1221104${String(10 + i)}` });
+    demoAP.push({ oweEUR: 70_000 + (i % 5) * 55_000, due: iso(addDays(today, i * 3 - 18)), vendor: i % 6 === 0 ? "Gheeraert Garage NV" : `Leverancier ${i}`, docNo: `26${String(50100 + i)}` });
   }
   const cashForecast = buildForecast(1_178_550, demoAR, demoAP, 315_000, today);
-  const budget = buildBudget({ rev: 66_000_000, cost: 62_000_000 }, income, c60 + c61 + c62 + c63 + c64, ebit, daysElapsed(from, today));
+  const budget = buildBudget(
+    { rev: 66_000_000, cost: 62_000_000, byClass: { "61": 30_000_000, "62": 18_500_000 } },
+    income, c60 + c61 + c62 + c63 + c64, ebit, daysElapsed(from, today),
+    { "60": c60, "61": c61, "62": c62, "63": c63, "64": c64 }
+  );
   const arAging: CfoAgingBucket[] = [
-    { label: "Niet vervallen", amount: 4_180_000, extern: 3_620_000 },
-    { label: "< 30d", amount: 2_060_000, extern: 1_840_000 },
-    { label: "< 60d", amount: 1_290_000, extern: 1_120_000 },
-    { label: "< 90d", amount: 780_000, extern: 700_000 },
-    { label: "> 90d", amount: 1_170_000, extern: 980_000 },
+    { label: "Niet vervallen", amount: 4_180_000, extern: 3_620_000, itemCount: 168, items: demoArItems(0, 420_000) },
+    { label: "< 30d", amount: 2_060_000, extern: 1_840_000, itemCount: 121, items: demoArItems(1, 210_000) },
+    { label: "< 60d", amount: 1_290_000, extern: 1_120_000, itemCount: 84, items: demoArItems(2, 130_000) },
+    { label: "< 90d", amount: 780_000, extern: 700_000, itemCount: 52, items: demoArItems(3, 80_000) },
+    { label: "> 90d", amount: 1_170_000, extern: 980_000, itemCount: 73, items: demoArItems(4, 120_000) },
   ];
   const ratios: CfoRatios = { currentRatio: 0.9, quickRatio: 0.87, solvencyPct: 26.4, dso: 57, dpo: 78, dio: 12, ccc: -9, approx: true };
   const balanceSheet: CfoBalanceSheet = {
@@ -610,9 +746,17 @@ function demoCfo(company: string, from: string, to: string, label: string): CfoF
     cash: 1_178_550, apOpen: 12_249_162, arOpen: 9_480_000, apOpenExtern: 7_999_345, arOpenExtern: 8_260_000,
   };
   const prevYear: CfoPrevYear = { revenue: 30_120_000, ebitda: 3_310_000, ebit: 1_620_000, netResult: 890_000 };
+  const demoNotes = [
+    "Voorbeelddata (demomodus) — orde van grootte gebaseerd op de echte groep.",
+    "P&L t/m nettoresultaat; resultaatverwerking (68/69/78/79) uitgesloten.",
+  ];
+  if (exclude.length) {
+    demoNotes.push(`Demomodus: scope-uitsluiting (${exclude.join(", ")}) wordt hier NIET doorgerekend — de voorbeeldcijfers blijven ongewijzigd.`);
+  }
   return {
     period: { from, to, label }, company, isLive: false, generatedAt: new Date(0).toISOString(),
     kpis, pnl, costStructure, monthly, apAging, entities, arAging, ratios, balanceSheet, cashForecast, budget, prevYear,
+    scope: { all: entities.map((e) => ({ code: e.code, name: e.companyName })), excluded: exclude },
     sources: [
       { label: "Winst & verlies", detail: "BC grootboek, PCMN-klasse 6 & 7 t/m nettoresultaat. Klik een balk voor de onderliggende rekeningen." },
       { label: "Cash & balans", detail: "Nettosaldo klasse 55 (banken), 1, 2, 3." },
@@ -620,9 +764,6 @@ function demoCfo(company: string, from: string, to: string, label: string): CfoF
       { label: "Openstaand klanten (AR)", detail: "Open verkoopfacturen (remainingAmount)." },
       { label: "Cashflowprognose", detail: "Directe methode, 13 weken rollend." },
     ],
-    notes: [
-      "Voorbeelddata (demomodus) — orde van grootte gebaseerd op de echte groep.",
-      "P&L t/m nettoresultaat; resultaatverwerking (68/69/78/79) uitgesloten.",
-    ],
+    notes: demoNotes,
   };
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { X } from "lucide-react";
 import { getInvoices } from "@/lib/data-source";
 import { InvoiceTable } from "@/components/invoices/invoice-table";
+import { PageHeader } from "@/components/layout/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -35,16 +36,13 @@ export default async function InvoicesPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Invoices</h1>
-        <p className="text-slate-400">Purchase invoices across all entities</p>
-      </div>
+      <PageHeader title="Invoices" description="Purchase invoices across all entities" />
 
       {activeFilter && (
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full border border-teal-500/30 bg-teal-500/10 px-3 py-1 text-sm text-teal-300">
+          <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-sm text-primary">
             {activeFilter}
-            <Link href={clearHref} className="text-teal-400 hover:text-white" aria-label="Clear filter">
+            <Link href={clearHref} className="text-primary hover:text-foreground" aria-label="Clear filter">
               <X className="h-3.5 w-3.5" />
             </Link>
           </span>

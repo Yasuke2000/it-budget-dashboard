@@ -13,6 +13,7 @@ import { useDateRange } from "@/components/layout/date-range-context";
 import { useCompany } from "@/components/layout/company-context";
 import { formatCurrencyCompact, formatPercent } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/layout/page-header";
 import type { DashboardKPIs, MonthlySpend, EntitySpend, VendorSummary, CategorySpend } from "@/lib/types";
 
 export function OverviewClient() {
@@ -85,19 +86,16 @@ export function OverviewClient() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Overview</h1>
-          <p className="text-slate-400">Loading dashboard data…</p>
-        </div>
+        <PageHeader title="Overview" description="Loading dashboard data…" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-28 bg-slate-800 rounded-xl" />
+            <Skeleton key={i} className="h-28 rounded-xl" />
           ))}
         </div>
-        <Skeleton className="h-[400px] bg-slate-800 rounded-xl" />
+        <Skeleton className="h-[400px] rounded-xl" />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Skeleton className="h-[300px] bg-slate-800 rounded-xl" />
-          <Skeleton className="h-[300px] bg-slate-800 rounded-xl" />
+          <Skeleton className="h-[300px] rounded-xl" />
+          <Skeleton className="h-[300px] rounded-xl" />
         </div>
       </div>
     );
@@ -106,15 +104,15 @@ export function OverviewClient() {
   if (!data) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-white">Overview</h1>
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-4 flex items-center gap-4">
-          <p className="text-sm text-red-300 flex-1">
+        <PageHeader title="Overview" />
+        <div className="rounded-xl border border-negative/30 bg-negative/10 px-4 py-4 flex items-center gap-4">
+          <p className="text-sm text-negative flex-1">
             {errorMsg ?? "Dashboard data could not be loaded. The API may be temporarily unavailable."}
           </p>
           <Button
             size="sm"
             variant="ghost"
-            className="text-red-400 hover:text-red-300 shrink-0"
+            className="text-negative hover:text-negative shrink-0"
             onClick={() => setRetryCount((c) => c + 1)}
           >
             Retry
@@ -133,12 +131,12 @@ export function OverviewClient() {
     <div className="space-y-6">
       {/* Setup banner */}
       {showSetupBanner && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-teal-500/30 bg-teal-500/10 px-4 py-3">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3">
           <div className="flex items-center gap-3 min-w-0">
-            <Sparkles className="h-4 w-4 text-teal-400 shrink-0" />
-            <p className="text-sm text-teal-300">
+            <Sparkles className="h-4 w-4 text-primary shrink-0" />
+            <p className="text-sm text-foreground">
               <span className="font-semibold">Welcome!</span> Set up your data sources to get started.{" "}
-              <Link href="/setup" className="underline underline-offset-2 hover:text-white transition-colors">
+              <Link href="/setup" className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors">
                 Run setup wizard
               </Link>
             </p>
@@ -148,7 +146,7 @@ export function OverviewClient() {
               setShowSetupBanner(false);
               try { localStorage.setItem("itdash_setup_complete", "1"); } catch { /* ignore */ }
             }}
-            className="text-teal-500 hover:text-teal-300 transition-colors shrink-0"
+            className="text-primary/70 hover:text-primary transition-colors shrink-0"
             aria-label="Dismiss"
           >
             <X className="h-4 w-4" />
@@ -156,45 +154,46 @@ export function OverviewClient() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Overview</h1>
-          <p className="text-slate-400">
-            IT spend across all entities — {selectedRange.label}
-          </p>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-teal-400 hover:text-teal-300 hover:bg-teal-500/10 gap-2"
-          onClick={async () => {
-            const qs = `company=${selectedCompany}&dateFrom=${selectedRange.from}&dateTo=${selectedRange.to}`;
-            const res = await fetch(`/api/report?${qs}`);
-            const reportData = await res.json();
-            const { generateExecutiveReport } = await import("@/lib/pdf-report");
-            const doc = generateExecutiveReport(reportData);
-            doc.save(`IT-Finance-Report-${new Date().toISOString().split("T")[0]}.pdf`);
-          }}
-        >
-          <FileDown className="h-4 w-4" />
-          PDF Report
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-slate-400 hover:text-slate-300 hover:bg-slate-500/10 gap-2"
-          onClick={() => {
-            window.open(`/api/export?company=${selectedCompany}&dateFrom=${selectedRange.from}&dateTo=${selectedRange.to}`, "_blank");
-          }}
-        >
-          <Share2 className="h-4 w-4" />
-          Export
-        </Button>
-      </div>
+      <PageHeader
+        title="Overview"
+        description={`IT spend across all entities — ${selectedRange.label}`}
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={async () => {
+                const qs = `company=${selectedCompany}&dateFrom=${selectedRange.from}&dateTo=${selectedRange.to}`;
+                const res = await fetch(`/api/report?${qs}`);
+                const reportData = await res.json();
+                const { generateExecutiveReport } = await import("@/lib/pdf-report");
+                const doc = generateExecutiveReport(reportData);
+                doc.save(`IT-Finance-Report-${new Date().toISOString().split("T")[0]}.pdf`);
+              }}
+            >
+              <FileDown className="h-4 w-4" />
+              PDF Report
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2"
+              onClick={() => {
+                window.open(`/api/export?company=${selectedCompany}&dateFrom=${selectedRange.from}&dateTo=${selectedRange.to}`, "_blank");
+              }}
+            >
+              <Share2 className="h-4 w-4" />
+              Export
+            </Button>
+          </>
+        }
+      />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <KPICard
+          featured
           title="Total IT Spend"
           value={formatCurrencyCompact(kpis.totalSpendYTD)}
           // Trend % shown only when trustworthy. Hidden for now: quarter-over-quarter

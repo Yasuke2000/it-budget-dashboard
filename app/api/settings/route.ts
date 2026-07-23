@@ -15,6 +15,9 @@ export async function GET() {
     revenueBenchmarkPercent: s.revenueBenchmarkPercent,
     showPeppol: s.showPeppol,
     licenseBufferSeats: s.licenseBufferSeats,
+    cfoRevenueTarget: s.cfoRevenueTarget,
+    cfoCostTarget: s.cfoCostTarget,
+    cfoClassTargets: s.cfoClassTargets,
   });
 }
 
@@ -31,6 +34,9 @@ export async function POST(request: Request) {
       revenueBenchmarkPercent?: number;
       showPeppol?: boolean;
       licenseBufferSeats?: number;
+      cfoRevenueTarget?: number;
+      cfoCostTarget?: number;
+      cfoClassTargets?: Record<string, number>;
     };
     const settings = await saveAppSettings({
       glMappings: body.glMappings,
@@ -43,6 +49,9 @@ export async function POST(request: Request) {
       revenueBenchmarkPercent: body.revenueBenchmarkPercent,
       showPeppol: body.showPeppol,
       licenseBufferSeats: body.licenseBufferSeats,
+      cfoRevenueTarget: body.cfoRevenueTarget,
+      cfoCostTarget: body.cfoCostTarget,
+      cfoClassTargets: body.cfoClassTargets,
     });
     // Invalidate cached spend/licenses so the new mapping/prices take effect now
     // (instead of after the 2–4h TTL).

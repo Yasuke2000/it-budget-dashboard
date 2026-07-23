@@ -4,6 +4,7 @@ import { AgeChart } from "@/components/devices/age-chart";
 import { ComplianceDonut } from "@/components/devices/compliance-donut";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SampleDataBanner } from "@/components/ui/sample-data-banner";
+import { PageHeader } from "@/components/layout/page-header";
 import { getDevices, isDemoMode, sourceStatus } from "@/lib/data-source";
 
 export const dynamic = "force-dynamic";
@@ -23,12 +24,10 @@ export default async function DevicesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Devices</h1>
-        <p className="text-slate-400">
-          Managed device inventory, compliance, and lifecycle — Intune
-        </p>
-      </div>
+      <PageHeader
+        title="Devices"
+        description="Managed device inventory, compliance, and lifecycle — Intune"
+      />
 
       {notConnected && (
         <SampleDataBanner message="No device data yet — Intune access needs the DeviceManagementManagedDevices.Read.All permission as an APPLICATION permission (it is currently Delegated, which app-only sign-in can't use). Once granted, your real fleet appears here." />
@@ -70,9 +69,9 @@ export default async function DevicesPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="bg-slate-900 border-slate-800">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-white">Compliance Status</CardTitle>
+            <CardTitle className="text-foreground">Compliance Status</CardTitle>
           </CardHeader>
           <CardContent>
             <ComplianceDonut
@@ -83,9 +82,9 @@ export default async function DevicesPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-white">Age Distribution</CardTitle>
+            <CardTitle className="text-foreground">Age Distribution</CardTitle>
           </CardHeader>
           <CardContent>
             <AgeChart devices={devices} />
@@ -93,9 +92,9 @@ export default async function DevicesPage() {
         </Card>
       </div>
 
-      <Card className="bg-slate-900 border-slate-800">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white">Device Inventory</CardTitle>
+          <CardTitle className="text-foreground">Device Inventory</CardTitle>
         </CardHeader>
         <CardContent>
           <DeviceTable devices={devices} />

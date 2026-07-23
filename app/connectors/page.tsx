@@ -21,6 +21,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/layout/page-header";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -44,17 +45,17 @@ interface ConnectorDef {
 
 const M365SetupContent = (
   <div className="space-y-4 text-sm">
-    <p className="text-slate-300">
+    <p className="text-foreground">
       This dashboard connects to Microsoft Graph API to pull license, device, and security data.
     </p>
-    <div className="bg-slate-800 rounded-lg p-4 space-y-2">
-      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Sign-in method</p>
-      <p className="text-slate-300">
-        If your organization uses <strong className="text-white">Entra ID (Azure AD)</strong>, you are
+    <div className="bg-muted rounded-lg p-4 space-y-2">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wider">Sign-in method</p>
+      <p className="text-foreground">
+        If your organization uses <strong className="text-foreground">Entra ID (Azure AD)</strong>, you are
         likely already authenticated via SSO. The app just needs the following Graph API permissions
         added to the Enterprise App registration:
       </p>
-      <ul className="mt-2 space-y-1 text-slate-400 list-none">
+      <ul className="mt-2 space-y-1 text-muted-foreground list-none">
         {[
           "LicenseAssignment.Read.All",
           "Directory.Read.All",
@@ -62,26 +63,26 @@ const M365SetupContent = (
           "SecurityEvents.Read.All",
         ].map((perm) => (
           <li key={perm} className="flex items-center gap-2">
-            <ChevronRight className="h-3 w-3 text-teal-500 shrink-0" />
-            <code className="font-mono text-xs text-slate-200">{perm}</code>
+            <ChevronRight className="h-3 w-3 text-primary shrink-0" />
+            <code className="font-mono text-xs text-foreground">{perm}</code>
           </li>
         ))}
       </ul>
     </div>
-    <div className="bg-slate-800/60 rounded-lg p-4 border border-teal-500/20">
-      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider mb-1">Already signed in?</p>
-      <p className="text-slate-400 text-xs">
-        If your admin login uses Entra ID SSO, set <code className="text-slate-200">AZURE_AD_TENANT_ID</code>,{" "}
-        <code className="text-slate-200">AZURE_AD_CLIENT_ID</code>, and{" "}
-        <code className="text-slate-200">AZURE_AD_CLIENT_SECRET</code> in your{" "}
-        <code className="text-slate-200">.env.local</code>. The Graph client will use these automatically.
+    <div className="bg-accent rounded-lg p-4 border border-primary/20">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">Already signed in?</p>
+      <p className="text-muted-foreground text-xs">
+        If your admin login uses Entra ID SSO, set <code className="text-foreground">AZURE_AD_TENANT_ID</code>,{" "}
+        <code className="text-foreground">AZURE_AD_CLIENT_ID</code>, and{" "}
+        <code className="text-foreground">AZURE_AD_CLIENT_SECRET</code> in your{" "}
+        <code className="text-foreground">.env.local</code>. The Graph client will use these automatically.
       </p>
     </div>
     <a
       href="https://portal.azure.com/#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/RegisteredApps"
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 text-teal-400 hover:text-teal-300 text-xs transition-colors"
+      className="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 text-xs transition-colors"
     >
       <ExternalLink className="h-3 w-3" /> Open Azure App Registrations
     </a>
@@ -90,12 +91,12 @@ const M365SetupContent = (
 
 const BCSetupContent = (
   <div className="space-y-4 text-sm">
-    <p className="text-slate-300">
+    <p className="text-foreground">
       Connect to Microsoft Dynamics 365 Business Central via the OData API to pull invoices, GL
       entries, budget, and chart of accounts.
     </p>
-    <div className="bg-slate-800 rounded-lg p-4 space-y-3">
-      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Required .env variables</p>
+    <div className="bg-muted rounded-lg p-4 space-y-3">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wider">Required .env variables</p>
       {[
         { key: "BC_ENVIRONMENT", example: "production" },
         { key: "BC_TENANT_ID", example: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" },
@@ -104,13 +105,13 @@ const BCSetupContent = (
         { key: "BC_COMPANY_ID", example: "your-company-guid" },
       ].map(({ key, example }) => (
         <div key={key}>
-          <code className="text-xs font-mono text-slate-200">{key}</code>
-          <p className="text-xs text-slate-500">e.g. {example}</p>
+          <code className="text-xs font-mono text-foreground">{key}</code>
+          <p className="text-xs text-muted-foreground">e.g. {example}</p>
         </div>
       ))}
     </div>
-    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
-      <p className="text-xs text-amber-300">
+    <div className="bg-warning/10 border border-warning/20 rounded-lg p-3">
+      <p className="text-xs text-warning">
         <strong>Need API access?</strong> Contact your Business Central partner — Alistar or Dynavision —
         to register an Azure App and obtain credentials.
       </p>
@@ -120,27 +121,27 @@ const BCSetupContent = (
 
 const OfficientSetupContent = (
   <div className="space-y-4 text-sm">
-    <p className="text-slate-300">
+    <p className="text-foreground">
       Connect to Officient HR to sync employees, departments, salary data, and assigned assets.
     </p>
-    <div className="bg-slate-800 rounded-lg p-4 space-y-3">
-      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Required .env variables</p>
+    <div className="bg-muted rounded-lg p-4 space-y-3">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wider">Required .env variables</p>
       {[
         { key: "OFFICIENT_CLIENT_ID", example: "your-client-id" },
         { key: "OFFICIENT_CLIENT_SECRET", example: "your-client-secret" },
       ].map(({ key, example }) => (
         <div key={key}>
-          <code className="text-xs font-mono text-slate-200">{key}</code>
-          <p className="text-xs text-slate-500">e.g. {example}</p>
+          <code className="text-xs font-mono text-foreground">{key}</code>
+          <p className="text-xs text-muted-foreground">e.g. {example}</p>
         </div>
       ))}
     </div>
-    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
-      <p className="text-xs text-amber-300">
+    <div className="bg-warning/10 border border-warning/20 rounded-lg p-3">
+      <p className="text-xs text-warning">
         <strong>Need credentials?</strong> Contact{" "}
         <a
           href="mailto:support@officient.io"
-          className="underline hover:text-amber-200"
+          className="underline hover:text-warning"
         >
           support@officient.io
         </a>{" "}
@@ -152,30 +153,30 @@ const OfficientSetupContent = (
 
 const DellSetupContent = (
   <div className="space-y-4 text-sm">
-    <p className="text-slate-300">
+    <p className="text-foreground">
       Connect to Dell TechDirect to look up warranty status for Dell devices by serial number.
     </p>
-    <div className="bg-slate-800 rounded-lg p-4 space-y-3">
-      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Required .env variables</p>
+    <div className="bg-muted rounded-lg p-4 space-y-3">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wider">Required .env variables</p>
       {[
         { key: "DELL_CLIENT_ID", example: "your-client-id" },
         { key: "DELL_CLIENT_SECRET", example: "your-client-secret" },
       ].map(({ key, example }) => (
         <div key={key}>
-          <code className="text-xs font-mono text-slate-200">{key}</code>
-          <p className="text-xs text-slate-500">e.g. {example}</p>
+          <code className="text-xs font-mono text-foreground">{key}</code>
+          <p className="text-xs text-muted-foreground">e.g. {example}</p>
         </div>
       ))}
     </div>
     <div className="space-y-2">
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-muted-foreground">
         Register your organization at Dell TechDirect to receive API credentials.
       </p>
       <a
         href="https://techdirect.dell.com"
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 text-teal-400 hover:text-teal-300 text-xs transition-colors"
+        className="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 text-xs transition-colors"
       >
         <ExternalLink className="h-3 w-3" /> Register at techdirect.dell.com
       </a>
@@ -185,23 +186,23 @@ const DellSetupContent = (
 
 const LenovoSetupContent = (
   <div className="space-y-4 text-sm">
-    <p className="text-slate-300">
+    <p className="text-foreground">
       Connect to Lenovo eSupport API to look up warranty status for Lenovo and ThinkPad devices.
     </p>
-    <div className="bg-slate-800 rounded-lg p-4 space-y-3">
-      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Required .env variables</p>
+    <div className="bg-muted rounded-lg p-4 space-y-3">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wider">Required .env variables</p>
       {[
         { key: "LENOVO_CLIENT_ID", example: "your-client-id" },
         { key: "LENOVO_API_KEY", example: "your-api-key" },
       ].map(({ key, example }) => (
         <div key={key}>
-          <code className="text-xs font-mono text-slate-200">{key}</code>
-          <p className="text-xs text-slate-500">e.g. {example}</p>
+          <code className="text-xs font-mono text-foreground">{key}</code>
+          <p className="text-xs text-muted-foreground">e.g. {example}</p>
         </div>
       ))}
     </div>
-    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
-      <p className="text-xs text-amber-300">
+    <div className="bg-warning/10 border border-warning/20 rounded-lg p-3">
+      <p className="text-xs text-warning">
         Contact your <strong>Lenovo account representative</strong> to request a Client ID for the
         eSupport Warranty API.
       </p>
@@ -211,12 +212,12 @@ const LenovoSetupContent = (
 
 const PeppolSetupContent = (
   <div className="space-y-4 text-sm">
-    <p className="text-slate-300">
+    <p className="text-foreground">
       Receive electronic invoices (UBL XML) via the Peppol network. You need to register with a
       certified Peppol Access Point provider.
     </p>
-    <div className="bg-slate-800 rounded-lg p-4 space-y-2">
-      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Belgian Peppol Access Points</p>
+    <div className="bg-muted rounded-lg p-4 space-y-2">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wider">Belgian Peppol Access Points</p>
       {[
         { name: "Unifiedpost", url: "https://www.unifiedpost.com/peppol" },
         { name: "Billit", url: "https://www.billit.be" },
@@ -228,29 +229,29 @@ const PeppolSetupContent = (
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors py-0.5"
+          className="flex items-center gap-2 text-foreground hover:text-foreground transition-colors py-0.5"
         >
-          <Globe className="h-3.5 w-3.5 text-teal-500 shrink-0" />
+          <Globe className="h-3.5 w-3.5 text-primary shrink-0" />
           <span>{name}</span>
-          <ExternalLink className="h-3 w-3 text-slate-600 ml-auto" />
+          <ExternalLink className="h-3 w-3 text-muted-foreground/70 ml-auto" />
         </a>
       ))}
     </div>
-    <p className="text-xs text-slate-500">
+    <p className="text-xs text-muted-foreground">
       Once registered, configure your Access Point credentials to deliver invoices to this application
-      via the <code className="text-slate-300">/api/peppol/inbound</code> webhook endpoint.
+      via the <code className="text-foreground">/api/peppol/inbound</code> webhook endpoint.
     </p>
   </div>
 );
 
 const CSVSetupContent = (
   <div className="space-y-4 text-sm">
-    <p className="text-slate-300">
+    <p className="text-foreground">
       Import any data manually via CSV upload. Useful for one-off imports or data sources without
       a direct API integration.
     </p>
-    <div className="bg-slate-800 rounded-lg p-4 space-y-2">
-      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Supported import types</p>
+    <div className="bg-muted rounded-lg p-4 space-y-2">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wider">Supported import types</p>
       <ul className="space-y-1">
         {[
           "Purchase Invoices",
@@ -259,8 +260,8 @@ const CSVSetupContent = (
           "Employee data",
           "Device inventory",
         ].map((type) => (
-          <li key={type} className="flex items-center gap-2 text-slate-300">
-            <CheckCircle2 className="h-3.5 w-3.5 text-teal-500 shrink-0" />
+          <li key={type} className="flex items-center gap-2 text-foreground">
+            <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
             {type}
           </li>
         ))}
@@ -268,7 +269,7 @@ const CSVSetupContent = (
     </div>
     <a
       href="/import"
-      className="inline-flex items-center gap-1.5 text-teal-400 hover:text-teal-300 text-xs transition-colors"
+      className="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 text-xs transition-colors"
     >
       <Upload className="h-3 w-3" /> Go to Import page
     </a>
@@ -277,7 +278,7 @@ const CSVSetupContent = (
 
 const CitymeshSetupContent = (
   <div className="space-y-4 text-sm">
-    <p className="text-slate-300">
+    <p className="text-foreground">
       Citymesh is a Belgian mobile and IoT connectivity provider (Roeselare). They offer mobile data
       plans, SIM management, and private 5G networks for businesses. There is no public billing API
       — billing data is available via CSV export or monthly PDF invoices from the Citymesh portal.
@@ -288,9 +289,9 @@ const CitymeshSetupContent = (
         parsing to import billing data.
       </p>
     </div>
-    <div className="bg-slate-800 rounded-lg p-4 space-y-2">
-      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">How to import</p>
-      <ol className="space-y-2 text-slate-400 text-xs list-none">
+    <div className="bg-muted rounded-lg p-4 space-y-2">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wider">How to import</p>
+      <ol className="space-y-2 text-muted-foreground text-xs list-none">
         {[
           "Sign in to the Citymesh portal at my.citymesh.com",
           "Navigate to Billing → Usage Reports",
@@ -307,11 +308,11 @@ const CitymeshSetupContent = (
         ))}
       </ol>
     </div>
-    <div className="bg-slate-800/60 rounded-lg p-4 border border-slate-700 space-y-1">
-      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+    <div className="bg-accent rounded-lg p-4 border border-border space-y-1">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
         Dashboard category
       </p>
-      <p className="text-xs text-slate-300">
+      <p className="text-xs text-foreground">
         Imported Citymesh costs are tagged as{" "}
         <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/20 text-indigo-300">
           Telecom
@@ -324,13 +325,13 @@ const CitymeshSetupContent = (
         href="https://my.citymesh.com"
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 text-teal-400 hover:text-teal-300 text-xs transition-colors"
+        className="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 text-xs transition-colors"
       >
         <ExternalLink className="h-3 w-3" /> Open Citymesh portal (my.citymesh.com)
       </a>
       <a
         href="/import"
-        className="inline-flex items-center gap-1.5 text-teal-400 hover:text-teal-300 text-xs transition-colors"
+        className="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 text-xs transition-colors"
       >
         <Upload className="h-3 w-3" /> Go to Import page to upload CSV
       </a>
@@ -340,32 +341,32 @@ const CitymeshSetupContent = (
 
 const KnoxSetupContent = (
   <div className="space-y-4 text-sm">
-    <p className="text-slate-300">
+    <p className="text-foreground">
       Connect to Samsung Knox to pull Samsung device inventory, battery health, compliance status,
       MDM enrollment, and Knox license usage.
     </p>
-    <div className="bg-slate-800 rounded-lg p-4 space-y-3">
-      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Required .env variables</p>
+    <div className="bg-muted rounded-lg p-4 space-y-3">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wider">Required .env variables</p>
       {[
         { key: "KNOX_CLIENT_ID", example: "your-knox-client-id" },
         { key: "KNOX_CLIENT_SECRET", example: "your-knox-client-secret" },
       ].map(({ key, example }) => (
         <div key={key}>
-          <code className="text-xs font-mono text-slate-200">{key}</code>
-          <p className="text-xs text-slate-500">e.g. {example}</p>
+          <code className="text-xs font-mono text-foreground">{key}</code>
+          <p className="text-xs text-muted-foreground">e.g. {example}</p>
         </div>
       ))}
     </div>
-    <div className="bg-slate-800/60 rounded-lg p-4 border border-teal-500/20">
-      <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider mb-1">Setup steps</p>
-      <ol className="mt-1 space-y-1 text-slate-400 text-xs list-none">
+    <div className="bg-accent rounded-lg p-4 border border-primary/20">
+      <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">Setup steps</p>
+      <ol className="mt-1 space-y-1 text-muted-foreground text-xs list-none">
         {[
           "Sign in to the Samsung Knox Admin Portal",
           "Go to API credentials and create a new client application",
           "Copy the Client ID and Client Secret into your .env.local",
         ].map((step, i) => (
           <li key={i} className="flex items-start gap-2">
-            <ChevronRight className="h-3 w-3 text-teal-500 shrink-0 mt-0.5" />
+            <ChevronRight className="h-3 w-3 text-primary shrink-0 mt-0.5" />
             <span>{step}</span>
           </li>
         ))}
@@ -381,7 +382,7 @@ const KnoxSetupContent = (
       href="https://www.samsungknox.com/en/knox-admin-portal"
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 text-teal-400 hover:text-teal-300 text-xs transition-colors"
+      className="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 text-xs transition-colors"
     >
       <ExternalLink className="h-3 w-3" /> Open Samsung Knox Admin Portal
     </a>
@@ -406,7 +407,7 @@ const CONNECTORS: ConnectorDef[] = [
     id: "business-central",
     name: "Business Central",
     icon: Building2,
-    iconColor: "text-emerald-400",
+    iconColor: "text-positive",
     provides: ["Invoices", "GL Entries", "Budget", "Chart of Accounts"],
     status: "not_connected",
     setupContent: BCSetupContent,
@@ -433,7 +434,7 @@ const CONNECTORS: ConnectorDef[] = [
     id: "lenovo",
     name: "Lenovo eSupport",
     icon: Monitor,
-    iconColor: "text-red-400",
+    iconColor: "text-negative",
     provides: ["Warranty Status (Lenovo / ThinkPad)"],
     status: "not_connected",
     setupContent: LenovoSetupContent,
@@ -442,7 +443,7 @@ const CONNECTORS: ConnectorDef[] = [
     id: "peppol",
     name: "Peppol (e-Invoicing)",
     icon: FileCheck,
-    iconColor: "text-teal-400",
+    iconColor: "text-primary",
     provides: ["Electronic Invoices (UBL XML)", "Peppol Network"],
     status: "not_connected",
     setupContent: PeppolSetupContent,
@@ -476,7 +477,7 @@ const CONNECTORS: ConnectorDef[] = [
     id: "csv",
     name: "CSV Import",
     icon: Upload,
-    iconColor: "text-amber-400",
+    iconColor: "text-warning",
     provides: ["Any data via manual CSV upload"],
     status: "not_connected",
     statusLabel: "Manual",
@@ -491,23 +492,23 @@ const CONNECTORS: ConnectorDef[] = [
 function StatusBadge({ status, label }: { status: ConnectorDef["status"]; label?: string }) {
   if (status === "connected") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-400">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-positive">
+        <span className="w-1.5 h-1.5 rounded-full bg-positive shrink-0" />
         Connected
       </span>
     );
   }
   if (status === "partial") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-400">
-        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-warning">
+        <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />
         {label ?? "Partial"}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
-      <span className="w-1.5 h-1.5 rounded-full bg-slate-600 shrink-0" />
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+      <span className="w-1.5 h-1.5 rounded-full bg-muted shrink-0" />
       {label ?? "Not Connected"}
     </span>
   );
@@ -538,23 +539,23 @@ function ConnectorDialog({ connector, onClose }: ConnectorDialogProps) {
 
       {/* Panel */}
       <div
-        className="relative z-10 w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl shadow-2xl"
+        className="relative z-10 w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-slate-800">
+        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-800">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
               <Icon className={cn("h-5 w-5", connector.iconColor)} />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-white">{connector.name}</h2>
+              <h2 className="text-base font-semibold text-foreground">{connector.name}</h2>
               <StatusBadge status={connector.status} label={connector.statusLabel} />
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-500 hover:text-white transition-colors mt-0.5"
+            className="text-muted-foreground hover:text-foreground transition-colors mt-0.5"
             aria-label="Close dialog"
           >
             <X className="h-5 w-5" />
@@ -563,16 +564,16 @@ function ConnectorDialog({ connector, onClose }: ConnectorDialogProps) {
 
         {/* What it provides */}
         <div className="px-6 pt-4 pb-2">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             Provides
           </p>
           <div className="flex flex-wrap gap-1.5">
             {connector.provides.map((item) => (
               <span
                 key={item}
-                className="inline-flex items-center gap-1 text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700"
+                className="inline-flex items-center gap-1 text-xs bg-muted text-foreground px-2 py-0.5 rounded-full border border-border"
               >
-                <CheckCircle2 className="h-3 w-3 text-teal-500" />
+                <CheckCircle2 className="h-3 w-3 text-primary" />
                 {item}
               </span>
             ))}
@@ -583,12 +584,12 @@ function ConnectorDialog({ connector, onClose }: ConnectorDialogProps) {
         <div className="px-6 py-4">{connector.setupContent}</div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
           <Button
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="text-slate-400 hover:text-white"
+            className="text-muted-foreground hover:text-foreground"
           >
             Close
           </Button>
@@ -611,15 +612,15 @@ function ConnectorCard({ connector, onConnect }: ConnectorCardProps) {
   const Icon = connector.icon;
 
   return (
-    <Card className="bg-slate-900 border-slate-800 hover:border-slate-700 transition-colors flex flex-col">
+    <Card className="hover:border-border-strong transition-colors flex flex-col">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-800 shrink-0">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted shrink-0">
               <Icon className={cn("h-5 w-5", connector.iconColor)} />
             </div>
             <div>
-              <CardTitle className="text-sm font-semibold text-white leading-tight">
+              <CardTitle className="text-sm font-semibold text-foreground leading-tight">
                 {connector.name}
               </CardTitle>
               <div className="mt-0.5">
@@ -633,13 +634,13 @@ function ConnectorCard({ connector, onConnect }: ConnectorCardProps) {
       <CardContent className="flex flex-col flex-1 pt-0 gap-4">
         {/* What it provides */}
         <div>
-          <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+          <p className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider mb-1.5">
             Provides
           </p>
           <ul className="space-y-0.5">
             {connector.provides.map((item) => (
-              <li key={item} className="flex items-center gap-1.5 text-xs text-slate-400">
-                <Circle className="h-1 w-1 fill-slate-600 text-slate-600 shrink-0" />
+              <li key={item} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Circle className="h-1 w-1 fill-muted-foreground/70 text-muted-foreground/70 shrink-0" />
                 {item}
               </li>
             ))}
@@ -651,7 +652,7 @@ function ConnectorCard({ connector, onConnect }: ConnectorCardProps) {
           <Button
             size="sm"
             variant="outline"
-            className="w-full border-slate-700 bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white hover:border-teal-500/50 transition-all"
+            className="w-full border-border bg-accent text-foreground hover:bg-accent hover:text-foreground hover:border-primary/50 transition-all"
             onClick={onConnect}
           >
             {connector.status === "connected" ? "Manage" : "Connect"}
@@ -708,26 +709,24 @@ export default function ConnectorsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">Connectors</h1>
-        <p className="text-slate-400">
-          Connect your data sources — no manual .env editing required
-        </p>
-      </div>
+      <PageHeader
+        title="Connectors"
+        description="Connect your data sources — no manual .env editing required"
+      />
 
       {/* Summary bar */}
-      <div className="flex items-center gap-4 p-4 bg-slate-900 border border-slate-800 rounded-lg">
+      <div className="flex items-center gap-4 p-4 bg-card border border-border rounded-lg">
         <div className="flex items-center gap-2">
-          <Plug className="h-4 w-4 text-slate-500" />
-          <span className="text-sm text-slate-400">
-            <span className="font-semibold text-white">{connectedCount}</span> of{" "}
-            <span className="font-semibold text-white">{connectors.length}</span> connectors active
+          <Plug className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{connectedCount}</span> of{" "}
+            <span className="font-semibold text-foreground">{connectors.length}</span> connectors active
           </span>
         </div>
         {demoMode && (
           <Badge
             variant="outline"
-            className="border-amber-500/40 bg-amber-500/10 text-amber-400 text-[10px] font-semibold tracking-wider uppercase"
+            className="border-warning/40 bg-warning/10 text-warning text-[10px] font-semibold tracking-wider uppercase"
           >
             Demo Mode — sample data only
           </Badge>

@@ -23,18 +23,8 @@ import { ChatPanel } from "@/components/ai/chat-panel";
 import { MobileSidebarTrigger } from "@/components/layout/sidebar";
 import { useCompany } from "@/components/layout/company-context";
 import { DateRangePicker } from "@/components/layout/date-range-picker";
-import { CommandPalette } from "@/components/command-palette";
 import { useSession, signOut } from "next-auth/react";
-
-const PAGE_TITLES: Record<string, string> = {
-  "/": "Overview",
-  "/invoices": "Invoices",
-  "/licenses": "Licenses",
-  "/budget": "Budget",
-  "/vendors": "Vendors",
-  "/devices": "Devices",
-  "/settings": "Settings",
-};
+import { getRouteMeta } from "@/lib/routes";
 
 interface CompanyOption {
   value: string;
@@ -42,14 +32,6 @@ interface CompanyOption {
 }
 
 const ALL_COMPANIES: CompanyOption = { value: "all", label: "All Companies" };
-
-function getPageTitle(pathname: string): string {
-  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
-  const match = Object.keys(PAGE_TITLES)
-    .filter((k) => k !== "/")
-    .find((k) => pathname.startsWith(k));
-  return match ? PAGE_TITLES[match] : "IT Finance";
-}
 
 export function Header() {
   const pathname = usePathname();
@@ -72,7 +54,7 @@ export function Header() {
     return () => { cancelled = true; };
   }, []);
 
-  const pageTitle = getPageTitle(pathname);
+  const pageTitle = getRouteMeta(pathname).title;
 
   // Derive user initials for the avatar fallback
   const userName = session?.user?.name ?? "";
@@ -85,12 +67,11 @@ export function Header() {
 
   return (
     <>
-    <CommandPalette />
-    <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b border-slate-800 bg-slate-950/95 backdrop-blur-sm px-4 lg:px-6">
+    <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b border-border bg-background/80 backdrop-blur-xl px-4 lg:px-6">
       {/* Left: mobile menu + page title */}
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <MobileSidebarTrigger />
-        <h1 className="text-base font-semibold text-white truncate">
+        <h1 className="text-[15px] font-semibold tracking-tight text-foreground truncate">
           {pageTitle}
         </h1>
       </div>
@@ -119,27 +100,18 @@ export function Header() {
           </SelectContent>
         </Select>
 
-        {/* Command palette trigger */}
-        <button
-          onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-          className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-300 border border-slate-700 rounded-md px-2 py-1 text-xs transition-colors"
-          aria-label="Open command palette"
-        >
-          <kbd className="font-sans">⌘K</kbd>
-        </button>
-
         {/* AI Chat toggle */}
         <Sheet>
           <SheetTrigger
-            className="inline-flex items-center justify-center rounded-lg h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="inline-flex items-center justify-center rounded-lg h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             aria-label="Open AI Assistant"
           >
             <Sparkles className="h-4 w-4" />
           </SheetTrigger>
-          <SheetContent side="right" className="w-[400px] sm:max-w-[400px] p-0 bg-slate-950 border-slate-800 flex flex-col">
-            <SheetHeader className="px-4 py-3 border-b border-slate-800 shrink-0">
-              <SheetTitle className="text-white flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-teal-400" />
+          <SheetContent side="right" className="w-[400px] sm:max-w-[400px] p-0 bg-popover border-border flex flex-col">
+            <SheetHeader className="px-4 py-3 border-b border-border shrink-0">
+              <SheetTitle className="text-foreground flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
                 AI Assistant
               </SheetTitle>
             </SheetHeader>
@@ -153,7 +125,7 @@ export function Header() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-800 relative"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent relative"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           aria-label="Toggle theme"
         >
@@ -163,18 +135,18 @@ export function Header() {
 
         {/* User info + sign out (only visible when authenticated) */}
         {session?.user && (
-          <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
+          <div className="flex items-center gap-2 pl-2 border-l border-border">
             {/* Avatar: photo if available, else initials circle */}
             {session.user.image ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={session.user.image}
                 alt={userName}
-                className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-700"
+                className="h-7 w-7 rounded-full object-cover ring-1 ring-border-strong"
               />
             ) : (
               <div
-                className="h-7 w-7 rounded-full bg-teal-600 flex items-center justify-center text-white text-xs font-semibold ring-1 ring-slate-700 select-none"
+                className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-primary-foreground text-xs font-semibold ring-1 ring-primary/30 select-none"
                 aria-label={userName}
               >
                 {userInitials || "?"}
@@ -182,7 +154,7 @@ export function Header() {
             )}
 
             {/* Name — hidden on small screens */}
-            <span className="hidden sm:block text-sm text-slate-300 max-w-[140px] truncate">
+            <span className="hidden sm:block text-sm text-muted-foreground max-w-[140px] truncate">
               {session.user.name}
             </span>
 
@@ -190,7 +162,7 @@ export function Header() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-800"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent"
               onClick={() => signOut({ callbackUrl: "/auth/signin" })}
               aria-label="Sign out"
               title="Sign out"

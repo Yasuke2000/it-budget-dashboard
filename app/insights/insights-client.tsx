@@ -20,13 +20,13 @@ function SeverityBadge({ severity }: { severity: CostInsight["severity"] }) {
   const cfg = {
     critical: {
       label: "Critical",
-      cls: "bg-red-500/15 text-red-400 border-red-500/30",
-      dot: "bg-red-400",
+      cls: "bg-negative/15 text-negative border-negative/30",
+      dot: "bg-negative",
     },
     warning: {
       label: "Warning",
-      cls: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-      dot: "bg-amber-400",
+      cls: "bg-warning/15 text-warning border-warning/30",
+      dot: "bg-warning",
     },
     info: {
       label: "Info",
@@ -61,8 +61,8 @@ function CategoryBadge({
     license_waste: "bg-purple-500/15 text-purple-400 border-purple-500/30",
     vendor_risk: "bg-orange-500/15 text-orange-400 border-orange-500/30",
     hardware_lifecycle: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
-    budget_overrun: "bg-red-500/15 text-red-400 border-red-500/30",
-    optimization: "bg-teal-500/15 text-teal-400 border-teal-500/30",
+    budget_overrun: "bg-negative/15 text-negative border-negative/30",
+    optimization: "bg-primary/15 text-primary border-primary/30",
     shadow_it: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
     duplicate_cost: "bg-pink-500/15 text-pink-400 border-pink-500/30",
   };
@@ -88,15 +88,15 @@ function InsightCard({
   categoryLabel: string;
 }) {
   const leftBorder = {
-    critical: "border-l-red-500",
-    warning: "border-l-amber-500",
+    critical: "border-l-negative",
+    warning: "border-l-warning",
     info: "border-l-blue-500",
   }[insight.severity];
 
   return (
     <div
       className={cn(
-        "rounded-xl border border-slate-800 bg-slate-900 p-5 border-l-2",
+        "rounded-xl border border-border bg-card p-5 border-l-2",
         leftBorder
       )}
     >
@@ -107,36 +107,36 @@ function InsightCard({
           <CategoryBadge category={insight.category} label={categoryLabel} />
         </div>
         {insight.potentialSavings > 0 && (
-          <span className="shrink-0 text-sm font-semibold font-mono text-emerald-400">
+          <span className="shrink-0 text-sm font-semibold font-mono text-positive">
             {formatEur(insight.potentialSavings)}/yr
           </span>
         )}
       </div>
 
       {/* Title */}
-      <h3 className="text-sm font-semibold text-white mb-2 leading-snug">
+      <h3 className="text-sm font-semibold text-foreground mb-2 leading-snug">
         {insight.title}
       </h3>
 
       {/* Description */}
-      <p className="text-sm text-slate-400 leading-relaxed mb-4">
+      <p className="text-sm text-muted-foreground leading-relaxed mb-4">
         {insight.description}
       </p>
 
       {/* Action recommendation */}
-      <div className="rounded-lg border border-teal-500/20 bg-teal-500/5 px-4 py-3 mb-3">
-        <p className="text-xs font-semibold text-teal-400 mb-1 uppercase tracking-wide">
+      <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 mb-3">
+        <p className="text-xs font-semibold text-primary mb-1 uppercase tracking-wide">
           Recommended action
         </p>
-        <p className="text-sm text-slate-300 leading-relaxed">{insight.action}</p>
+        <p className="text-sm text-foreground leading-relaxed">{insight.action}</p>
       </div>
 
       {/* Footer */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <span className="text-xs text-slate-600 font-mono">
+        <span className="text-xs text-muted-foreground/70 font-mono">
           Source: {insight.dataSource}
         </span>
-        <span className="text-xs text-slate-600">
+        <span className="text-xs text-muted-foreground/70">
           Detected {insight.detectedAt}
         </span>
       </div>
@@ -161,8 +161,8 @@ function FilterPill({
       className={cn(
         "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
         active
-          ? "border-teal-500/50 bg-teal-500/15 text-teal-400"
-          : "border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600 hover:text-slate-300"
+          ? "border-primary/50 bg-primary/15 text-primary"
+          : "border-border bg-muted text-muted-foreground hover:border-border-strong hover:text-foreground"
       )}
     >
       {children}
@@ -200,11 +200,11 @@ export function InsightsClient({ insights, categoryLabels }: InsightsClientProps
   return (
     <div className="space-y-4">
       {/* Filter bar */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+      <div className="rounded-xl border border-border bg-card p-4">
         <div className="space-y-3">
           {/* Severity filters */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-slate-500 font-medium w-16 shrink-0">Severity</span>
+            <span className="text-xs text-muted-foreground font-medium w-16 shrink-0">Severity</span>
             <FilterPill active={severityFilter === "all"} onClick={() => setSeverityFilter("all")}>
               All ({insights.length})
             </FilterPill>
@@ -225,7 +225,7 @@ export function InsightsClient({ insights, categoryLabels }: InsightsClientProps
 
           {/* Category filters */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-slate-500 font-medium w-16 shrink-0">Category</span>
+            <span className="text-xs text-muted-foreground font-medium w-16 shrink-0">Category</span>
             <FilterPill active={categoryFilter === "all"} onClick={() => setCategoryFilter("all")}>
               All
             </FilterPill>
@@ -243,14 +243,14 @@ export function InsightsClient({ insights, categoryLabels }: InsightsClientProps
       </div>
 
       {/* Result count */}
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted-foreground">
         Showing {filtered.length} of {insights.length} insights
       </p>
 
       {/* Insight cards */}
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-slate-800 bg-slate-900 py-12 text-center">
-          <p className="text-slate-500 text-sm">No insights match the selected filters.</p>
+        <div className="rounded-xl border border-border bg-card py-12 text-center">
+          <p className="text-muted-foreground text-sm">No insights match the selected filters.</p>
         </div>
       ) : (
         <div className="space-y-4">

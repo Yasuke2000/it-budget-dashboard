@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/layout/page-header";
+import { useChartPalette } from "@/lib/chart-theme";
 import { formatCurrency } from "@/lib/utils";
 import type { SavingsOpportunity, LicenseHarvest } from "@/lib/types";
 import {
@@ -19,13 +21,14 @@ import {
 } from "recharts";
 
 const STATUS_COLORS: Record<SavingsOpportunity["status"], string> = {
-  identified: "bg-slate-600 text-slate-200",
-  in_review: "bg-amber-600/80 text-amber-100",
-  approved: "bg-blue-600/80 text-blue-100",
-  reclaimed: "bg-emerald-600/80 text-emerald-100",
+  identified: "bg-muted text-foreground",
+  in_review: "bg-warning/15 text-warning",
+  approved: "bg-blue-500/15 text-blue-400",
+  reclaimed: "bg-positive/15 text-positive",
 };
 
 export default function SavingsPage() {
+  const p = useChartPalette();
   const [opportunities, setOpportunities] = useState<SavingsOpportunity[]>([]);
   const [harvest, setHarvest] = useState<LicenseHarvest | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,7 +71,7 @@ export default function SavingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-slate-400">Loading savings pipeline...</p>
+        <p className="text-muted-foreground">Loading savings pipeline...</p>
       </div>
     );
   }
@@ -76,10 +79,10 @@ export default function SavingsPage() {
   if (errored) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <p className="text-slate-400">Savings data could not be loaded.</p>
+        <p className="text-muted-foreground">Savings data could not be loaded.</p>
         <button
           onClick={handleRetry}
-          className="text-sm text-teal-400 hover:text-teal-300 underline underline-offset-2"
+          className="text-sm text-primary hover:text-primary/80 underline underline-offset-2"
         >
           Retry
         </button>
@@ -109,17 +112,17 @@ export default function SavingsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-white">License Optimization</h1>
-        <p className="text-slate-400">
-          Reclaimable licenses after the optimization buffer (spare seats kept for new hires)
-        </p>
-        <p className="text-xs text-slate-500 mt-1">
+      <div className="space-y-1">
+        <PageHeader
+          title="License Optimization"
+          description="Reclaimable licenses after the optimization buffer (spare seats kept for new hires)"
+        />
+        <p className="text-xs text-muted-foreground mt-1">
           Microsoft 365 licences are tenant-wide and reflect current state — this page is not affected by the company or date-range filter.
         </p>
         {harvest?.hasUsageData && harvest.totalReclaimableAnnual > 0 && (
-          <p className="text-sm text-slate-500 mt-1">
-            Total reclaimable ≈ <span className="text-teal-300 font-semibold">{formatCurrency(harvest.totalReclaimableAnnual)}/yr</span>{" "}
+          <p className="text-sm text-muted-foreground mt-1">
+            Total reclaimable ≈ <span className="text-primary font-semibold">{formatCurrency(harvest.totalReclaimableAnnual)}/yr</span>{" "}
             — {formatCurrency(harvest.unassignedMonthly * 12)} unassigned seats (exact) + {formatCurrency(harvest.inactiveMonthlyEstimate * 12)} assigned-but-inactive (estimate).
           </p>
         )}
@@ -173,87 +176,87 @@ export default function SavingsPage() {
       </div>
 
       {/* Utilization Bar Chart */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-base">License Utilization by SKU</CardTitle>
+          <CardTitle className="text-foreground text-base">License Utilization by SKU</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={opportunities.length * 50 + 40}>
             <BarChart layout="vertical" data={utilizationData} margin={{ left: 20, right: 20 }}>
-              <XAxis type="number" stroke="#475569" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+              <XAxis type="number" stroke={p.axis} tick={{ fill: p.textMuted, fontSize: 12 }} />
               <YAxis
                 type="category"
                 dataKey="name"
                 width={180}
-                tick={{ fill: "#94a3b8", fontSize: 12 }}
+                tick={{ fill: p.text, fontSize: 12 }}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "#1e293b",
-                  border: "1px solid #334155",
+                  backgroundColor: p.tooltipBg,
+                  border: `1px solid ${p.tooltipBorder}`,
                   borderRadius: 8,
-                  color: "#e2e8f0",
+                  color: p.text,
                 }}
               />
-              <Bar dataKey="assigned" stackId="a" fill="#34d399" name="Assigned" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="unused" stackId="a" fill="#ef4444" name="Unused" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="assigned" stackId="a" fill={p.positive} name="Assigned" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="unused" stackId="a" fill={p.negative} name="Unused" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
       {/* Savings Pipeline Table */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-base">Savings Pipeline</CardTitle>
+          <CardTitle className="text-foreground text-base">Savings Pipeline</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-800">
-                  <th className="text-left px-4 py-3 text-slate-400 font-medium">SKU Name</th>
-                  <th className="text-right px-4 py-3 text-slate-400 font-medium">Total</th>
-                  <th className="text-right px-4 py-3 text-slate-400 font-medium">Assigned</th>
-                  <th className="text-right px-4 py-3 text-slate-400 font-medium">Unused</th>
-                  <th className="text-left px-4 py-3 text-slate-400 font-medium w-32">Utilization</th>
-                  <th className="text-right px-4 py-3 text-slate-400 font-medium">Monthly Waste</th>
-                  <th className="text-right px-4 py-3 text-slate-400 font-medium">Annual Savings</th>
-                  <th className="text-center px-4 py-3 text-slate-400 font-medium">Status</th>
+                <tr className="border-b border-border">
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium">SKU Name</th>
+                  <th className="text-right px-4 py-3 text-muted-foreground font-medium">Total</th>
+                  <th className="text-right px-4 py-3 text-muted-foreground font-medium">Assigned</th>
+                  <th className="text-right px-4 py-3 text-muted-foreground font-medium">Unused</th>
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium w-32">Utilization</th>
+                  <th className="text-right px-4 py-3 text-muted-foreground font-medium">Monthly Waste</th>
+                  <th className="text-right px-4 py-3 text-muted-foreground font-medium">Annual Savings</th>
+                  <th className="text-center px-4 py-3 text-muted-foreground font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {opportunities.map((opp) => (
-                  <tr key={opp.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                    <td className="px-4 py-3 text-white font-medium">{opp.displayName}</td>
-                    <td className="px-4 py-3 text-right text-slate-300 tabular-nums">{opp.totalLicenses}</td>
-                    <td className="px-4 py-3 text-right text-slate-300 tabular-nums">{opp.assignedLicenses}</td>
-                    <td className="px-4 py-3 text-right text-red-400 tabular-nums font-medium">{opp.unusedCount}</td>
+                  <tr key={opp.id} className="border-b border-border hover:bg-accent">
+                    <td className="px-4 py-3 text-foreground font-medium">{opp.displayName}</td>
+                    <td className="px-4 py-3 text-right text-foreground tabular-nums">{opp.totalLicenses}</td>
+                    <td className="px-4 py-3 text-right text-foreground tabular-nums">{opp.assignedLicenses}</td>
+                    <td className="px-4 py-3 text-right text-negative tabular-nums font-medium">{opp.unusedCount}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 h-2 rounded-full bg-slate-700 overflow-hidden">
+                        <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                           <div
                             className="h-full rounded-full transition-all"
                             style={{
                               width: `${opp.utilization}%`,
                               backgroundColor:
                                 opp.utilization >= 90
-                                  ? "#34d399"
+                                  ? p.positive
                                   : opp.utilization >= 70
-                                  ? "#fbbf24"
-                                  : "#ef4444",
+                                  ? p.warning
+                                  : p.negative,
                             }}
                           />
                         </div>
-                        <span className="text-xs text-slate-400 tabular-nums w-10 text-right">
+                        <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">
                           {opp.utilization.toFixed(0)}%
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-300 tabular-nums">
+                    <td className="px-4 py-3 text-right text-foreground tabular-nums">
                       {formatCurrency(opp.monthlyWaste)}
                     </td>
-                    <td className="px-4 py-3 text-right text-emerald-400 font-bold tabular-nums">
+                    <td className="px-4 py-3 text-right text-positive font-bold tabular-nums">
                       {formatCurrency(opp.annualSavings)}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -268,7 +271,7 @@ export default function SavingsPage() {
           </div>
           {opportunities.length === 0 && (
             <div className="py-12 text-center">
-              <p className="text-slate-400">No savings opportunities detected — all licenses are fully utilized.</p>
+              <p className="text-muted-foreground">No savings opportunities detected — all licenses are fully utilized.</p>
             </div>
           )}
         </CardContent>
@@ -276,41 +279,41 @@ export default function SavingsPage() {
 
       {/* Cumulative Savings Area Chart */}
       {totalAnnualSavings > 0 && (
-        <Card className="bg-slate-900 border-slate-800">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-white text-base">Projected Cumulative Savings</CardTitle>
+            <CardTitle className="text-foreground text-base">Projected Cumulative Savings</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={projectionData} margin={{ top: 10, right: 20, bottom: 0, left: 20 }}>
                 <defs>
                   <linearGradient id="savingsGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#14b8a6" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={p.income} stopOpacity={0.3} />
+                    <stop offset="100%" stopColor={p.income} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="month" stroke="#475569" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                <CartesianGrid stroke={p.grid} vertical={false} />
+                <XAxis dataKey="month" stroke={p.axis} tick={{ fill: p.text, fontSize: 12 }} />
                 <YAxis
-                  stroke="#475569"
-                  tick={{ fill: "#94a3b8", fontSize: 12 }}
+                  stroke={p.axis}
+                  tick={{ fill: p.textMuted, fontSize: 12 }}
                   tickFormatter={(v: number) =>
                     v >= 1000 ? `${(v / 1000).toFixed(0)}K` : String(v)
                   }
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "#1e293b",
-                    border: "1px solid #334155",
+                    backgroundColor: p.tooltipBg,
+                    border: `1px solid ${p.tooltipBorder}`,
                     borderRadius: 8,
-                    color: "#e2e8f0",
+                    color: p.text,
                   }}
                   formatter={(value) => [formatCurrency(Number(value ?? 0)), "Savings"]}
                 />
                 <Area
                   type="monotone"
                   dataKey="savings"
-                  stroke="#14b8a6"
+                  stroke={p.income}
                   strokeWidth={2}
                   fill="url(#savingsGradient)"
                 />

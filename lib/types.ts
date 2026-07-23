@@ -559,12 +559,27 @@ export interface CfoMonthPoint {
   revenue: number;
   costs: number;
   result: number;
+  // Per 2-digit expense class (60–64), for the month × class heatmap.
+  byClass?: Record<string, number>;
+}
+
+// One open item inside an aging bucket — drillable to its BC document.
+export interface CfoAgingItem {
+  name: string;                   // vendor/customer name
+  company: string;                // short company code (GTR, GDI, …)
+  docNo: string;
+  due: string;                    // "YYYY-MM-DD" or ""
+  amount: number;
+  ic: boolean;                    // intercompany (name-matched)
+  bcUrl: string;                  // deep-link naar de boeking in Business Central
 }
 
 export interface CfoAgingBucket {
   label: string;                  // "Niet vervallen", "< 30d", …
   amount: number;
   extern?: number;                // external-only portion (intercompany removed)
+  items?: CfoAgingItem[];         // largest open items in this bucket (capped)
+  itemCount?: number;             // true item count before the cap
 }
 
 // Liquidity & working-capital ratios (working-capital view; not a full balance sheet).
@@ -617,6 +632,15 @@ export interface CfoBudget {
   monthlyCostTarget: number;
   revenueVariancePct: number;     // YTD actual vs pro-rata target
   resultVariancePct: number;
+  // Per-expense-class targets (annual) vs YTD actual, pro-rated.
+  classVariance?: {
+    cls: string;                  // "60" … "64"
+    label: string;
+    target: number;               // annual target
+    actual: number;               // YTD actual
+    proRata: number;              // pro-rata target for the elapsed period
+    variancePct: number;          // (actual − proRata) / proRata × 100
+  }[];
 }
 
 export interface CfoKpis {
@@ -666,6 +690,11 @@ export interface CfoFinancials {
   cashForecast?: CfoCashForecast;
   budget?: CfoBudget;
   prevYear?: CfoPrevYear;
+  // Consolidation scope: every operating entity + which are excluded from this view.
+  scope?: { all: { code: string; name: string }[]; excluded: string[] };
+  // Set when this is a stored point-in-time snapshot being viewed (ISO timestamp
+  // of when it was taken) — the UI shows a banner instead of the live stamp.
+  snapshotOf?: string;
   // Honest failure/refresh surfacing — never silently present sample data as live.
   loadError?: string;   // live fetch failed → demo shown WITH this reason banner
   refreshing?: boolean; // background rebuild running; page shows cached data meanwhile

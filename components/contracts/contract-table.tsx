@@ -40,10 +40,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  active: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  expiring_soon: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  expired: "bg-red-500/20 text-red-400 border-red-500/30",
-  cancelled: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+  active: "bg-positive/10 text-positive border-positive/30",
+  expiring_soon: "bg-warning/10 text-warning border-warning/30",
+  expired: "bg-negative/10 text-negative border-negative/30",
+  cancelled: "bg-muted text-muted-foreground border-border",
 };
 
 export function ContractTable({ contracts, onEdit, onDelete }: ContractTableProps) {
@@ -71,10 +71,10 @@ export function ContractTable({ contracts, onEdit, onDelete }: ContractTableProp
   }, [contracts, categoryFilter, statusFilter, expiryFilter, now]);
 
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card>
       <CardHeader className="pb-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <CardTitle className="text-white">All Contracts</CardTitle>
+          <CardTitle className="text-foreground">All Contracts</CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
             <Select value={categoryFilter} onValueChange={(v) => { if (v !== null) setCategoryFilter(v); }}>
               <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
@@ -114,31 +114,31 @@ export function ContractTable({ contracts, onEdit, onDelete }: ContractTableProp
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="border-slate-800 hover:bg-transparent">
-                <TableHead className="text-slate-400">Vendor</TableHead>
-                <TableHead className="text-slate-400 hidden lg:table-cell">Description</TableHead>
-                <TableHead className="text-slate-400">Category</TableHead>
-                <TableHead className="text-slate-400">End Date</TableHead>
-                <TableHead className="text-slate-400">Days Left</TableHead>
-                <TableHead className="text-slate-400 text-right">Annual Cost</TableHead>
-                <TableHead className="text-slate-400">Status</TableHead>
-                <TableHead className="text-slate-400 text-center">Auto</TableHead>
-                {showActions && <TableHead className="text-slate-400 text-right">Actions</TableHead>}
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="text-muted-foreground">Vendor</TableHead>
+                <TableHead className="text-muted-foreground hidden lg:table-cell">Description</TableHead>
+                <TableHead className="text-muted-foreground">Category</TableHead>
+                <TableHead className="text-muted-foreground">End Date</TableHead>
+                <TableHead className="text-muted-foreground">Days Left</TableHead>
+                <TableHead className="text-muted-foreground text-right">Annual Cost</TableHead>
+                <TableHead className="text-muted-foreground">Status</TableHead>
+                <TableHead className="text-muted-foreground text-center">Auto</TableHead>
+                {showActions && <TableHead className="text-muted-foreground text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((c) => (
-                <TableRow key={c.id} className="border-slate-800 hover:bg-slate-800/50 cursor-pointer" onClick={() => setSelectedContract(c)}>
-                  <TableCell className="text-white font-medium text-sm">{c.vendor}</TableCell>
-                  <TableCell className="text-slate-400 text-xs max-w-[200px] truncate hidden lg:table-cell">{c.description}</TableCell>
+                <TableRow key={c.id} className="border-border hover:bg-accent cursor-pointer" onClick={() => setSelectedContract(c)}>
+                  <TableCell className="text-foreground font-medium text-sm">{c.vendor}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs max-w-[200px] truncate hidden lg:table-cell">{c.description}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-xs border-slate-700 text-slate-300">
+                    <Badge variant="outline" className="text-xs border-border text-foreground">
                       {CATEGORY_LABELS[c.category] || c.category}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-slate-300 text-sm font-mono tabular-nums">{formatDate(c.endDate)}</TableCell>
+                  <TableCell className="text-foreground text-sm font-mono tabular-nums">{formatDate(c.endDate)}</TableCell>
                   <TableCell><ExpiryBadge endDate={c.endDate} /></TableCell>
-                  <TableCell className="text-right text-slate-300 font-mono tabular-nums text-sm">{formatCurrency(c.annualCost)}</TableCell>
+                  <TableCell className="text-right text-foreground font-mono tabular-nums text-sm">{formatCurrency(c.annualCost)}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={STATUS_STYLES[c.status] || ""}>
                       {c.status.replace("_", " ")}
@@ -146,21 +146,21 @@ export function ContractTable({ contracts, onEdit, onDelete }: ContractTableProp
                   </TableCell>
                   <TableCell className="text-center">
                     {c.autoRenew ? (
-                      <CheckCircle className="h-4 w-4 text-emerald-400 mx-auto" />
+                      <CheckCircle className="h-4 w-4 text-positive mx-auto" />
                     ) : (
-                      <XCircle className="h-4 w-4 text-slate-500 mx-auto" />
+                      <XCircle className="h-4 w-4 text-muted-foreground mx-auto" />
                     )}
                   </TableCell>
                   {showActions && (
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         {onEdit && (
-                          <button onClick={() => onEdit(c)} className="p-1.5 rounded text-slate-400 hover:text-teal-400 hover:bg-slate-800" aria-label="Edit contract">
+                          <button onClick={() => onEdit(c)} className="p-1.5 rounded text-muted-foreground hover:text-primary hover:bg-accent" aria-label="Edit contract">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
                         )}
                         {onDelete && (
-                          <button onClick={() => onDelete(c)} className="p-1.5 rounded text-slate-400 hover:text-red-400 hover:bg-slate-800" aria-label="Delete contract">
+                          <button onClick={() => onDelete(c)} className="p-1.5 rounded text-muted-foreground hover:text-negative hover:bg-accent" aria-label="Delete contract">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         )}
@@ -171,7 +171,7 @@ export function ContractTable({ contracts, onEdit, onDelete }: ContractTableProp
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={showActions ? 9 : 8} className="text-center text-slate-500 py-8">
+                  <TableCell colSpan={showActions ? 9 : 8} className="text-center text-muted-foreground py-8">
                     No contracts match your filters.
                   </TableCell>
                 </TableRow>

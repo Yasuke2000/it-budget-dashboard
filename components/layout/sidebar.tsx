@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart3,
   LayoutDashboard,
   FileText,
   Key,
@@ -22,6 +21,9 @@ import {
   Coins,
   GitBranch,
   Landmark,
+  PanelLeftClose,
+  PanelLeft,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -33,30 +35,64 @@ import {
 
 const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
 
-const navItems = [
-  { label: "Overview", icon: LayoutDashboard, href: "/" },
-  { label: "CFO", icon: Landmark, href: "/cfo" },
-  { label: "Invoices", icon: FileText, href: "/invoices" },
-  { label: "Licenses", icon: Key, href: "/licenses" },
-  { label: "Optimization", icon: Coins, href: "/savings" },
-  { label: "Budget", icon: PiggyBank, href: "/budget" },
-  { label: "Vendors", icon: Building2, href: "/vendors" },
-  { label: "Devices", icon: Monitor, href: "/devices" },
-  { label: "Personnel", icon: Users, href: "/personnel" },
-  { label: "Developers", icon: GitBranch, href: "/developers" },
-  { label: "Import", icon: Upload, href: "/import" },
-  { label: "Connectors", icon: Plug, href: "/connectors" },
-  { label: "Insights", icon: Lightbulb, href: "/insights" },
-  { label: "Contracts", icon: ScrollText, href: "/contracts" },
-  { label: "Settings", icon: Settings, href: "/settings" },
+interface NavItem {
+  label: string;
+  icon: LucideIcon;
+  href: string;
+}
+interface NavGroup {
+  title: string | null;
+  items: NavItem[];
+}
+
+// Grouped information architecture — turns a flat 15-item list into scannable
+// sections. Order within a group runs most-used → least.
+const NAV_GROUPS: NavGroup[] = [
+  {
+    title: null,
+    items: [
+      { label: "Overview", icon: LayoutDashboard, href: "/" },
+      { label: "CFO Cockpit", icon: Landmark, href: "/cfo" },
+    ],
+  },
+  {
+    title: "Spend",
+    items: [
+      { label: "Invoices", icon: FileText, href: "/invoices" },
+      { label: "Vendors", icon: Building2, href: "/vendors" },
+      { label: "Contracts", icon: ScrollText, href: "/contracts" },
+      { label: "Optimization", icon: Coins, href: "/savings" },
+      { label: "Budget", icon: PiggyBank, href: "/budget" },
+    ],
+  },
+  {
+    title: "Assets & Team",
+    items: [
+      { label: "Licenses", icon: Key, href: "/licenses" },
+      { label: "Devices", icon: Monitor, href: "/devices" },
+      { label: "Personnel", icon: Users, href: "/personnel" },
+      { label: "Developers", icon: GitBranch, href: "/developers" },
+    ],
+  },
+  {
+    title: "Data & Insights",
+    items: [
+      { label: "Insights", icon: Lightbulb, href: "/insights" },
+      { label: "Import", icon: Upload, href: "/import" },
+      { label: "Connectors", icon: Plug, href: "/connectors" },
+    ],
+  },
+  {
+    title: "System",
+    items: [{ label: "Settings", icon: Settings, href: "/settings" }],
+  },
 ];
 
-// Peppol is hidden by default (not connected to a live Access Point); shown only
-// when enabled in Settings. Slots in after "Import" where it used to live.
-const PEPPOL_ITEM = { label: "Peppol", icon: FileCheck, href: "/peppol" };
+// Peppol is hidden by default (no live Access Point); shown only when enabled in
+// Settings. It slots into "Data & Insights" after Import.
+const PEPPOL_ITEM: NavItem = { label: "Peppol", icon: FileCheck, href: "/peppol" };
 
-function SidebarContent() {
-  const pathname = usePathname();
+function useNavGroups() {
   const [showPeppol, setShowPeppol] = useState(false);
   const [cfoAllowed, setCfoAllowed] = useState(true); // optimistic; hidden only if explicitly denied
 
@@ -71,112 +107,263 @@ function SidebarContent() {
       .catch(() => {});
   }, []);
 
-  const base = cfoAllowed ? navItems : navItems.filter((i) => i.href !== "/cfo");
-  const peppolAt = base.findIndex((i) => i.href === "/import") + 1;
-  const items = showPeppol && peppolAt > 0
-    ? [...base.slice(0, peppolAt), PEPPOL_ITEM, ...base.slice(peppolAt)]
-    : base;
+  return NAV_GROUPS.map((g) => {
+    let items = g.items;
+    if (!cfoAllowed) items = items.filter((i) => i.href !== "/cfo");
+    if (showPeppol && g.title === "Data & Insights") {
+      const at = items.findIndex((i) => i.href === "/import") + 1;
+      items = [...items.slice(0, at), PEPPOL_ITEM, ...items.slice(at)];
+    }
+    return { ...g, items };
+  }).filter((g) => g.items.length > 0);
+}
 
+function BrandMark({ collapsed }: { collapsed: boolean }) {
   return (
-    <div className="flex h-full flex-col bg-slate-950">
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-800">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-teal-500/20">
-          <BarChart3 className="h-5 w-5 text-teal-400" />
+    <div
+      className={cn(
+        "flex items-center gap-2.5 px-4 h-16 border-b border-sidebar-border",
+        collapsed && "justify-center px-0"
+      )}
+    >
+      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/25 to-gold/15 ring-1 ring-primary/30">
+        <Landmark className="h-[18px] w-[18px] text-primary" />
+      </div>
+      {!collapsed && (
+        <div className="min-w-0 leading-tight">
+          <p className="truncate text-[15px] font-semibold tracking-tight text-foreground">
+            IT&nbsp;Finance
+          </p>
+          <p className="truncate text-[10.5px] font-medium uppercase tracking-[0.18em] text-muted-foreground/70">
+            Cost Intelligence
+          </p>
         </div>
-        <span className="text-base font-bold text-white tracking-tight">
-          IT Finance
-        </span>
-      </div>
+      )}
+    </div>
+  );
+}
 
-      {/* Demo / Live badge */}
-      <div className="px-4 pt-3 pb-1">
-        {IS_DEMO ? (
-          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-            <p className="text-[11px] font-bold tracking-widest uppercase text-amber-400 leading-tight">
-              DEMO MODE
-            </p>
-            <p className="text-[10px] text-amber-500/70 mt-0.5 leading-tight">
-              sample data only
-            </p>
-          </div>
-        ) : (
-          <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-            <p className="text-[11px] font-bold tracking-widest uppercase text-emerald-400 leading-tight">
-              LIVE
-            </p>
-            <p className="text-[10px] text-emerald-500/70 mt-0.5 leading-tight">
-              connected
-            </p>
-          </div>
+function StatusBadge({ collapsed }: { collapsed: boolean }) {
+  if (collapsed) {
+    return (
+      <div className="flex justify-center py-3">
+        <span
+          className={cn(
+            "h-2 w-2 rounded-full",
+            IS_DEMO
+              ? "bg-warning shadow-[0_0_8px_var(--warning)]"
+              : "bg-positive shadow-[0_0_8px_var(--positive)]"
+          )}
+          title={IS_DEMO ? "Demo mode — sample data" : "Live — connected"}
+        />
+      </div>
+    );
+  }
+  return (
+    <div className="px-3 pt-3 pb-1">
+      <div
+        className={cn(
+          "flex items-center gap-2 rounded-lg border px-3 py-2",
+          IS_DEMO
+            ? "border-warning/30 bg-warning/10"
+            : "border-positive/30 bg-positive/10"
         )}
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-        {items.map(({ label, icon: Icon, href }) => {
-          const isActive =
-            href === "/" ? pathname === "/" : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all",
-                isActive
-                  ? "bg-slate-800 text-white border-l-2 border-teal-400 pl-[10px]"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800/50 border-l-2 border-transparent pl-[10px]"
-              )}
-            >
-              <Icon
-                className={cn(
-                  "h-4 w-4 shrink-0 transition-colors",
-                  isActive
-                    ? "text-teal-400"
-                    : "text-slate-500 group-hover:text-slate-300"
-                )}
-              />
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Footer */}
-      <div className="border-t border-slate-800 px-5 py-4">
-        <p className="text-[11px] text-slate-600 font-medium">
-          {IS_DEMO
-            ? "Demo · No real API calls made"
-            : `v${process.env.NEXT_PUBLIC_APP_VERSION ?? "1.0.0"} · Live`}
-        </p>
+      >
+        <span
+          className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            IS_DEMO
+              ? "bg-warning shadow-[0_0_8px_var(--warning)]"
+              : "bg-positive shadow-[0_0_8px_var(--positive)] animate-pulse"
+          )}
+        />
+        <div className="leading-tight">
+          <p
+            className={cn(
+              "text-[10.5px] font-bold uppercase tracking-[0.15em]",
+              IS_DEMO ? "text-warning" : "text-positive"
+            )}
+          >
+            {IS_DEMO ? "Demo Mode" : "Live"}
+          </p>
+          <p className="text-[10px] text-muted-foreground/70">
+            {IS_DEMO ? "sample data only" : "connected to source"}
+          </p>
+        </div>
       </div>
     </div>
   );
 }
 
-export function Sidebar() {
+function SidebarContent({
+  collapsed,
+  onToggle,
+  onNavigate,
+}: {
+  collapsed: boolean;
+  onToggle?: () => void;
+  onNavigate?: () => void;
+}) {
+  const pathname = usePathname();
+  const groups = useNavGroups();
+
   return (
-    <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 border-r border-slate-800">
-      <SidebarContent />
+    <div className="flex h-full flex-col bg-sidebar">
+      <BrandMark collapsed={collapsed} />
+      <StatusBadge collapsed={collapsed} />
+
+      <nav className="flex-1 overflow-y-auto px-3 py-2">
+        {groups.map((group, gi) => (
+          <div key={group.title ?? `g${gi}`} className={cn(gi > 0 && "mt-4")}>
+            {group.title && !collapsed && (
+              <p className="px-3 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/55">
+                {group.title}
+              </p>
+            )}
+            {group.title && collapsed && gi > 0 && (
+              <div className="mx-auto mb-2 h-px w-6 bg-sidebar-border" />
+            )}
+            <div className="space-y-0.5">
+              {group.items.map(({ label, icon: Icon, href }) => {
+                const isActive =
+                  href === "/" ? pathname === "/" : pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={onNavigate}
+                    title={collapsed ? label : undefined}
+                    className={cn(
+                      "group relative flex items-center rounded-lg text-sm font-medium transition-colors",
+                      collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2",
+                      isActive
+                        ? "bg-primary/10 text-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                    )}
+                  >
+                    {isActive && (
+                      <span
+                        aria-hidden
+                        className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
+                      />
+                    )}
+                    <Icon
+                      className={cn(
+                        "h-[18px] w-[18px] shrink-0 transition-colors",
+                        isActive
+                          ? "text-primary"
+                          : "text-muted-foreground/70 group-hover:text-foreground"
+                      )}
+                    />
+                    {!collapsed && <span className="truncate">{label}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </nav>
+
+      {/* Footer: collapse toggle (desktop) + version */}
+      <div className="border-t border-sidebar-border p-3">
+        {onToggle && (
+          <button
+            onClick={onToggle}
+            className={cn(
+              "flex w-full items-center rounded-lg py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+              collapsed ? "justify-center px-0" : "gap-2 px-3"
+            )}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? (
+              <PanelLeft className="h-4 w-4" />
+            ) : (
+              <>
+                <PanelLeftClose className="h-4 w-4" />
+                <span>Collapse</span>
+              </>
+            )}
+          </button>
+        )}
+        {!collapsed && (
+          <p className="px-3 pt-2 text-[10.5px] text-muted-foreground/50">
+            {IS_DEMO
+              ? "Demo · no live API calls"
+              : `v${process.env.NEXT_PUBLIC_APP_VERSION ?? "1.0.0"} · Live`}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Persisted collapse state, read as an external store so we never call setState
+// from an effect (which React Compiler disallows) and stay SSR-safe.
+const COLLAPSE_KEY = "itdash_sidebar_collapsed";
+
+function subscribeCollapse(cb: () => void) {
+  window.addEventListener("itdash-sidebar", cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    window.removeEventListener("itdash-sidebar", cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+function collapseSnapshot() {
+  try {
+    return localStorage.getItem(COLLAPSE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function collapseServerSnapshot() {
+  return false;
+}
+
+export function Sidebar() {
+  const collapsed = useSyncExternalStore(
+    subscribeCollapse,
+    collapseSnapshot,
+    collapseServerSnapshot
+  );
+
+  // Reflect the width to the layout via a CSS var (external-system sync — allowed).
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--sidebar-w",
+      collapsed ? "4.25rem" : "16rem"
+    );
+  }, [collapsed]);
+
+  const toggle = useCallback(() => {
+    try {
+      localStorage.setItem(COLLAPSE_KEY, collapseSnapshot() ? "0" : "1");
+    } catch {
+      /* ignore */
+    }
+    window.dispatchEvent(new Event("itdash-sidebar"));
+  }, []);
+
+  return (
+    <aside className="hidden lg:flex lg:flex-col lg:shrink-0 lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 border-r border-sidebar-border transition-[width] duration-300 ease-out lg:[width:var(--sidebar-w)]">
+      <SidebarContent collapsed={collapsed} onToggle={toggle} />
     </aside>
   );
 }
 
 export function MobileSidebarTrigger() {
+  const [open, setOpen] = useState(false);
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
-        className="lg:hidden inline-flex items-center justify-center rounded-lg size-8 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+        className="lg:hidden inline-flex items-center justify-center rounded-lg size-8 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
         aria-label="Open navigation menu"
       >
         <Menu className="h-5 w-5" />
       </SheetTrigger>
-      <SheetContent
-        side="left"
-        className="p-0 w-64 bg-slate-950 border-slate-800"
-      >
+      <SheetContent side="left" className="p-0 w-64 bg-sidebar border-sidebar-border">
         <SheetTitle className="sr-only">Navigation</SheetTitle>
-        <SidebarContent />
+        <SidebarContent collapsed={false} onNavigate={() => setOpen(false)} />
       </SheetContent>
     </Sheet>
   );

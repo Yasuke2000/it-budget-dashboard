@@ -65,38 +65,38 @@ export function ContractDiscoverDialog({ open, onOpenChange, onAdded }: Contract
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto bg-slate-950 border-slate-800">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto bg-background border-border">
         <DialogHeader>
-          <DialogTitle className="text-white flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-teal-400" /> Discover contracts from spend
+          <DialogTitle className="text-foreground flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" /> Discover contracts from spend
           </DialogTitle>
-          <DialogDescription className="text-slate-400">
+          <DialogDescription className="text-muted-foreground">
             IT vendors billing across 4+ months in the last year — almost certainly recurring contracts.
             Add the ones you want to track, then fill in renewal dates and documents.
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12 text-slate-400 gap-2">
+          <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
             <Loader2 className="h-5 w-5 animate-spin" /> Analysing 12 months of spend…
           </div>
         ) : suggestions.length === 0 ? (
-          <p className="text-slate-500 text-center py-10 text-sm">No new recurring IT vendors found (all already tracked, or no live spend).</p>
+          <p className="text-muted-foreground text-center py-10 text-sm">No new recurring IT vendors found (all already tracked, or no live spend).</p>
         ) : (
           <div className="space-y-2 py-2">
             {suggestions.map((s) => {
               const isAdded = added.has(s.vendor);
               return (
-                <div key={s.vendor} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2.5">
+                <div key={s.vendor} className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm text-white font-medium truncate">{s.vendor}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-sm text-foreground font-medium truncate">{s.vendor}</p>
+                    <p className="text-xs text-muted-foreground">
                       {s.itCategory} · {s.monthsActive} months · {s.billingCycle}
                     </p>
                   </div>
-                  <span className="text-sm font-mono tabular-nums text-slate-300 shrink-0">{formatCurrency(s.annualCost)}/yr</span>
+                  <span className="text-sm font-mono tabular-nums text-foreground shrink-0">{formatCurrency(s.annualCost)}/yr</span>
                   {isAdded ? (
-                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 gap-1 shrink-0">
+                    <Badge variant="outline" className="bg-positive/10 text-positive border-positive/30 gap-1 shrink-0">
                       <Check className="h-3 w-3" /> Added
                     </Badge>
                   ) : (
@@ -111,7 +111,7 @@ export function ContractDiscoverDialog({ open, onOpenChange, onAdded }: Contract
           </div>
         )}
 
-        <div className="flex justify-end pt-2 border-t border-slate-800">
+        <div className="flex justify-end pt-2 border-t border-border">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Done</Button>
         </div>
       </DialogContent>

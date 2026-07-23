@@ -4,6 +4,7 @@ import { ForecastPanel } from "@/components/budget/forecast-panel";
 import { getBudgetEntries, getInvoices, getSpendForecast, isDemoMode } from "@/lib/data-source";
 import { isITCategory } from "@/lib/constants";
 import { formatCurrencyCompact, formatPercent } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 import { AlertCircle } from "lucide-react";
 import type { BudgetEntry, SpendForecast } from "@/lib/types";
 
@@ -78,19 +79,19 @@ export default async function BudgetPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Budget</h1>
-        <p className="text-slate-400">
-          {hasBudget
+      <PageHeader
+        title="Budget"
+        description={
+          hasBudget
             ? `Budget vs actual spend by category — FY ${currentYear}`
-            : `IT spend by category — ${currentYear}`}
-        </p>
-      </div>
+            : `IT spend by category — ${currentYear}`
+        }
+      />
 
       {!hasBudget && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-          <AlertCircle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
-          <p className="text-sm text-amber-300">
+        <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3">
+          <AlertCircle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+          <p className="text-sm text-warning">
             No budget configured yet — showing actual IT spend only. Set per-category budgets in
             Settings → Budget to see variance.
           </p>
@@ -134,22 +135,22 @@ export default async function BudgetPage({
 
       {hasBudget && (
         <div className="flex items-center gap-6 px-1">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Variance legend
           </p>
-          <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" />
+          <span className="flex items-center gap-1.5 text-xs text-positive">
+            <span className="h-2 w-2 rounded-full bg-positive inline-block" />
             {"<5% — On track"}
           </span>
-          <span className="flex items-center gap-1.5 text-xs text-amber-400">
-            <span className="h-2 w-2 rounded-full bg-amber-500 inline-block" />
+          <span className="flex items-center gap-1.5 text-xs text-warning">
+            <span className="h-2 w-2 rounded-full bg-warning inline-block" />
             5–10% — Watch
           </span>
-          <span className="flex items-center gap-1.5 text-xs text-red-400">
-            <span className="h-2 w-2 rounded-full bg-red-500 inline-block" />
+          <span className="flex items-center gap-1.5 text-xs text-negative">
+            <span className="h-2 w-2 rounded-full bg-negative inline-block" />
             {">10% — Over budget"}
           </span>
-          <span className="text-xs text-slate-600 ml-auto italic">
+          <span className="text-xs text-muted-foreground/70 ml-auto italic">
             Each cell shows actual (top) / budget (bottom)
           </span>
         </div>

@@ -194,24 +194,24 @@ export function CsvImportCard({
   const visibleErrors = showAllErrors ? displayErrors : displayErrors.slice(0, 5);
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col gap-4">
+    <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-semibold text-white">{title}</h3>
+            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
             {existingCount > 0 && (
-              <Badge className="bg-teal-500/20 text-teal-300 border-teal-500/40 text-[10px] font-semibold px-2 py-0.5">
+              <Badge className="bg-primary/15 text-primary border-primary/30 text-[10px] font-semibold px-2 py-0.5">
                 {existingCount} rows imported
               </Badge>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-slate-400">{description}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
         </div>
         {existingCount > 0 && (
           <button
             onClick={handleClear}
-            className="shrink-0 flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors"
+            className="shrink-0 flex items-center gap-1 text-xs text-negative hover:text-negative/80 transition-colors"
           >
             <Trash2 className="h-3.5 w-3.5" />
             Clear
@@ -229,8 +229,8 @@ export function CsvImportCard({
           className={cn(
             "relative cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors",
             isDragging
-              ? "border-teal-400 bg-teal-500/10"
-              : "border-slate-700 hover:border-teal-500 hover:bg-slate-800/50"
+              ? "border-primary bg-primary/10"
+              : "border-border hover:border-primary hover:bg-accent"
           )}
         >
           <input
@@ -240,19 +240,19 @@ export function CsvImportCard({
             className="hidden"
             onChange={handleFileChange}
           />
-          <Upload className={cn("mx-auto h-8 w-8 mb-3", isDragging ? "text-teal-400" : "text-slate-500")} />
-          <p className="text-sm font-medium text-slate-300">
+          <Upload className={cn("mx-auto h-8 w-8 mb-3", isDragging ? "text-primary" : "text-muted-foreground")} />
+          <p className="text-sm font-medium text-foreground">
             {isDragging ? "Drop your CSV here" : "Drag & drop your CSV file"}
           </p>
-          <p className="mt-1 text-xs text-slate-500">or click to browse</p>
+          <p className="mt-1 text-xs text-muted-foreground">or click to browse</p>
         </div>
       )}
 
       {/* Error state */}
       {importState === "error" && errorMsg && (
-        <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2.5">
-          <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-          <p className="text-xs text-red-300">{errorMsg}</p>
+        <div className="flex items-start gap-2 rounded-lg bg-negative/10 border border-negative/30 px-3 py-2.5">
+          <AlertTriangle className="h-4 w-4 text-negative shrink-0 mt-0.5" />
+          <p className="text-xs text-negative">{errorMsg}</p>
         </div>
       )}
 
@@ -262,18 +262,18 @@ export function CsvImportCard({
           {/* File name + dismiss */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <FileText className="h-4 w-4 text-slate-400 shrink-0" />
-              <span className="text-xs text-slate-300 truncate">{fileName}</span>
-              <span className="text-xs text-slate-500 shrink-0">— {rawRows.length} rows</span>
+              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-xs text-foreground truncate">{fileName}</span>
+              <span className="text-xs text-muted-foreground shrink-0">— {rawRows.length} rows</span>
             </div>
-            <button onClick={handleReset} className="text-slate-500 hover:text-slate-300 transition-colors shrink-0">
+            <button onClick={handleReset} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
               <X className="h-4 w-4" />
             </button>
           </div>
 
           {/* Column detection */}
           <div>
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Column detection
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -283,8 +283,8 @@ export function CsvImportCard({
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border",
                     found
-                      ? "bg-teal-500/10 border-teal-500/30 text-teal-300"
-                      : "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                      ? "bg-primary/10 border-primary/30 text-primary"
+                      : "bg-warning/10 border-warning/30 text-warning"
                   )}
                 >
                   {found
@@ -299,20 +299,20 @@ export function CsvImportCard({
 
           {/* Preview table */}
           <div>
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Preview (first 5 rows)
             </p>
-            <div className="rounded-lg border border-slate-700 overflow-x-auto">
+            <div className="rounded-lg border border-border overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-slate-700 bg-slate-800">
+                  <tr className="border-b border-border bg-muted">
                     {previewHeaders.map(h => (
-                      <th key={h} className="px-3 py-2 text-left font-medium text-slate-400 whitespace-nowrap">
+                      <th key={h} className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">
                         {h}
                       </th>
                     ))}
                     {detectedHeaders.length > 8 && (
-                      <th className="px-3 py-2 text-left font-medium text-slate-600 whitespace-nowrap">
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground/70 whitespace-nowrap">
                         +{detectedHeaders.length - 8} more
                       </th>
                     )}
@@ -323,13 +323,13 @@ export function CsvImportCard({
                     <tr
                       key={ri}
                       className={cn(
-                        "border-b border-slate-800 last:border-0",
-                        ri % 2 === 0 ? "bg-slate-900" : "bg-slate-800/40"
+                        "border-b border-border last:border-0",
+                        ri % 2 === 0 ? "bg-card" : "bg-accent"
                       )}
                     >
                       {previewHeaders.map(h => (
-                        <td key={h} className="px-3 py-1.5 text-slate-300 whitespace-nowrap max-w-[160px] truncate">
-                          {row[h] || <span className="text-slate-600">—</span>}
+                        <td key={h} className="px-3 py-1.5 text-foreground whitespace-nowrap max-w-[160px] truncate">
+                          {row[h] || <span className="text-muted-foreground/70">—</span>}
                         </td>
                       ))}
                       {detectedHeaders.length > 8 && <td />}
@@ -345,18 +345,18 @@ export function CsvImportCard({
             <div className="flex flex-col gap-2">
               {/* Summary row */}
               <div className="flex items-center gap-3 flex-wrap text-xs">
-                <span className="flex items-center gap-1.5 text-teal-300">
+                <span className="flex items-center gap-1.5 text-primary">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   <span className="font-semibold">{importResult.data.length}</span> rows valid
                 </span>
                 {importResult.errors.length > 0 && (
-                  <span className="flex items-center gap-1.5 text-red-400">
+                  <span className="flex items-center gap-1.5 text-negative">
                     <AlertTriangle className="h-3.5 w-3.5" />
                     <span className="font-semibold">{importResult.errors.length}</span> validation errors
                   </span>
                 )}
                 {importResult.duplicatesRemoved > 0 && (
-                  <span className="flex items-center gap-1.5 text-amber-400">
+                  <span className="flex items-center gap-1.5 text-warning">
                     <Info className="h-3.5 w-3.5" />
                     <span className="font-semibold">{importResult.duplicatesRemoved}</span> duplicates removed
                   </span>
@@ -365,16 +365,16 @@ export function CsvImportCard({
 
               {/* Validation errors list */}
               {displayErrors.length > 0 && (
-                <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2.5 flex flex-col gap-1.5">
-                  <p className="text-xs font-semibold text-red-300 mb-0.5">Validation errors</p>
+                <div className="rounded-lg bg-negative/10 border border-negative/30 px-3 py-2.5 flex flex-col gap-1.5">
+                  <p className="text-xs font-semibold text-negative mb-0.5">Validation errors</p>
                   {visibleErrors.map((err, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs text-red-300">
-                      <AlertTriangle className="h-3 w-3 text-red-400 shrink-0 mt-0.5" />
+                    <div key={i} className="flex items-start gap-2 text-xs text-negative">
+                      <AlertTriangle className="h-3 w-3 text-negative shrink-0 mt-0.5" />
                       <span>
                         <span className="font-semibold">Row {err.row}</span> — {err.field}:{" "}
                         {err.message}
                         {err.value ? (
-                          <span className="ml-1 font-mono text-red-400/80">(got: &quot;{err.value}&quot;)</span>
+                          <span className="ml-1 font-mono text-negative/80">(got: &quot;{err.value}&quot;)</span>
                         ) : null}
                       </span>
                     </div>
@@ -382,7 +382,7 @@ export function CsvImportCard({
                   {displayErrors.length > 5 && (
                     <button
                       onClick={() => setShowAllErrors(v => !v)}
-                      className="text-xs text-red-400 hover:text-red-300 self-start transition-colors mt-0.5"
+                      className="text-xs text-negative hover:text-negative/80 self-start transition-colors mt-0.5"
                     >
                       {showAllErrors
                         ? "Show less"
@@ -390,7 +390,7 @@ export function CsvImportCard({
                     </button>
                   )}
                   {blockingImport && (
-                    <p className="text-xs text-red-400 font-semibold mt-1 border-t border-red-500/20 pt-1.5">
+                    <p className="text-xs text-negative font-semibold mt-1 border-t border-negative/20 pt-1.5">
                       Import blocked: fix critical errors (missing required fields) before importing.
                     </p>
                   )}
@@ -404,7 +404,7 @@ export function CsvImportCard({
             {importResult === null ? (
               <Button
                 onClick={handleValidateAndPreview}
-                className="bg-slate-700 hover:bg-slate-600 text-white text-xs h-8 px-4"
+                className="bg-muted hover:bg-accent text-foreground text-xs h-8 px-4"
               >
                 Validate {rawRows.length} rows
               </Button>
@@ -412,7 +412,7 @@ export function CsvImportCard({
               <Button
                 onClick={handleImport}
                 disabled={blockingImport}
-                className="bg-teal-600 hover:bg-teal-500 text-white text-xs h-8 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Import {importResult.data.length} rows
                 {importResult.errors.length > 0 && !blockingImport && " (with warnings)"}
@@ -421,7 +421,7 @@ export function CsvImportCard({
             <Button
               variant="ghost"
               onClick={handleReset}
-              className="text-slate-400 hover:text-white text-xs h-8 px-3"
+              className="text-muted-foreground hover:text-foreground text-xs h-8 px-3"
             >
               Cancel
             </Button>
@@ -432,15 +432,15 @@ export function CsvImportCard({
       {/* Success state */}
       {importState === "success" && (
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 rounded-lg bg-teal-500/10 border border-teal-500/30 px-3 py-2.5">
-            <CheckCircle2 className="h-4 w-4 text-teal-400 shrink-0" />
-            <p className="text-xs text-teal-300">
+          <div className="flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/30 px-3 py-2.5">
+            <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+            <p className="text-xs text-primary">
               Successfully imported <span className="font-semibold">{importedCount} rows</span>. Refresh the page to see your data.
             </p>
           </div>
           <button
             onClick={handleReset}
-            className="self-start text-xs text-slate-400 hover:text-white transition-colors"
+            className="self-start text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Import another file
           </button>
@@ -450,10 +450,10 @@ export function CsvImportCard({
       {/* Expected columns hint (always visible in idle state) */}
       {importState === "idle" && (
         <div>
-          <p className="text-[11px] text-slate-500 mb-1.5 font-medium uppercase tracking-wider">Expected columns</p>
+          <p className="text-[11px] text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">Expected columns</p>
           <div className="flex flex-wrap gap-1">
             {expectedColumns.map(col => (
-              <span key={col} className="rounded-full bg-slate-800 border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400">
+              <span key={col} className="rounded-full bg-muted border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
                 {col}
               </span>
             ))}

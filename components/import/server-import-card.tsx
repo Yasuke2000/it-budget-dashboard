@@ -69,12 +69,12 @@ export function ServerImportCard({ title, description, endpoint, icon: Icon, col
   }
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col gap-4">
+    <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-4">
       <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-teal-400 shrink-0" />
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
+        <Icon className="h-4 w-4 text-primary shrink-0" />
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
       </div>
-      <p className="-mt-2 text-xs text-slate-400">{description}</p>
+      <p className="-mt-2 text-xs text-muted-foreground">{description}</p>
 
       {(state === "idle" || state === "error") && (
         <div
@@ -84,7 +84,7 @@ export function ServerImportCard({ title, description, endpoint, icon: Icon, col
           onClick={() => fileInputRef.current?.click()}
           className={cn(
             "relative cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors",
-            isDragging ? "border-teal-400 bg-teal-500/10" : "border-slate-700 hover:border-teal-500 hover:bg-slate-800/50"
+            isDragging ? "border-primary bg-primary/10" : "border-border hover:border-primary hover:bg-accent"
           )}
         >
           <input
@@ -94,35 +94,35 @@ export function ServerImportCard({ title, description, endpoint, icon: Icon, col
             className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }}
           />
-          <Upload className={cn("mx-auto h-8 w-8 mb-3", isDragging ? "text-teal-400" : "text-slate-500")} />
-          <p className="text-sm font-medium text-slate-300">
+          <Upload className={cn("mx-auto h-8 w-8 mb-3", isDragging ? "text-primary" : "text-muted-foreground")} />
+          <p className="text-sm font-medium text-foreground">
             {isDragging ? "Drop your file here" : "Drag & drop your CSV/TXT export"}
           </p>
-          <p className="mt-1 text-xs text-slate-500">or click to browse</p>
+          <p className="mt-1 text-xs text-muted-foreground">or click to browse</p>
         </div>
       )}
 
       {state === "uploading" && (
-        <div className="flex items-center gap-2 rounded-lg bg-slate-800/60 border border-slate-700 px-3 py-2.5">
-          <div className="h-4 w-4 rounded-full border-2 border-teal-400 border-t-transparent animate-spin" />
-          <p className="text-xs text-slate-300">Uploading and parsing {fileName}…</p>
+        <div className="flex items-center gap-2 rounded-lg bg-accent border border-border px-3 py-2.5">
+          <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <p className="text-xs text-foreground">Uploading and parsing {fileName}…</p>
         </div>
       )}
 
       {state === "error" && errorMsg && (
-        <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2.5">
-          <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-          <p className="text-xs text-red-300">{errorMsg}</p>
+        <div className="flex items-start gap-2 rounded-lg bg-negative/10 border border-negative/30 px-3 py-2.5">
+          <AlertTriangle className="h-4 w-4 text-negative shrink-0 mt-0.5" />
+          <p className="text-xs text-negative">{errorMsg}</p>
         </div>
       )}
 
       {state === "success" && (
         <div className="flex flex-col gap-3">
-          <div className="flex items-start gap-2 rounded-lg bg-teal-500/10 border border-teal-500/30 px-3 py-2.5">
-            <CheckCircle2 className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-            <p className="text-xs text-teal-300">{summary} — refresh the dashboard to see it.</p>
+          <div className="flex items-start gap-2 rounded-lg bg-primary/10 border border-primary/30 px-3 py-2.5">
+            <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+            <p className="text-xs text-primary">{summary} — refresh the dashboard to see it.</p>
           </div>
-          <button onClick={reset} className="self-start text-xs text-slate-400 hover:text-white transition-colors">
+          <button onClick={reset} className="self-start text-xs text-muted-foreground hover:text-foreground transition-colors">
             Import another file
           </button>
         </div>
@@ -130,10 +130,10 @@ export function ServerImportCard({ title, description, endpoint, icon: Icon, col
 
       {state === "idle" && (
         <div>
-          <p className="text-[11px] text-slate-500 mb-1.5 font-medium uppercase tracking-wider">Recognised columns</p>
+          <p className="text-[11px] text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">Recognised columns</p>
           <div className="flex flex-wrap gap-1">
             {columns.map((col) => (
-              <span key={col} className="rounded-full bg-slate-800 border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400">
+              <span key={col} className="rounded-full bg-muted border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
                 {col}
               </span>
             ))}

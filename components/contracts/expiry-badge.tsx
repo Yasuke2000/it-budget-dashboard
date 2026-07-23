@@ -13,27 +13,27 @@ export function ExpiryBadge({ endDate }: ExpiryBadgeProps) {
 
   if (daysLeft < 0) {
     return (
-      <Badge variant="outline" className="bg-slate-500/20 text-slate-400 border-slate-500/30 font-mono text-xs">
+      <Badge variant="outline" className="bg-muted text-muted-foreground border-border font-mono text-xs">
         Expired
       </Badge>
     );
   }
   if (daysLeft <= 30) {
     return (
-      <Badge variant="outline" className="bg-red-500/20 text-red-400 border-red-500/30 font-mono tabular-nums text-xs">
+      <Badge variant="outline" className="bg-negative/10 text-negative border-negative/30 font-mono tabular-nums text-xs">
         {daysLeft}d
       </Badge>
     );
   }
   if (daysLeft <= 90) {
     return (
-      <Badge variant="outline" className="bg-amber-500/20 text-amber-400 border-amber-500/30 font-mono tabular-nums text-xs">
+      <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 font-mono tabular-nums text-xs">
         {daysLeft}d
       </Badge>
     );
   }
   return (
-    <Badge variant="outline" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-mono tabular-nums text-xs">
+    <Badge variant="outline" className="bg-positive/10 text-positive border-positive/30 font-mono tabular-nums text-xs">
       {daysLeft}d
     </Badge>
   );

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 import type { PeppolInvoice, PeppolInvoiceLine } from "@/lib/peppol-parser";
 
 // ─── Status helpers ────────────────────────────────────────────────────────────
@@ -27,7 +28,7 @@ function StatusBadge({ status }: { status: PeppolStatus }) {
     received: {
       label: "Received",
       icon: <Clock className="h-3 w-3" />,
-      cls: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+      cls: "bg-warning/15 text-warning border-warning/30",
     },
     processed: {
       label: "Processed",
@@ -37,12 +38,12 @@ function StatusBadge({ status }: { status: PeppolStatus }) {
     matched: {
       label: "Matched",
       icon: <CheckCircle2 className="h-3 w-3" />,
-      cls: "bg-teal-500/15 text-teal-400 border-teal-500/30",
+      cls: "bg-primary/15 text-primary border-primary/30",
     },
     rejected: {
       label: "Rejected",
       icon: <XCircle className="h-3 w-3" />,
-      cls: "bg-red-500/15 text-red-400 border-red-500/30",
+      cls: "bg-negative/15 text-negative border-negative/30",
     },
   };
 
@@ -74,22 +75,22 @@ function KpiCard({
   highlight?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 flex flex-col gap-1">
+    <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-1">
       <div className="flex items-center gap-2 mb-1">
         <div
           className={cn(
             "size-7 rounded-lg flex items-center justify-center shrink-0",
-            highlight ? "bg-teal-500/20" : "bg-slate-800"
+            highlight ? "bg-primary/15" : "bg-muted"
           )}
         >
           <Shield
-            className={cn("h-4 w-4", highlight ? "text-teal-400" : "text-slate-500")}
+            className={cn("h-4 w-4", highlight ? "text-primary" : "text-muted-foreground")}
           />
         </div>
-        <span className="text-xs text-slate-400 font-medium">{label}</span>
+        <span className="text-xs text-muted-foreground font-medium">{label}</span>
       </div>
-      <p className="text-2xl font-bold text-white leading-none">{value}</p>
-      {sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
+      <p className="text-2xl font-bold text-foreground leading-none">{value}</p>
+      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -158,8 +159,8 @@ function UploadZone({
       className={cn(
         "cursor-pointer rounded-xl border-2 border-dashed px-6 py-10 flex flex-col items-center gap-3 transition-colors",
         dragging
-          ? "border-teal-400 bg-teal-500/10"
-          : "border-slate-700 bg-slate-900 hover:border-slate-500 hover:bg-slate-800/50"
+          ? "border-primary bg-primary/10"
+          : "border-border bg-card hover:border-border-strong hover:bg-accent"
       )}
     >
       <input
@@ -169,14 +170,14 @@ function UploadZone({
         className="hidden"
         onChange={handleChange}
       />
-      <div className="size-10 rounded-lg bg-slate-800 flex items-center justify-center">
-        <Upload className="h-5 w-5 text-slate-400" />
+      <div className="size-10 rounded-lg bg-muted flex items-center justify-center">
+        <Upload className="h-5 w-5 text-muted-foreground" />
       </div>
       <div className="text-center">
-        <p className="text-sm font-medium text-white">
+        <p className="text-sm font-medium text-foreground">
           Drop a UBL XML file here or click to browse
         </p>
-        <p className="text-xs text-slate-500 mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           Peppol BIS Billing 3.0 · UBL 2.1 format
         </p>
       </div>
@@ -186,9 +187,9 @@ function UploadZone({
           onClick={(e) => e.stopPropagation()}
           className={cn(
             "mt-2 rounded-lg border px-3 py-2 text-xs font-medium flex items-center gap-2",
-            status === "loading" && "border-slate-700 bg-slate-800 text-slate-300",
-            status === "success" && "border-teal-500/30 bg-teal-500/10 text-teal-400",
-            status === "error" && "border-red-500/30 bg-red-500/10 text-red-400"
+            status === "loading" && "border-border bg-muted text-foreground",
+            status === "success" && "border-primary/30 bg-primary/10 text-primary",
+            status === "error" && "border-negative/30 bg-negative/10 text-negative"
           )}
         >
           {status === "loading" && <Clock className="h-3.5 w-3.5 shrink-0" />}
@@ -208,21 +209,21 @@ function InvoiceRow({ invoice }: { invoice: PeppolInvoice }) {
 
   return (
     <>
-      <tr className="border-b border-slate-800 hover:bg-slate-800/40 transition-colors">
-        <td className="px-4 py-3 text-sm text-slate-300">
+      <tr className="border-b border-border hover:bg-accent transition-colors">
+        <td className="px-4 py-3 text-sm text-foreground">
           {formatDate(invoice.issueDate)}
         </td>
         <td className="px-4 py-3">
-          <span className="text-sm font-mono text-white">{invoice.invoiceNumber}</span>
+          <span className="text-sm font-mono text-foreground">{invoice.invoiceNumber}</span>
         </td>
         <td className="px-4 py-3">
-          <p className="text-sm text-white">{invoice.supplierName}</p>
+          <p className="text-sm text-foreground">{invoice.supplierName}</p>
           {invoice.peppolId && (
-            <p className="text-[11px] text-slate-500 font-mono mt-0.5">{invoice.peppolId}</p>
+            <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{invoice.peppolId}</p>
           )}
         </td>
-        <td className="px-4 py-3 text-sm text-slate-400 font-mono">{invoice.supplierVAT}</td>
-        <td className="px-4 py-3 text-sm text-right text-white font-semibold">
+        <td className="px-4 py-3 text-sm text-muted-foreground font-mono">{invoice.supplierVAT}</td>
+        <td className="px-4 py-3 text-sm text-right text-foreground font-semibold">
           {formatCurrency(invoice.totalInclVAT)}
         </td>
         <td className="px-4 py-3">
@@ -239,8 +240,8 @@ function InvoiceRow({ invoice }: { invoice: PeppolInvoice }) {
               className={cn(
                 "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
                 invoice.status === "matched"
-                  ? "border-slate-700 bg-slate-800/50 text-slate-600 cursor-not-allowed"
-                  : "border-teal-500/30 bg-teal-500/10 text-teal-400 hover:bg-teal-500/20 hover:border-teal-500/50"
+                  ? "border-border bg-accent text-muted-foreground/70 cursor-not-allowed"
+                  : "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/50"
               )}
             >
               <Link2 className="h-3 w-3" />
@@ -248,7 +249,7 @@ function InvoiceRow({ invoice }: { invoice: PeppolInvoice }) {
             </button>
             <button
               onClick={() => setExpanded((v) => !v)}
-              className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >
               {expanded ? (
                 <ChevronUp className="h-3 w-3" />
@@ -262,7 +263,7 @@ function InvoiceRow({ invoice }: { invoice: PeppolInvoice }) {
       </tr>
 
       {expanded && (
-        <tr className="border-b border-slate-800 bg-slate-900/60">
+        <tr className="border-b border-border bg-card">
           <td colSpan={7} className="px-4 py-3">
             <LinesTable lines={invoice.lines} />
           </td>
@@ -274,28 +275,28 @@ function InvoiceRow({ invoice }: { invoice: PeppolInvoice }) {
 
 function LinesTable({ lines }: { lines: PeppolInvoiceLine[] }) {
   if (lines.length === 0) {
-    return <p className="text-xs text-slate-500 italic">No line items.</p>;
+    return <p className="text-xs text-muted-foreground italic">No line items.</p>;
   }
   return (
-    <div className="rounded-lg border border-slate-700 overflow-hidden">
+    <div className="rounded-lg border border-border overflow-hidden">
       <table className="w-full text-xs">
-        <thead className="bg-slate-800">
+        <thead className="bg-muted">
           <tr>
-            <th className="px-3 py-2 text-left text-slate-400 font-medium">Description</th>
-            <th className="px-3 py-2 text-right text-slate-400 font-medium">Qty</th>
-            <th className="px-3 py-2 text-right text-slate-400 font-medium">Unit Price</th>
-            <th className="px-3 py-2 text-right text-slate-400 font-medium">VAT %</th>
-            <th className="px-3 py-2 text-right text-slate-400 font-medium">Line Total</th>
+            <th className="px-3 py-2 text-left text-muted-foreground font-medium">Description</th>
+            <th className="px-3 py-2 text-right text-muted-foreground font-medium">Qty</th>
+            <th className="px-3 py-2 text-right text-muted-foreground font-medium">Unit Price</th>
+            <th className="px-3 py-2 text-right text-muted-foreground font-medium">VAT %</th>
+            <th className="px-3 py-2 text-right text-muted-foreground font-medium">Line Total</th>
           </tr>
         </thead>
         <tbody>
           {lines.map((line, i) => (
-            <tr key={i} className="border-t border-slate-700/50">
-              <td className="px-3 py-2 text-slate-300">{line.description}</td>
-              <td className="px-3 py-2 text-right text-slate-400">{line.quantity}</td>
-              <td className="px-3 py-2 text-right text-slate-400">{formatCurrency(line.unitPrice)}</td>
-              <td className="px-3 py-2 text-right text-slate-400">{line.vatPercent}%</td>
-              <td className="px-3 py-2 text-right text-white font-medium">{formatCurrency(line.lineTotal)}</td>
+            <tr key={i} className="border-t border-border">
+              <td className="px-3 py-2 text-foreground">{line.description}</td>
+              <td className="px-3 py-2 text-right text-muted-foreground">{line.quantity}</td>
+              <td className="px-3 py-2 text-right text-muted-foreground">{formatCurrency(line.unitPrice)}</td>
+              <td className="px-3 py-2 text-right text-muted-foreground">{line.vatPercent}%</td>
+              <td className="px-3 py-2 text-right text-foreground font-medium">{formatCurrency(line.lineTotal)}</td>
             </tr>
           ))}
         </tbody>
@@ -338,27 +339,23 @@ export default function PeppolPage() {
   return (
     <div className="space-y-6 max-w-7xl">
       {/* ── Page header ── */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Peppol E-Invoicing</h1>
-          <p className="mt-1 text-slate-400">
-            Belgian B2B mandate (since 1 Jan 2026) · Peppol BIS Billing 3.0 · UBL 2.1
-          </p>
-        </div>
-
-        {/* Compliance badge */}
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-semibold",
-            isCompliant
-              ? "border-teal-500/40 bg-teal-500/15 text-teal-400"
-              : "border-amber-500/40 bg-amber-500/15 text-amber-400"
-          )}
-        >
-          <FileCheck className="h-4 w-4" />
-          {isCompliant ? "Peppol Active" : "Setup Required"}
-        </span>
-      </div>
+      <PageHeader
+        title="Peppol E-Invoicing"
+        description="Belgian B2B mandate (since 1 Jan 2026) · Peppol BIS Billing 3.0 · UBL 2.1"
+        actions={
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-semibold",
+              isCompliant
+                ? "border-primary/40 bg-primary/15 text-primary"
+                : "border-warning/40 bg-warning/15 text-warning"
+            )}
+          >
+            <FileCheck className="h-4 w-4" />
+            {isCompliant ? "Peppol Active" : "Setup Required"}
+          </span>
+        }
+      />
 
       {/* ── KPI cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -387,36 +384,36 @@ export default function PeppolPage() {
 
       {/* ── Upload zone ── */}
       <div>
-        <h2 className="text-sm font-semibold text-white mb-2">Upload UBL XML Invoice</h2>
+        <h2 className="text-sm font-semibold text-foreground mb-2">Upload UBL XML Invoice</h2>
         <UploadZone onParsed={handleParsed} />
       </div>
 
       {/* ── Invoice table ── */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-800 flex items-center gap-2">
-          <FileCheck className="h-4 w-4 text-teal-400" />
-          <h2 className="text-sm font-semibold text-white">Peppol Invoices</h2>
-          <span className="ml-auto text-xs text-slate-500">{total} invoice{total !== 1 ? "s" : ""}</span>
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+          <FileCheck className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">Peppol Invoices</h2>
+          <span className="ml-auto text-xs text-muted-foreground">{total} invoice{total !== 1 ? "s" : ""}</span>
         </div>
 
         {loading ? (
-          <div className="py-12 text-center text-slate-500 text-sm">Loading invoices…</div>
+          <div className="py-12 text-center text-muted-foreground text-sm">Loading invoices…</div>
         ) : invoices.length === 0 ? (
-          <div className="py-12 text-center text-slate-500 text-sm">
+          <div className="py-12 text-center text-muted-foreground text-sm">
             No Peppol invoices yet. Upload a UBL XML file above.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="border-b border-slate-800 bg-slate-800/50">
+              <thead className="border-b border-border bg-accent">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Invoice #</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Supplier</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">VAT #</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-slate-400">Amount (incl. VAT)</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Invoice #</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Supplier</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">VAT #</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">Amount (incl. VAT)</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -430,58 +427,58 @@ export default function PeppolPage() {
       </div>
 
       {/* ── Compliance info card ── */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-start gap-3 mb-4">
-          <div className="size-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
-            <Info className="h-4 w-4 text-amber-400" />
+          <div className="size-8 rounded-lg bg-warning/20 flex items-center justify-center shrink-0">
+            <Info className="h-4 w-4 text-warning" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-white">Belgian Peppol Compliance</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <h2 className="text-sm font-semibold text-foreground">Belgian Peppol Compliance</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
               Legal requirements for Belgian B2B e-invoicing via the Peppol network.
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs text-slate-400 leading-relaxed">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs text-muted-foreground leading-relaxed">
           <div className="space-y-1">
-            <p className="font-semibold text-white text-[13px]">Mandate</p>
+            <p className="font-semibold text-foreground text-[13px]">Mandate</p>
             <p>
-              Since <strong className="text-slate-300">1 January 2026</strong>, all Belgian
+              Since <strong className="text-foreground">1 January 2026</strong>, all Belgian
               B2B transactions must be invoiced electronically via the Peppol network
               (Royal Decree of 9 March 2025).
             </p>
           </div>
 
           <div className="space-y-1">
-            <p className="font-semibold text-white text-[13px]">Penalties</p>
+            <p className="font-semibold text-foreground text-[13px]">Penalties</p>
             <p>
               Non-compliance carries a penalty of{" "}
-              <strong className="text-red-400">€1,500 per violation</strong>. Each
+              <strong className="text-negative">€1,500 per violation</strong>. Each
               invoice issued outside Peppol constitutes a separate violation.
             </p>
           </div>
 
           <div className="space-y-1">
-            <p className="font-semibold text-white text-[13px]">Technical standard</p>
+            <p className="font-semibold text-foreground text-[13px]">Technical standard</p>
             <p>
               Invoices must conform to{" "}
-              <strong className="text-slate-300">Peppol BIS Billing 3.0</strong> using
+              <strong className="text-foreground">Peppol BIS Billing 3.0</strong> using
               UBL 2.1 XML. Exchange is done through a certified Peppol Access Point.
             </p>
           </div>
 
           <div className="space-y-1">
-            <p className="font-semibold text-white text-[13px]">Participant ID</p>
+            <p className="font-semibold text-foreground text-[13px]">Participant ID</p>
             <p>
               Each company needs a Peppol participant ID in the format{" "}
-              <code className="bg-slate-800 rounded px-1 text-teal-300">0208:&lt;VAT-number&gt;</code>{" "}
+              <code className="bg-muted rounded px-1 text-primary">0208:&lt;VAT-number&gt;</code>{" "}
               (scheme 0208 = Belgian enterprise number).
             </p>
           </div>
 
           <div className="space-y-1">
-            <p className="font-semibold text-white text-[13px]">Access Points</p>
+            <p className="font-semibold text-foreground text-[13px]">Access Points</p>
             <p>
               Certified Belgian Access Points include Unifiedpost, Basware, Pagero,
               and Billit. Your ERP (Business Central) may offer native Peppol connectivity.
@@ -489,10 +486,10 @@ export default function PeppolPage() {
           </div>
 
           <div className="space-y-1">
-            <p className="font-semibold text-white text-[13px]">Retention</p>
+            <p className="font-semibold text-foreground text-[13px]">Retention</p>
             <p>
               E-invoices must be retained for{" "}
-              <strong className="text-slate-300">7 years</strong> in their original UBL
+              <strong className="text-foreground">7 years</strong> in their original UBL
               XML format, along with a human-readable PDF rendering.
             </p>
           </div>

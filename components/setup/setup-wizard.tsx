@@ -116,10 +116,10 @@ function StepIndicator({ current }: { current: number }) {
               className={cn(
                 "flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-bold transition-colors",
                 done
-                  ? "bg-teal-600 border-teal-500 text-white"
+                  ? "bg-primary border-primary text-primary-foreground"
                   : active
-                  ? "bg-slate-700 border-teal-500 text-teal-300"
-                  : "bg-slate-800 border-slate-700 text-slate-500"
+                  ? "bg-muted border-primary text-primary"
+                  : "bg-muted border-border text-muted-foreground"
               )}
             >
               {done ? <CheckCircle2 className="h-4 w-4" /> : <StepIcon className="h-3.5 w-3.5" />}
@@ -128,7 +128,7 @@ function StepIndicator({ current }: { current: number }) {
               <div
                 className={cn(
                   "h-px w-6 transition-colors",
-                  done ? "bg-teal-600" : "bg-slate-700"
+                  done ? "bg-primary" : "bg-muted"
                 )}
               />
             )}
@@ -149,19 +149,19 @@ function WelcomeStep({
 }) {
   return (
     <div className="flex flex-col items-center text-center gap-6">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-500/15 border border-teal-500/30">
-        <LayoutDashboard className="h-8 w-8 text-teal-400" />
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/15 border border-primary/30">
+        <LayoutDashboard className="h-8 w-8 text-primary" />
       </div>
       <div>
-        <h2 className="text-2xl font-bold text-white">Welcome to IT Finance Dashboard</h2>
-        <p className="mt-2 text-sm text-slate-400 max-w-sm mx-auto leading-relaxed">
+        <h2 className="text-2xl font-bold text-foreground">Welcome to IT Finance Dashboard</h2>
+        <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
           Let&apos;s get you connected to your data sources. This only takes a few minutes.
         </p>
       </div>
       <div className="flex flex-col gap-3 w-full max-w-sm">
         <Button
           onClick={onContinue}
-          className="bg-teal-600 hover:bg-teal-500 text-white h-11 text-sm font-semibold"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground h-11 text-sm font-semibold"
         >
           Connect Live Data
           <ChevronRight className="h-4 w-4 ml-1" />
@@ -169,12 +169,12 @@ function WelcomeStep({
         <Button
           onClick={onDemo}
           variant="ghost"
-          className="text-slate-400 hover:text-white h-11 text-sm border border-slate-700 hover:border-slate-600"
+          className="text-muted-foreground hover:text-foreground h-11 text-sm border border-border hover:border-border-strong"
         >
           Start with Demo Data
         </Button>
       </div>
-      <p className="text-xs text-slate-600">You can always connect data sources later from Settings.</p>
+      <p className="text-xs text-muted-foreground/70">You can always connect data sources later from Settings.</p>
     </div>
   );
 }
@@ -213,48 +213,48 @@ function M365Step({
     <div className="flex flex-col gap-6">
       <div>
         <div className="flex items-center gap-3 mb-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/15 border border-blue-500/30">
-            <Wifi className="h-5 w-5 text-blue-400" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 border border-primary/30">
+            <Wifi className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Connect Microsoft 365</h2>
-            <p className="text-xs text-slate-400">Most important integration</p>
+            <h2 className="text-lg font-bold text-foreground">Connect Microsoft 365</h2>
+            <p className="text-xs text-muted-foreground">Most important integration</p>
           </div>
         </div>
-        <p className="text-sm text-slate-400 leading-relaxed">
+        <p className="text-sm text-muted-foreground leading-relaxed">
           This gives you M365 license data, Intune device inventory, and enables single sign-on across the dashboard.
         </p>
       </div>
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <Label className="text-xs text-slate-300">Tenant ID</Label>
+          <Label className="text-xs text-foreground">Tenant ID</Label>
           <Input
             placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
             value={settings.tenantId}
             onChange={e => onChange({ tenantId: e.target.value })}
-            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 font-mono text-xs h-9"
+            className="bg-muted border-border-strong text-foreground placeholder:text-muted-foreground font-mono text-xs h-9"
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label className="text-xs text-slate-300">Client ID (Application ID)</Label>
+          <Label className="text-xs text-foreground">Client ID (Application ID)</Label>
           <Input
             placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
             value={settings.clientId}
             onChange={e => onChange({ clientId: e.target.value })}
-            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 font-mono text-xs h-9"
+            className="bg-muted border-border-strong text-foreground placeholder:text-muted-foreground font-mono text-xs h-9"
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label className="text-xs text-slate-300">Client Secret</Label>
+          <Label className="text-xs text-foreground">Client Secret</Label>
           <Input
             type="password"
             placeholder="Your client secret value"
             value={settings.clientSecret}
             onChange={e => onChange({ clientSecret: e.target.value })}
-            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 text-xs h-9"
+            className="bg-muted border-border-strong text-foreground placeholder:text-muted-foreground text-xs h-9"
           />
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-muted-foreground">
             Note: secrets are saved to localStorage — do not use this on a shared machine in production.
           </p>
         </div>
@@ -265,32 +265,32 @@ function M365Step({
           onClick={handleTest}
           disabled={testing}
           variant="ghost"
-          className="border border-slate-700 text-slate-300 hover:text-white hover:border-slate-600 text-xs h-8 px-3"
+          className="border border-border text-foreground hover:text-foreground hover:border-border-strong text-xs h-8 px-3"
         >
           {testing ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Wifi className="h-3.5 w-3.5 mr-1.5" />}
           Test Connection
         </Button>
         {testResult === "success" && (
-          <span className="flex items-center gap-1 text-xs text-teal-400">
+          <span className="flex items-center gap-1 text-xs text-primary">
             <CheckCircle2 className="h-3.5 w-3.5" /> Connected
           </span>
         )}
         {testResult === "error" && (
-          <span className="flex items-center gap-1 text-xs text-red-400">
+          <span className="flex items-center gap-1 text-xs text-negative">
             <AlertTriangle className="h-3.5 w-3.5" /> Connection failed
           </span>
         )}
       </div>
 
-      <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-        <Button onClick={onBack} variant="ghost" className="text-slate-400 hover:text-white text-xs h-8 px-3">
+      <div className="flex items-center justify-between pt-2 border-t border-border">
+        <Button onClick={onBack} variant="ghost" className="text-muted-foreground hover:text-foreground text-xs h-8 px-3">
           <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Back
         </Button>
         <div className="flex items-center gap-3">
-          <button onClick={onSkip} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+          <button onClick={onSkip} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
             Skip for now
           </button>
-          <Button onClick={onNext} className="bg-teal-600 hover:bg-teal-500 text-white text-xs h-8 px-4">
+          <Button onClick={onNext} className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8 px-4">
             Continue <ChevronRight className="h-3.5 w-3.5 ml-1" />
           </Button>
         </div>
@@ -317,50 +317,50 @@ function BusinessCentralStep({
     <div className="flex flex-col gap-6">
       <div>
         <div className="flex items-center gap-3 mb-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/30">
-            <Database className="h-5 w-5 text-emerald-400" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-positive/15 border border-positive/30">
+            <Database className="h-5 w-5 text-positive" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Connect Business Central</h2>
-            <p className="text-xs text-slate-400">Financial data source</p>
+            <h2 className="text-lg font-bold text-foreground">Connect Business Central</h2>
+            <p className="text-xs text-muted-foreground">Financial data source</p>
           </div>
         </div>
-        <p className="text-sm text-slate-400 leading-relaxed">
+        <p className="text-sm text-muted-foreground leading-relaxed">
           Pulls invoices, GL entries, and budget data from your Business Central environment.
         </p>
       </div>
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <Label className="text-xs text-slate-300">Environment Name</Label>
+          <Label className="text-xs text-foreground">Environment Name</Label>
           <Input
             placeholder="e.g. production"
             value={settings.bcEnvironment}
             onChange={e => onChange({ bcEnvironment: e.target.value })}
-            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 text-xs h-9"
+            className="bg-muted border-border-strong text-foreground placeholder:text-muted-foreground text-xs h-9"
           />
         </div>
       </div>
 
-      <div className="rounded-lg bg-slate-800/60 border border-slate-700 px-4 py-3">
-        <p className="text-xs text-slate-400 leading-relaxed">
-          <span className="font-semibold text-slate-300">Uses the same app registration as M365.</span>{" "}
+      <div className="rounded-lg bg-accent border border-border px-4 py-3">
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          <span className="font-semibold text-foreground">Uses the same app registration as M365.</span>{" "}
           The Tenant ID, Client ID, and Client Secret configured in the previous step are reused here.
           Make sure the app registration has the{" "}
-          <code className="text-teal-300 bg-slate-900 px-1 py-0.5 rounded text-[11px]">Financials.ReadWrite.All</code>{" "}
+          <code className="text-primary bg-muted px-1 py-0.5 rounded text-[11px]">Financials.ReadWrite.All</code>{" "}
           permission and is registered in Business Central under Entra Applications.
         </p>
       </div>
 
-      <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-        <Button onClick={onBack} variant="ghost" className="text-slate-400 hover:text-white text-xs h-8 px-3">
+      <div className="flex items-center justify-between pt-2 border-t border-border">
+        <Button onClick={onBack} variant="ghost" className="text-muted-foreground hover:text-foreground text-xs h-8 px-3">
           <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Back
         </Button>
         <div className="flex items-center gap-3">
-          <button onClick={onSkip} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+          <button onClick={onSkip} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
             Skip for now
           </button>
-          <Button onClick={onNext} className="bg-teal-600 hover:bg-teal-500 text-white text-xs h-8 px-4">
+          <Button onClick={onNext} className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8 px-4">
             Continue <ChevronRight className="h-3.5 w-3.5 ml-1" />
           </Button>
         </div>
@@ -385,12 +385,12 @@ function OptionalStep({
     <div className="flex flex-col gap-6">
       <div>
         <div className="flex items-center gap-3 mb-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/15 border border-purple-500/30">
-            <Layers className="h-5 w-5 text-purple-400" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 border border-primary/30">
+            <Layers className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Optional Integrations</h2>
-            <p className="text-xs text-slate-400">All optional — connect what you use</p>
+            <h2 className="text-lg font-bold text-foreground">Optional Integrations</h2>
+            <p className="text-xs text-muted-foreground">All optional — connect what you use</p>
           </div>
         </div>
       </div>
@@ -399,18 +399,18 @@ function OptionalStep({
           {/* Officient HR */}
         <div className={cn(
           "rounded-lg border px-4 py-3 flex flex-col gap-3 transition-colors",
-          settings.officientEnabled ? "border-blue-500/30 bg-blue-500/5" : "border-slate-700 bg-slate-800/40"
+          settings.officientEnabled ? "border-primary/30 bg-primary/5" : "border-border bg-accent"
         )}>
           <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
               checked={settings.officientEnabled}
               onChange={e => onChange({ officientEnabled: e.target.checked })}
-              className="h-4 w-4 rounded border-slate-600 bg-slate-700 accent-blue-500"
+              className="h-4 w-4 rounded border-border-strong bg-muted accent-primary"
             />
             <div>
-              <span className="text-sm font-semibold text-white">Officient HR</span>
-              <p className="text-xs text-slate-400">Headcount and personnel data</p>
+              <span className="text-sm font-semibold text-foreground">Officient HR</span>
+              <p className="text-xs text-muted-foreground">Headcount and personnel data</p>
             </div>
           </label>
           {settings.officientEnabled && (
@@ -419,7 +419,7 @@ function OptionalStep({
                 placeholder="Client ID"
                 value={settings.officientClientId}
                 onChange={e => onChange({ officientClientId: e.target.value })}
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 text-xs h-8"
+                className="bg-card border-border-strong text-foreground placeholder:text-muted-foreground text-xs h-8"
               />
             </div>
           )}
@@ -428,18 +428,18 @@ function OptionalStep({
         {/* Samsung Knox */}
         <div className={cn(
           "rounded-lg border px-4 py-3 flex flex-col gap-3 transition-colors",
-          settings.knoxEnabled ? "border-amber-500/30 bg-amber-500/5" : "border-slate-700 bg-slate-800/40"
+          settings.knoxEnabled ? "border-warning/30 bg-warning/5" : "border-border bg-accent"
         )}>
           <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
               checked={settings.knoxEnabled}
               onChange={e => onChange({ knoxEnabled: e.target.checked })}
-              className="h-4 w-4 rounded border-slate-600 bg-slate-700 accent-amber-500"
+              className="h-4 w-4 rounded border-border-strong bg-muted accent-warning"
             />
             <div>
-              <span className="text-sm font-semibold text-white">Samsung Knox</span>
-              <p className="text-xs text-slate-400">Mobile device management</p>
+              <span className="text-sm font-semibold text-foreground">Samsung Knox</span>
+              <p className="text-xs text-muted-foreground">Mobile device management</p>
             </div>
           </label>
           {settings.knoxEnabled && (
@@ -448,18 +448,18 @@ function OptionalStep({
                 placeholder="Knox Client ID"
                 value={settings.knoxClientId}
                 onChange={e => onChange({ knoxClientId: e.target.value })}
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 text-xs h-8"
+                className="bg-card border-border-strong text-foreground placeholder:text-muted-foreground text-xs h-8"
               />
             </div>
           )}
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-        <Button onClick={onBack} variant="ghost" className="text-slate-400 hover:text-white text-xs h-8 px-3">
+      <div className="flex items-center justify-between pt-2 border-t border-border">
+        <Button onClick={onBack} variant="ghost" className="text-muted-foreground hover:text-foreground text-xs h-8 px-3">
           <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Back
         </Button>
-        <Button onClick={onNext} className="bg-teal-600 hover:bg-teal-500 text-white text-xs h-8 px-4">
+        <Button onClick={onNext} className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8 px-4">
           Continue <ChevronRight className="h-3.5 w-3.5 ml-1" />
         </Button>
       </div>
@@ -483,12 +483,12 @@ function DoneStep({
 
   return (
     <div className="flex flex-col items-center text-center gap-6">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-500/15 border border-teal-500/30">
-        <CheckCircle2 className="h-8 w-8 text-teal-400" />
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/15 border border-primary/30">
+        <CheckCircle2 className="h-8 w-8 text-primary" />
       </div>
       <div>
-        <h2 className="text-2xl font-bold text-white">You&apos;re all set!</h2>
-        <p className="mt-2 text-sm text-slate-400 max-w-sm mx-auto leading-relaxed">
+        <h2 className="text-2xl font-bold text-foreground">You&apos;re all set!</h2>
+        <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
           {connected.length > 0
             ? "Here&apos;s a summary of what you configured:"
             : "No integrations were configured. The dashboard will use demo data."}
@@ -498,22 +498,22 @@ function DoneStep({
       {connected.length > 0 && (
         <div className="w-full max-w-sm flex flex-col gap-2">
           {connected.map(name => (
-            <div key={name} className="flex items-center gap-2.5 rounded-lg bg-teal-500/10 border border-teal-500/20 px-3 py-2">
-              <CheckCircle2 className="h-4 w-4 text-teal-400 shrink-0" />
-              <span className="text-sm text-teal-300 font-medium">{name}</span>
+            <div key={name} className="flex items-center gap-2.5 rounded-lg bg-primary/10 border border-primary/20 px-3 py-2">
+              <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-sm text-primary font-medium">{name}</span>
             </div>
           ))}
         </div>
       )}
 
-      <p className="text-xs text-slate-500 max-w-xs">
+      <p className="text-xs text-muted-foreground max-w-xs">
         You can always add more integrations in{" "}
-        <span className="text-slate-400 font-medium">Settings → General</span>.
+        <span className="text-foreground font-medium">Settings → General</span>.
       </p>
 
       <Button
         onClick={onFinish}
-        className="bg-teal-600 hover:bg-teal-500 text-white h-11 text-sm font-semibold w-full max-w-sm"
+        className="bg-primary hover:bg-primary/90 text-primary-foreground h-11 text-sm font-semibold w-full max-w-sm"
       >
         <LayoutDashboard className="h-4 w-4 mr-2" />
         Go to Dashboard
@@ -554,15 +554,15 @@ export function SetupWizard({ onComplete }: { onComplete?: () => void }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         {/* Card */}
-        <div className="relative rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+        <div className="relative rounded-2xl border border-border bg-card shadow-2xl">
           {/* Skip button (top-right) — not shown on first or last step */}
           {step > 0 && step < STEP_COUNT - 1 && (
             <button
               onClick={handleFinish}
-              className="absolute right-4 top-4 text-slate-500 hover:text-slate-300 transition-colors z-10"
+              className="absolute right-4 top-4 text-muted-foreground hover:text-foreground transition-colors z-10"
               title="Skip setup"
             >
               <X className="h-4 w-4" />
@@ -608,7 +608,7 @@ export function SetupWizard({ onComplete }: { onComplete?: () => void }) {
         </div>
 
         {/* Footer */}
-        <p className="mt-4 text-center text-xs text-slate-600">
+        <p className="mt-4 text-center text-xs text-muted-foreground/70">
           IT Finance Dashboard &mdash; First-run setup
         </p>
       </div>

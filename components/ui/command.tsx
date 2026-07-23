@@ -60,7 +60,9 @@ function CommandDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        {children}
+        {/* cmdk sub-components (Input/List/Item…) require the Command root
+            context — without this wrapper they crash on context.subscribe. */}
+        <Command>{children}</Command>
       </DialogContent>
     </Dialog>
   )

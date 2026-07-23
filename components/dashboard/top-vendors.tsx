@@ -15,9 +15,9 @@ export function TopVendors({ vendors }: TopVendorsProps) {
   const maxSpend = top5[0]?.totalSpend || 1;
 
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-white">Top Vendors</CardTitle>
+        <CardTitle>Top vendors</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -25,24 +25,24 @@ export function TopVendors({ vendors }: TopVendorsProps) {
             <div key={vendor.vendorName} className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-300">{vendor.vendorName}</span>
+                  <span className="text-sm font-medium text-foreground">{vendor.vendorName}</span>
                   {vendor.isConcentrationRisk && (
-                    <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+                    <AlertTriangle className="h-3.5 w-3.5 text-warning" />
                   )}
                 </div>
-                <span className="text-sm font-mono tabular-nums text-slate-400">{formatCurrency(vendor.totalSpend)}</span>
+                <span className="font-mono text-sm tabnum text-muted-foreground">{formatCurrency(vendor.totalSpend)}</span>
               </div>
-              <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
                 <div
-                  className="h-full bg-teal-500 rounded-full transition-all"
+                  className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all"
                   style={{ width: `${(vendor.totalSpend / maxSpend) * 100}%` }}
                 />
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="bg-slate-800 text-slate-400 text-xs">
+                <Badge variant="secondary" className="text-xs">
                   {vendor.invoiceCount} invoices
                 </Badge>
-                <span className="text-xs text-slate-500">{vendor.percentOfTotal.toFixed(1)}% of total</span>
+                <span className="text-xs text-muted-foreground/70">{vendor.percentOfTotal.toFixed(1)}% of total</span>
               </div>
             </div>
           ))}

@@ -113,6 +113,21 @@ CREATE TABLE IF NOT EXISTS cfo_gl_snapshot (
   PRIMARY KEY (company_code, account)
 );
 
+-- Point-in-time snapshots of the CFO cockpit: the full computed CfoFinancials
+-- JSON, stored so any earlier day's figures can be reproduced exactly (e.g. the
+-- day after the BTW filing). One auto-snapshot per day (company=all, full scope)
+-- plus on-demand manual ones.
+CREATE TABLE IF NOT EXISTS cfo_snapshots (
+  id         BIGSERIAL PRIMARY KEY,
+  taken_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  taken_on   DATE NOT NULL DEFAULT CURRENT_DATE,
+  company    TEXT NOT NULL DEFAULT 'all',
+  excluded   TEXT NOT NULL DEFAULT '',
+  manual     BOOLEAN NOT NULL DEFAULT FALSE,
+  payload    JSONB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS cfo_snapshots_taken_on ON cfo_snapshots (taken_on DESC);
+
 CREATE TABLE IF NOT EXISTS contracts (
   id                 TEXT PRIMARY KEY,
   vendor             TEXT NOT NULL,

@@ -28,10 +28,10 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Catego
   if (!active || !payload?.length || !payload[0].payload) return null;
   const d = payload[0].payload;
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
-      <p className="text-sm font-medium text-slate-300">{d.category}</p>
-      <p className="text-sm font-mono tabular-nums text-teal-400">{formatCurrency(d.amount)}</p>
-      <p className="text-xs text-slate-400">{d.percent.toFixed(1)}% of total</p>
+    <div className="rounded-lg border border-border bg-popover/95 p-3 shadow-xl backdrop-blur-sm">
+      <p className="text-sm font-medium text-foreground">{d.category}</p>
+      <p className="font-mono text-sm tabnum text-primary">{formatCurrency(d.amount)}</p>
+      <p className="text-xs text-muted-foreground">{d.percent.toFixed(1)}% of total</p>
     </div>
   );
 }
@@ -83,15 +83,15 @@ export function CategoryBreakdown({ data, company, from, to }: CategoryBreakdown
   const selectedCount = allCategories.length - excluded.size;
 
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-white">Cost Categories</CardTitle>
+            <CardTitle>Cost categories</CardTitle>
             {/* Trust indicator: confirms the total is IT-only, or flags non-IT spend. */}
             {nonItTotal > 0 ? (
               <span
-                className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300"
+                className="inline-flex items-center gap-1 rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[11px] text-warning"
                 title={`${formatCurrency(nonItTotal)} is on GL accounts not mapped to IT. Excluded by default — map these accounts in Settings, or toggle "Unclassified" on to include them.`}
               >
                 <AlertTriangle className="h-3 w-3" />
@@ -99,7 +99,7 @@ export function CategoryBreakdown({ data, company, from, to }: CategoryBreakdown
               </span>
             ) : (
               <span
-                className="inline-flex items-center gap-1 rounded-full border border-teal-500/30 bg-teal-500/10 px-2 py-0.5 text-[11px] text-teal-300"
+                className="inline-flex items-center gap-1 rounded-full border border-positive/30 bg-positive/10 px-2 py-0.5 text-[11px] text-positive"
                 title="Every line maps to an IT cost category — this total is IT-only."
               >
                 <ShieldCheck className="h-3 w-3" />
@@ -109,15 +109,15 @@ export function CategoryBreakdown({ data, company, from, to }: CategoryBreakdown
           </div>
           <div className="flex items-center gap-3">
             {excluded.size > 0 ? (
-              <button onClick={selectAll} className="text-[11px] text-teal-400 hover:text-teal-300 transition-colors">
+              <button onClick={selectAll} className="text-[11px] text-primary hover:text-primary/80 transition-colors">
                 Show all ({selectedCount}/{allCategories.length})
               </button>
             ) : (
-              <button onClick={clearAll} className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors">
+              <button onClick={clearAll} className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">
                 Clear
               </button>
             )}
-            <span className="text-xs text-slate-500 font-mono tabular-nums">
+            <span className="font-mono text-xs tabnum text-muted-foreground">
               {formatCurrency(total)} {excluded.size > 0 ? "IT only" : "total"}
             </span>
           </div>
@@ -150,7 +150,7 @@ export function CategoryBreakdown({ data, company, from, to }: CategoryBreakdown
             {enriched.map((cat) => (
               <div
                 key={cat.category}
-                className="group w-full rounded px-1 -mx-1 hover:bg-slate-800/50 transition-colors"
+                className="group w-full rounded px-1 -mx-1 hover:bg-accent transition-colors"
               >
                 <div className="flex items-center justify-between text-sm">
                   <button
@@ -164,28 +164,28 @@ export function CategoryBreakdown({ data, company, from, to }: CategoryBreakdown
                       className="w-2.5 h-2.5 rounded-full shrink-0 transition-opacity"
                       style={{ backgroundColor: cat.color, opacity: cat.selected ? 1 : 0.3 }}
                     />
-                    <span className={`truncate text-xs ${cat.selected ? "text-slate-400" : "text-slate-600 line-through"}`}>
+                    <span className={`truncate text-xs ${cat.selected ? "text-muted-foreground" : "text-muted-foreground/50 line-through"}`}>
                       {cat.category}
                     </span>
                   </button>
                   <div className="flex items-center gap-3 shrink-0 ml-2">
-                    <span className="text-xs font-mono tabular-nums text-slate-500 w-12 text-right">
+                    <span className="font-mono text-xs tabnum text-muted-foreground/70 w-12 text-right">
                       {cat.selected ? `${cat.percent.toFixed(1)}%` : "—"}
                     </span>
-                    <span className={`font-mono tabular-nums text-xs w-20 text-right ${cat.selected ? "text-slate-300" : "text-slate-600"}`}>
+                    <span className={`font-mono tabnum text-xs w-20 text-right ${cat.selected ? "text-foreground" : "text-muted-foreground/50"}`}>
                       {formatCurrency(cat.amount)}
                     </span>
                     <Link
                       href={drillHref(cat.category)}
                       title={`View ${cat.category} invoices`}
-                      className="text-slate-600 opacity-0 group-hover:opacity-100 hover:text-teal-400 transition-all"
+                      className="text-muted-foreground/50 opacity-0 group-hover:opacity-100 hover:text-primary transition-all"
                     >
                       <ArrowUpRight className="h-3.5 w-3.5" />
                     </Link>
                   </div>
                 </div>
                 <div className="ml-[18px] mt-0.5">
-                  <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-1 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-500"
                       style={{

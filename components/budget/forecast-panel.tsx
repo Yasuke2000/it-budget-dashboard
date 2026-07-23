@@ -32,14 +32,14 @@ export function ForecastPanel({ company, initial }: { company: string; initial: 
   const diff = Math.abs(data.annualForecast - data.annualBudget);
 
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-white text-base flex items-center justify-between flex-wrap gap-2">
+        <CardTitle className="text-foreground text-base flex items-center justify-between flex-wrap gap-2">
           <span>12-Month Forecast {data.includesPersonnel ? "(incl. internal IT staff)" : "(tools/services)"}</span>
-          <span className="text-sm font-normal text-slate-400">
-            Next 12 months ≈ <span className="text-amber-300 font-semibold">{formatCurrencyCompact(data.annualForecast)}</span>
+          <span className="text-sm font-normal text-muted-foreground">
+            Next 12 months ≈ <span className="text-warning font-semibold">{formatCurrencyCompact(data.annualForecast)}</span>
             {hasBudget && (
-              <> · {data.budgetProvisional ? "baseline" : "budget"} {formatCurrencyCompact(data.annualBudget)} · <span className={over ? "text-red-400" : "text-emerald-400"}>{over ? "over" : "under"} {formatCurrencyCompact(diff)}</span></>
+              <> · {data.budgetProvisional ? "baseline" : "budget"} {formatCurrencyCompact(data.annualBudget)} · <span className={over ? "text-negative" : "text-positive"}>{over ? "over" : "under"} {formatCurrencyCompact(diff)}</span></>
             )}
           </span>
         </CardTitle>
@@ -47,22 +47,22 @@ export function ForecastPanel({ company, initial }: { company: string; initial: 
       <CardContent>
         {/* Scenario knobs */}
         <div className="flex flex-wrap items-center gap-x-8 gap-y-3 mb-4 text-sm">
-          <label className="flex items-center gap-2 text-slate-300">
+          <label className="flex items-center gap-2 text-foreground">
             Growth on variable spend:
-            <input type="range" min={-20} max={50} step={5} value={growth} onChange={(e) => { setGrowth(Number(e.target.value)); setLoading(true); }} className="align-middle accent-teal-400" />
-            <span className="tabular-nums w-12 text-right font-medium text-white">{growth > 0 ? "+" : ""}{growth}%</span>
+            <input type="range" min={-20} max={50} step={5} value={growth} onChange={(e) => { setGrowth(Number(e.target.value)); setLoading(true); }} className="align-middle accent-primary" />
+            <span className="tabular-nums w-12 text-right font-medium text-foreground">{growth > 0 ? "+" : ""}{growth}%</span>
           </label>
-          <label className="flex items-center gap-2 text-slate-300">
+          <label className="flex items-center gap-2 text-foreground">
             Extra €/month (new tool/hire):
-            <input type="number" min={0} step={500} value={extra} onChange={(e) => { setExtra(Math.max(0, Number(e.target.value) || 0)); setLoading(true); }} className="w-28 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white tabular-nums" />
+            <input type="number" min={0} step={500} value={extra} onChange={(e) => { setExtra(Math.max(0, Number(e.target.value) || 0)); setLoading(true); }} className="w-28 bg-muted border border-border-strong rounded px-2 py-1 text-foreground tabular-nums" />
           </label>
           {(growth !== 0 || extra !== 0) && (
-            <button onClick={() => { setGrowth(0); setExtra(0); setLoading(true); }} className="text-xs text-teal-400 hover:text-teal-300 underline underline-offset-2">reset</button>
+            <button onClick={() => { setGrowth(0); setExtra(0); setLoading(true); }} className="text-xs text-primary hover:text-primary/80 underline underline-offset-2">reset</button>
           )}
-          {loading && <span className="text-xs text-slate-500">updating…</span>}
+          {loading && <span className="text-xs text-muted-foreground">updating…</span>}
         </div>
         <ForecastChart points={data.points} />
-        <p className="text-xs text-slate-500 mt-2">
+        <p className="text-xs text-muted-foreground mt-2">
           {data.method}. Each future month is projected from the same calendar month last year (so Q1-clustered annual licences land in the right months){growth !== 0 ? `, variable spend ×${(1 + growth / 100).toFixed(2)}` : ""}{extra ? `, +${formatCurrencyCompact(extra)}/mo` : ""}.
           {hasBudget ? (data.budgetProvisional ? " Tracked against a provisional baseline (trailing-year actuals) — set an approved budget in Settings → Budget to replace it." : " Tracked against your configured budget.") : " Set per-category budgets in Settings → Budget to track against this."}
         </p>

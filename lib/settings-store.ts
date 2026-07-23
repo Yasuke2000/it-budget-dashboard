@@ -54,6 +54,8 @@ export interface AppSettings {
   // CFO cockpit — annual group budget/target for budget-vs-actual (0 = none set).
   cfoRevenueTarget: number;
   cfoCostTarget: number;
+  // CFO cockpit — annual target per PCMN expense class ("60"–"64", EUR; 0/absent = none).
+  cfoClassTargets: Record<string, number>;
 }
 
 // Resilience: settings are written to BOTH Postgres (when enabled) and the
@@ -143,6 +145,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     getSetting<number>("cfoRevenueTarget"),
     getSetting<number>("cfoCostTarget"),
   ]);
+  const cfoClassTargets = await getSetting<Record<string, number>>("cfoClassTargets");
   // Merge stored GL overrides over defaults, then strip any forbidden account
   // (depreciation 63x / suspense 49x) so it can never leak into the spend total.
   const mergedGl: Record<string, string> = { ...DEFAULT_GL_MAPPING, ...(gl ?? {}) };
@@ -166,6 +169,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     licenseBufferSeats: licBuffer ?? 0,
     cfoRevenueTarget: cfoRev ?? envNumber("CFO_REVENUE_TARGET") ?? 0,
     cfoCostTarget: cfoCost ?? envNumber("CFO_COST_TARGET") ?? 0,
+    cfoClassTargets: cfoClassTargets ?? {},
   };
 }
 
@@ -182,5 +186,6 @@ export async function saveAppSettings(settings: Partial<AppSettings>): Promise<A
   if (settings.licenseBufferSeats !== undefined) await setSetting("licenseBufferSeats", settings.licenseBufferSeats);
   if (settings.cfoRevenueTarget !== undefined) await setSetting("cfoRevenueTarget", settings.cfoRevenueTarget);
   if (settings.cfoCostTarget !== undefined) await setSetting("cfoCostTarget", settings.cfoCostTarget);
+  if (settings.cfoClassTargets !== undefined) await setSetting("cfoClassTargets", settings.cfoClassTargets);
   return getAppSettings();
 }

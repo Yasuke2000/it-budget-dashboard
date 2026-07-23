@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import type { VendorSummary } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
+import { useChartPalette } from "@/lib/chart-theme";
 
 interface VendorSpendChartProps {
   vendors: VendorSummary[];
@@ -35,12 +36,12 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl max-w-xs">
-      <p className="text-sm font-semibold text-white mb-1">{d.name}</p>
-      <p className="text-sm font-mono text-teal-400">{formatCurrency(d.spend)}</p>
-      <p className="text-xs text-slate-400">{d.percent.toFixed(1)}% of total</p>
+    <div className="rounded-lg border border-border bg-popover/95 p-3 shadow-xl backdrop-blur-sm max-w-xs">
+      <p className="text-sm font-semibold text-foreground mb-1">{d.name}</p>
+      <p className="text-sm font-mono text-primary">{formatCurrency(d.spend)}</p>
+      <p className="text-xs text-muted-foreground">{d.percent.toFixed(1)}% of total</p>
       {d.isRisk && (
-        <p className="text-xs text-amber-400 mt-1">Concentration risk &gt;30%</p>
+        <p className="text-xs text-warning mt-1">Concentration risk &gt;30%</p>
       )}
     </div>
   );
@@ -51,6 +52,7 @@ function truncateName(name: string, max = 18): string {
 }
 
 export function VendorSpendChart({ vendors }: VendorSpendChartProps) {
+  const p = useChartPalette();
   const data = vendors.map((v) => ({
     name: truncateName(v.vendorName),
     fullName: v.vendorName,
@@ -67,27 +69,27 @@ export function VendorSpendChart({ vendors }: VendorSpendChartProps) {
           layout="vertical"
           margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
+          <CartesianGrid stroke={p.grid} horizontal={false} />
           <XAxis
             type="number"
-            stroke="#94a3b8"
+            stroke={p.textMuted}
             fontSize={11}
             tickFormatter={(v) => `€${(v / 1000).toFixed(0)}K`}
           />
           <YAxis
             type="category"
             dataKey="name"
-            stroke="#94a3b8"
+            stroke={p.axis}
             fontSize={11}
             width={120}
-            tick={{ fill: "#94a3b8" }}
+            tick={{ fill: p.text }}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
           <Bar dataKey="spend" name="Spend" radius={[0, 4, 4, 0]}>
             {data.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={entry.isRisk ? "#f59e0b" : "#0d9488"}
+                fill={entry.isRisk ? p.warning : p.income}
                 fillOpacity={0.85}
               />
             ))}

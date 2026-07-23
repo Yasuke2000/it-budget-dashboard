@@ -11,21 +11,11 @@ import {
   Cell,
 } from "recharts";
 import type { DepartmentSummary } from "@/lib/types";
+import { useChartPalette } from "@/lib/chart-theme";
 
 interface DepartmentChartProps {
   departments: DepartmentSummary[];
 }
-
-const DEPT_COLORS: Record<string, string> = {
-  IT: "#14b8a6",
-  Operations: "#6366f1",
-  Finance: "#f59e0b",
-  Sales: "#10b981",
-  HR: "#ec4899",
-  Management: "#8b5cf6",
-  Warehouse: "#f97316",
-  Transport: "#3b82f6",
-};
 
 interface DeptTooltipPayloadEntry {
   value: number;
@@ -36,8 +26,8 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   if (!active || !payload?.length) return null;
   const count = payload[0].value as number;
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
-      <p className="text-sm font-semibold text-white">{label}</p>
+    <div className="rounded-lg border border-border bg-popover/95 p-3 shadow-xl backdrop-blur-sm">
+      <p className="text-sm font-semibold text-foreground">{label}</p>
       <p className="text-sm font-mono" style={{ color: payload[0].fill }}>
         {count} employee{count !== 1 ? "s" : ""}
       </p>
@@ -46,23 +36,34 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 }
 
 export function DepartmentChart({ departments }: DepartmentChartProps) {
+  const p = useChartPalette();
+  const DEPT_COLORS: Record<string, string> = {
+    IT: p.categorical[0],
+    Operations: p.categorical[1],
+    Finance: p.categorical[2],
+    Sales: p.categorical[3],
+    HR: p.categorical[4],
+    Management: p.categorical[5],
+    Warehouse: p.categorical[0],
+    Transport: p.categorical[1],
+  };
   const data = [...departments].sort((a, b) => b.headcount - a.headcount);
 
   return (
     <div className="h-[240px]">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+          <CartesianGrid stroke={p.grid} vertical={false} />
           <XAxis
             dataKey="name"
-            stroke="#94a3b8"
+            stroke={p.axis}
             fontSize={11}
-            tick={{ fill: "#94a3b8" }}
+            tick={{ fill: p.text }}
           />
           <YAxis
-            stroke="#94a3b8"
+            stroke={p.axis}
             fontSize={12}
-            tick={{ fill: "#94a3b8" }}
+            tick={{ fill: p.textMuted }}
             allowDecimals={false}
             width={28}
           />
@@ -71,7 +72,7 @@ export function DepartmentChart({ departments }: DepartmentChartProps) {
             {data.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={DEPT_COLORS[entry.name] || "#64748b"}
+                fill={DEPT_COLORS[entry.name] || p.budget}
                 fillOpacity={0.85}
               />
             ))}

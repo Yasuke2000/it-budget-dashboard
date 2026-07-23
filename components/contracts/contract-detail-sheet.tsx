@@ -31,10 +31,10 @@ interface ContractDetailSheetProps {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  active: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  expiring_soon: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  expired: "bg-red-500/20 text-red-400 border-red-500/30",
-  cancelled: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+  active: "bg-positive/10 text-positive border-positive/30",
+  expiring_soon: "bg-warning/10 text-warning border-warning/30",
+  expired: "bg-negative/10 text-negative border-negative/30",
+  cancelled: "bg-muted text-muted-foreground border-border",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -65,10 +65,10 @@ function getNoticeDaysLeft(endDate: string, noticePeriodDays: number): number {
 }
 
 function getDaysLeftColor(days: number): string {
-  if (days < 0) return "text-slate-400";
-  if (days <= 30) return "text-red-400";
-  if (days <= 90) return "text-amber-400";
-  return "text-emerald-400";
+  if (days < 0) return "text-muted-foreground";
+  if (days <= 30) return "text-negative";
+  if (days <= 90) return "text-warning";
+  return "text-positive";
 }
 
 export function ContractDetailSheet({ contract, open, onOpenChange }: ContractDetailSheetProps) {
@@ -78,10 +78,10 @@ export function ContractDetailSheet({ contract, open, onOpenChange }: ContractDe
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[460px] sm:max-w-[460px] overflow-y-auto bg-slate-950 border-slate-800">
+      <SheetContent side="right" className="w-[460px] sm:max-w-[460px] overflow-y-auto bg-background border-border">
         <SheetHeader className="pb-2">
-          <SheetTitle className="text-white text-lg">{contract.vendor}</SheetTitle>
-          <SheetDescription className="text-slate-400 line-clamp-2">
+          <SheetTitle className="text-foreground text-lg">{contract.vendor}</SheetTitle>
+          <SheetDescription className="text-muted-foreground line-clamp-2">
             {contract.description}
           </SheetDescription>
         </SheetHeader>
@@ -92,16 +92,16 @@ export function ContractDetailSheet({ contract, open, onOpenChange }: ContractDe
             <Badge variant="outline" className={STATUS_STYLES[contract.status] || ""}>
               {contract.status.replace("_", " ")}
             </Badge>
-            <Badge variant="outline" className="border-slate-700 text-slate-300">
+            <Badge variant="outline" className="border-border text-foreground">
               {CATEGORY_LABELS[contract.category] || contract.category}
             </Badge>
             {contract.autoRenew ? (
-              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 gap-1">
+              <Badge variant="outline" className="bg-positive/10 text-positive border-positive/30 gap-1">
                 <CheckCircle className="h-3 w-3" />
                 Auto-renew
               </Badge>
             ) : (
-              <Badge variant="outline" className="bg-slate-500/10 text-slate-400 border-slate-600 gap-1">
+              <Badge variant="outline" className="bg-muted text-muted-foreground border-border gap-1">
                 <XCircle className="h-3 w-3" />
                 Manual renewal
               </Badge>
@@ -113,43 +113,43 @@ export function ContractDetailSheet({ contract, open, onOpenChange }: ContractDe
             <InfoCard
               label="Start Date"
               value={formatDate(contract.startDate)}
-              icon={<CalendarDays className="h-4 w-4 text-slate-400" />}
+              icon={<CalendarDays className="h-4 w-4 text-muted-foreground" />}
             />
             <InfoCard
               label="End Date"
               value={formatDate(contract.endDate)}
-              icon={<CalendarClock className="h-4 w-4 text-slate-400" />}
+              icon={<CalendarClock className="h-4 w-4 text-muted-foreground" />}
             />
             <InfoCard
               label="Days Left"
               value={daysLeft < 0 ? "Expired" : `${daysLeft} days`}
-              icon={<Clock className="h-4 w-4 text-slate-400" />}
+              icon={<Clock className="h-4 w-4 text-muted-foreground" />}
               valueClassName={getDaysLeftColor(daysLeft)}
             />
             <InfoCard
               label="Billing Cycle"
               value={BILLING_LABELS[contract.billingCycle] || contract.billingCycle}
-              icon={<RefreshCw className="h-4 w-4 text-slate-400" />}
+              icon={<RefreshCw className="h-4 w-4 text-muted-foreground" />}
             />
             <InfoCard
               label="Annual Cost"
               value={formatCurrency(contract.annualCost)}
-              icon={<CreditCard className="h-4 w-4 text-teal-400" />}
+              icon={<CreditCard className="h-4 w-4 text-primary" />}
             />
             <InfoCard
               label="Monthly Cost"
               value={formatCurrency(contract.monthlyCost)}
-              icon={<CreditCard className="h-4 w-4 text-slate-400" />}
+              icon={<CreditCard className="h-4 w-4 text-muted-foreground" />}
             />
           </div>
 
           {/* Notice period */}
           {contract.noticePeriodDays > 0 && (
-            <div className="flex items-start gap-3 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3">
-              <Bell className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+            <div className="flex items-start gap-3 rounded-lg border border-border bg-card px-4 py-3">
+              <Bell className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
               <div>
-                <p className="text-sm font-medium text-slate-300">Notice Period</p>
-                <p className="text-xs text-slate-500">
+                <p className="text-sm font-medium text-foreground">Notice Period</p>
+                <p className="text-xs text-muted-foreground">
                   {contract.noticePeriodDays} days before end date
                   {(() => {
                     const noticeDaysLeft = getNoticeDaysLeft(contract.endDate, contract.noticePeriodDays);
@@ -169,12 +169,12 @@ export function ContractDetailSheet({ contract, open, onOpenChange }: ContractDe
               href={`/api/contracts/file?id=${contract.fileId}`}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 hover:border-teal-500/40 transition-colors"
+              className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 hover:border-primary/40 transition-colors"
             >
-              <FileText className="h-4 w-4 text-teal-400 shrink-0" />
+              <FileText className="h-4 w-4 text-primary shrink-0" />
               <div className="min-w-0">
-                <p className="text-sm font-medium text-teal-400 truncate">{contract.fileName || "View document"}</p>
-                <p className="text-xs text-slate-500">Open contract document</p>
+                <p className="text-sm font-medium text-primary truncate">{contract.fileName || "View document"}</p>
+                <p className="text-xs text-muted-foreground">Open contract document</p>
               </div>
             </a>
           )}
@@ -182,20 +182,20 @@ export function ContractDetailSheet({ contract, open, onOpenChange }: ContractDe
           {/* Owner */}
           {contract.owner && (
             <div className="space-y-1">
-              <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Owner</p>
-              <p className="text-sm text-slate-300">{contract.owner}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Owner</p>
+              <p className="text-sm text-foreground">{contract.owner}</p>
             </div>
           )}
 
           {/* Notes */}
           {contract.notes && (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
-                <StickyNote className="h-4 w-4 text-slate-400" />
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <StickyNote className="h-4 w-4 text-muted-foreground" />
                 Notes
               </div>
-              <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
-                <p className="text-sm text-slate-400 whitespace-pre-wrap">{contract.notes}</p>
+              <div className="rounded-lg border border-border bg-card p-3">
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{contract.notes}</p>
               </div>
             </div>
           )}
@@ -203,8 +203,8 @@ export function ContractDetailSheet({ contract, open, onOpenChange }: ContractDe
           {/* Tags */}
           {contract.tags.length > 0 && (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
-                <Tag className="h-4 w-4 text-slate-400" />
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <Tag className="h-4 w-4 text-muted-foreground" />
                 Tags
               </div>
               <div className="flex flex-wrap gap-2">
@@ -212,7 +212,7 @@ export function ContractDetailSheet({ contract, open, onOpenChange }: ContractDe
                   <Badge
                     key={tag}
                     variant="outline"
-                    className="bg-slate-800 text-slate-300 border-slate-700 text-xs"
+                    className="bg-muted text-foreground border-border text-xs"
                   >
                     {tag}
                   </Badge>
@@ -238,12 +238,12 @@ function InfoCard({
   valueClassName?: string;
 }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-3 space-y-1">
-      <div className="flex items-center gap-2 text-xs text-slate-500">
+    <div className="rounded-lg border border-border bg-card p-3 space-y-1">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
         {icon}
         {label}
       </div>
-      <p className={`text-sm font-semibold font-mono tabular-nums ${valueClassName || "text-white"}`}>
+      <p className={`text-sm font-semibold font-mono tabular-nums ${valueClassName || "text-foreground"}`}>
         {value}
       </p>
     </div>

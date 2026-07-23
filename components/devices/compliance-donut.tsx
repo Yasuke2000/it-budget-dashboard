@@ -7,6 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { useChartPalette } from "@/lib/chart-theme";
 
 interface ComplianceDonutProps {
   compliant: number;
@@ -15,9 +16,9 @@ interface ComplianceDonutProps {
 }
 
 const SLICES = [
-  { key: "compliant", label: "Compliant", color: "#10b981" },
-  { key: "noncompliant", label: "Non-compliant", color: "#ef4444" },
-  { key: "unknown", label: "Unknown", color: "#64748b" },
+  { key: "compliant", label: "Compliant" },
+  { key: "noncompliant", label: "Non-compliant" },
+  { key: "unknown", label: "Unknown" },
 ];
 
 interface ComplianceTooltipPayloadEntry {
@@ -30,11 +31,11 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Compli
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
+    <div className="rounded-lg border border-border bg-popover/95 p-3 shadow-xl backdrop-blur-sm">
       <p className="text-sm font-semibold" style={{ color: entry.payload?.fill }}>
         {entry.name}
       </p>
-      <p className="text-sm font-mono text-white">{entry.value} devices</p>
+      <p className="text-sm font-mono text-foreground">{entry.value} devices</p>
     </div>
   );
 }
@@ -81,11 +82,17 @@ export function ComplianceDonut({
   noncompliant,
   unknown,
 }: ComplianceDonutProps) {
+  const p = useChartPalette();
+  const COLOR: Record<string, string> = {
+    compliant: p.positive,
+    noncompliant: p.negative,
+    unknown: p.budget,
+  };
   const counts: Record<string, number> = { compliant, noncompliant, unknown };
   const data = SLICES.filter((s) => counts[s.key] > 0).map((s) => ({
     name: s.label,
     value: counts[s.key],
-    fill: s.color,
+    fill: COLOR[s.key],
   }));
 
   const total = compliant + noncompliant + unknown;
@@ -114,8 +121,8 @@ export function ComplianceDonut({
         </ResponsiveContainer>
         {/* Centre label */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-2xl font-bold text-white tabular-nums">{total}</span>
-          <span className="text-xs text-slate-500">devices</span>
+          <span className="text-2xl font-bold text-foreground tabular-nums">{total}</span>
+          <span className="text-xs text-muted-foreground">devices</span>
         </div>
       </div>
 
@@ -125,11 +132,11 @@ export function ComplianceDonut({
           <div key={s.key} className="flex items-center gap-1.5">
             <span
               className="h-2.5 w-2.5 rounded-full shrink-0"
-              style={{ backgroundColor: s.color }}
+              style={{ backgroundColor: COLOR[s.key] }}
             />
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-muted-foreground">
               {s.label}{" "}
-              <span className="font-mono font-semibold text-white">
+              <span className="font-mono font-semibold text-foreground">
                 {counts[s.key]}
               </span>
             </span>

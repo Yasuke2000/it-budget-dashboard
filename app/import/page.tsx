@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Download, Trash2, AlertTriangle, Building2, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/layout/page-header";
 import { CsvImportCard } from "@/components/import/csv-import-card";
 import { ServerImportCard } from "@/components/import/server-import-card";
 import { clearAllImportedData } from "@/lib/imported-data";
@@ -136,22 +137,20 @@ export default function ImportPage() {
   return (
     <div className="space-y-8 max-w-5xl">
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">Import Data</h1>
-        <p className="mt-1 text-slate-400">
-          Import CSV files to use your own data instead of demo data. Data is stored locally in your browser.
-        </p>
-      </div>
+      <PageHeader
+        title="Import Data"
+        description="Import CSV files to use your own data instead of demo data. Data is stored locally in your browser."
+      />
 
       {/* Info banner */}
-      <div className="rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3 flex items-start gap-3">
-        <div className="mt-0.5 size-5 rounded-full bg-teal-500/20 flex items-center justify-center shrink-0">
-          <div className="size-2 rounded-full bg-teal-400" />
+      <div className="rounded-xl border border-border bg-accent px-4 py-3 flex items-start gap-3">
+        <div className="mt-0.5 size-5 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+          <div className="size-2 rounded-full bg-primary" />
         </div>
         <div className="space-y-1">
-          <p className="text-sm font-medium text-white">How it works</p>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Invoices, budget, devices and licenses are parsed in the browser and saved to <code className="bg-slate-700 rounded px-1 text-teal-300">localStorage</code> — nothing leaves your machine.
+          <p className="text-sm font-medium text-foreground">How it works</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Invoices, budget, devices and licenses are parsed in the browser and saved to <code className="bg-muted rounded px-1 text-primary">localStorage</code> — nothing leaves your machine.
             EasyPay payroll is stored on the server (so the automated drop and dashboard can read it). Once imported, the dashboard uses your data in place of the built-in demo data.
           </p>
         </div>
@@ -186,14 +185,14 @@ export default function ImportPage() {
       </div>
 
       {/* Download templates section */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-start gap-3 mb-4">
-          <div className="size-8 rounded-lg bg-slate-800 flex items-center justify-center shrink-0">
-            <Download className="h-4 w-4 text-slate-400" />
+          <div className="size-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+            <Download className="h-4 w-4 text-muted-foreground" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-white">Download Templates</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <h2 className="text-sm font-semibold text-foreground">Download Templates</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
               Starter CSV files with the correct headers and a few sample rows.
             </p>
           </div>
@@ -206,7 +205,7 @@ export default function ImportPage() {
               variant="outline"
               size="sm"
               onClick={() => downloadCSV(card.templateFile, card.templateKey)}
-              className="border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white text-xs h-8 gap-1.5"
+              className="border-border bg-muted text-foreground hover:bg-accent hover:text-foreground text-xs h-8 gap-1.5"
             >
               <Download className="h-3.5 w-3.5" />
               {card.title}
@@ -216,7 +215,7 @@ export default function ImportPage() {
             variant="outline"
             size="sm"
             onClick={() => downloadCSV("easypay-template.csv", "easypay")}
-            className="border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white text-xs h-8 gap-1.5"
+            className="border-border bg-muted text-foreground hover:bg-accent hover:text-foreground text-xs h-8 gap-1.5"
           >
             <Download className="h-3.5 w-3.5" />
             EasyPay
@@ -225,7 +224,7 @@ export default function ImportPage() {
             variant="outline"
             size="sm"
             onClick={() => downloadCSV("software-licenses-template.csv", "softwarelicenses")}
-            className="border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white text-xs h-8 gap-1.5"
+            className="border-border bg-muted text-foreground hover:bg-accent hover:text-foreground text-xs h-8 gap-1.5"
           >
             <Download className="h-3.5 w-3.5" />
             Licenses+
@@ -234,30 +233,30 @@ export default function ImportPage() {
       </div>
 
       {/* Clear all section */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-sm font-semibold text-white">Clear All Imported Data</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <h2 className="text-sm font-semibold text-foreground">Clear All Imported Data</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
               Remove all imported data and revert the dashboard to demo data.
             </p>
           </div>
 
           {cleared ? (
-            <span className="text-xs text-teal-400 font-medium">All data cleared.</span>
+            <span className="text-xs text-primary font-medium">All data cleared.</span>
           ) : showClearConfirm ? (
-            <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">
-              <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />
-              <span className="text-xs text-red-300">Are you sure?</span>
+            <div className="flex items-center gap-2 rounded-lg border border-negative/30 bg-negative/10 px-3 py-2">
+              <AlertTriangle className="h-4 w-4 text-negative shrink-0" />
+              <span className="text-xs text-negative">Are you sure?</span>
               <button
                 onClick={handleClearAll}
-                className="text-xs font-semibold text-red-400 hover:text-red-300 transition-colors"
+                className="text-xs font-semibold text-negative hover:text-negative transition-colors"
               >
                 Yes, clear all
               </button>
               <button
                 onClick={() => setShowClearConfirm(false)}
-                className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 Cancel
               </button>
@@ -267,7 +266,7 @@ export default function ImportPage() {
               variant="outline"
               size="sm"
               onClick={() => setShowClearConfirm(true)}
-              className="border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/50 text-xs h-8 gap-1.5"
+              className="border-negative/30 bg-negative/10 text-negative hover:bg-negative/20 hover:text-negative hover:border-negative/50 text-xs h-8 gap-1.5"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Clear All Data

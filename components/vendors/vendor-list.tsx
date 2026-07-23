@@ -23,10 +23,10 @@ interface VendorListProps {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  Paid: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  Paid: "bg-positive/10 text-positive border-positive/30",
   Open: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  Draft: "bg-slate-500/20 text-slate-400 border-slate-500/30",
-  Canceled: "bg-red-500/20 text-red-400 border-red-500/30",
+  Draft: "bg-muted text-muted-foreground border-border",
+  Canceled: "bg-negative/10 text-negative border-negative/30",
 };
 
 export function VendorList({ vendors, invoices }: VendorListProps) {
@@ -54,8 +54,8 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
           <Card
             key={vendor.vendorNumber || vendor.vendorName}
             className={cn(
-              "bg-slate-900 border-slate-800 transition-colors",
-              vendor.isConcentrationRisk && "border-amber-800/50"
+              "transition-colors",
+              vendor.isConcentrationRisk && "border-warning/50"
             )}
           >
             {/* Header row — always visible */}
@@ -64,25 +64,25 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
                 className="w-full text-left"
                 onClick={() => setSelectedVendor(vendor)}
               >
-                <div className="flex items-center gap-4 p-4 hover:bg-slate-800/50 transition-colors rounded-t-lg">
+                <div className="flex items-center gap-4 p-4 hover:bg-accent transition-colors rounded-t-lg">
                   {/* Rank */}
-                  <span className="text-lg font-bold text-slate-600 tabular-nums w-7 shrink-0">
+                  <span className="text-lg font-bold text-muted-foreground/70 tabular-nums w-7 shrink-0">
                     #{idx + 1}
                   </span>
 
                   {/* Vendor icon */}
-                  <div className="h-9 w-9 rounded-lg bg-slate-800 flex items-center justify-center shrink-0">
-                    <Building2 className="h-4 w-4 text-slate-400" />
+                  <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
                   </div>
 
                   {/* Name + categories */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-white truncate">
+                      <span className="font-semibold text-foreground truncate">
                         {vendor.vendorName}
                       </span>
                       {vendor.isConcentrationRisk && (
-                        <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 border text-xs gap-1 shrink-0">
+                        <Badge className="bg-warning/10 text-warning border-warning/30 border text-xs gap-1 shrink-0">
                           <AlertTriangle className="h-3 w-3" />
                           Concentration risk
                         </Badge>
@@ -92,7 +92,7 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
                       {vendor.categories.map((cat) => (
                         <span
                           key={cat}
-                          className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded"
+                          className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded"
                         >
                           {cat}
                         </span>
@@ -101,17 +101,17 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
                     {/* Which entities the spend comes from */}
                     {vendor.entities?.length > 0 && (
                       <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                        <span className="text-[10px] text-slate-600 uppercase tracking-wider">via</span>
+                        <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">via</span>
                         {vendor.entities.slice(0, 3).map((e) => (
                           <span
                             key={e.name}
-                            className="text-[10px] text-teal-300/80 bg-teal-500/10 border border-teal-500/20 px-1.5 py-0.5 rounded"
+                            className="text-[10px] text-primary/80 bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded"
                           >
                             {e.name} · {formatCurrency(e.spend)}
                           </span>
                         ))}
                         {vendor.entities.length > 3 && (
-                          <span className="text-[10px] text-slate-600">+{vendor.entities.length - 3} more</span>
+                          <span className="text-[10px] text-muted-foreground/70">+{vendor.entities.length - 3} more</span>
                         )}
                       </div>
                     )}
@@ -120,20 +120,20 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
                   {/* Stats */}
                   <div className="hidden sm:flex items-center gap-8 shrink-0">
                     <div className="text-right">
-                      <p className="text-sm font-mono font-semibold text-white tabular-nums">
+                      <p className="text-sm font-mono font-semibold text-foreground tabular-nums">
                         {formatCurrency(vendor.totalSpend)}
                       </p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted-foreground">
                         {vendor.invoiceCount} invoice{vendor.invoiceCount !== 1 ? "s" : ""}
                       </p>
                     </div>
                     <div className="w-28">
                       <div className="flex justify-between mb-1">
-                        <span className="text-xs text-slate-500">Share</span>
+                        <span className="text-xs text-muted-foreground">Share</span>
                         <span
                           className={cn(
                             "text-xs font-mono font-semibold tabular-nums",
-                            vendor.isConcentrationRisk ? "text-amber-400" : "text-slate-300"
+                            vendor.isConcentrationRisk ? "text-warning" : "text-foreground"
                           )}
                         >
                           {vendor.percentOfTotal.toFixed(1)}%
@@ -142,8 +142,8 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
                       <Progress
                         value={vendor.percentOfTotal}
                         className={cn(
-                          "h-1.5 bg-slate-800",
-                          vendor.isConcentrationRisk ? "[&>div]:bg-amber-500" : "[&>div]:bg-teal-500"
+                          "h-1.5 bg-muted",
+                          vendor.isConcentrationRisk ? "[&>div]:bg-warning" : "[&>div]:bg-primary"
                         )}
                       />
                     </div>
@@ -152,7 +152,7 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
                   {/* Chevron — toggles invoice expansion */}
                   <div
                     role="button"
-                    className="shrink-0 text-slate-500 hover:text-slate-300 p-1 rounded transition-colors"
+                    className="shrink-0 text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggle(vendor.vendorName);
@@ -169,16 +169,16 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
 
               {/* Mobile stats row */}
               <div className="sm:hidden flex items-center gap-4 px-4 pb-3">
-                <span className="text-sm font-mono font-semibold text-white tabular-nums">
+                <span className="text-sm font-mono font-semibold text-foreground tabular-nums">
                   {formatCurrency(vendor.totalSpend)}
                 </span>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted-foreground">
                   {vendor.invoiceCount} invoice{vendor.invoiceCount !== 1 ? "s" : ""}
                 </span>
                 <span
                   className={cn(
                     "text-xs font-mono tabular-nums ml-auto",
-                    vendor.isConcentrationRisk ? "text-amber-400" : "text-slate-400"
+                    vendor.isConcentrationRisk ? "text-warning" : "text-muted-foreground"
                   )}
                 >
                   {vendor.percentOfTotal.toFixed(1)}% of total
@@ -187,34 +187,34 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
 
               {/* Expanded: recent invoices */}
               {isExpanded && (
-                <div className="border-t border-slate-800 px-4 pb-4 pt-3">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                <div className="border-t border-border px-4 pb-4 pt-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                     Recent invoices
                   </p>
                   {vendorInvoices.length === 0 ? (
-                    <p className="text-sm text-slate-600 italic">No invoices found.</p>
+                    <p className="text-sm text-muted-foreground/70 italic">No invoices found.</p>
                   ) : (
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
-                          <TableRow className="border-slate-800 hover:bg-transparent">
-                            <TableHead className="text-slate-500 text-xs">Invoice #</TableHead>
-                            <TableHead className="text-slate-500 text-xs">Date</TableHead>
-                            <TableHead className="text-slate-500 text-xs">Category</TableHead>
-                            <TableHead className="text-slate-500 text-xs">Status</TableHead>
-                            <TableHead className="text-slate-500 text-xs text-right">Amount (excl. VAT)</TableHead>
+                          <TableRow className="border-border hover:bg-transparent">
+                            <TableHead className="text-muted-foreground text-xs">Invoice #</TableHead>
+                            <TableHead className="text-muted-foreground text-xs">Date</TableHead>
+                            <TableHead className="text-muted-foreground text-xs">Category</TableHead>
+                            <TableHead className="text-muted-foreground text-xs">Status</TableHead>
+                            <TableHead className="text-muted-foreground text-xs text-right">Amount (excl. VAT)</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {vendorInvoices.map((inv) => (
-                            <TableRow key={inv.id} className="border-slate-800/50 hover:bg-slate-800/30">
-                              <TableCell className="text-xs font-mono text-slate-300">
+                            <TableRow key={inv.id} className="border-border/50 hover:bg-accent">
+                              <TableCell className="text-xs font-mono text-foreground">
                                 {inv.number}
                               </TableCell>
-                              <TableCell className="text-xs text-slate-400">
+                              <TableCell className="text-xs text-muted-foreground">
                                 {formatDate(inv.postingDate)}
                               </TableCell>
-                              <TableCell className="text-xs text-slate-400">
+                              <TableCell className="text-xs text-muted-foreground">
                                 {inv.costCategory || "—"}
                               </TableCell>
                               <TableCell>
@@ -227,7 +227,7 @@ export function VendorList({ vendors, invoices }: VendorListProps) {
                                   {inv.status}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="text-xs font-mono text-white text-right tabular-nums">
+                              <TableCell className="text-xs font-mono text-foreground text-right tabular-nums">
                                 {formatCurrency(inv.totalAmountExcludingTax)}
                               </TableCell>
                             </TableRow>

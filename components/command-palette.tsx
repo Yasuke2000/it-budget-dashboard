@@ -110,7 +110,7 @@ export function CommandPalette() {
               value={label}
               onSelect={() => handleNavigate(href)}
             >
-              <Icon className="mr-2 h-4 w-4 text-slate-400" />
+              <Icon className="mr-2 h-4 w-4 text-muted-foreground" />
               <span>{label}</span>
             </CommandItem>
           ))}
@@ -123,15 +123,15 @@ export function CommandPalette() {
             value="Generate PDF Report"
             onSelect={handleGenerateReport}
           >
-            <FileDown className="mr-2 h-4 w-4 text-slate-400" />
+            <FileDown className="mr-2 h-4 w-4 text-muted-foreground" />
             <span>Generate PDF Report</span>
           </CommandItem>
           <CommandItem value="Export Data" onSelect={handleExportData}>
-            <Download className="mr-2 h-4 w-4 text-slate-400" />
+            <Download className="mr-2 h-4 w-4 text-muted-foreground" />
             <span>Export Data</span>
           </CommandItem>
           <CommandItem value="Toggle Theme" onSelect={handleToggleTheme}>
-            <SunMoon className="mr-2 h-4 w-4 text-slate-400" />
+            <SunMoon className="mr-2 h-4 w-4 text-muted-foreground" />
             <span>Toggle Theme</span>
           </CommandItem>
         </CommandGroup>

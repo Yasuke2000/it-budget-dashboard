@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getVendorSummary, getInvoices, isDemoMode } from "@/lib/data-source";
 import { formatCurrencyCompact } from "@/lib/utils";
 import { VendorSpendChart } from "@/components/vendors/vendor-spend-chart";
+import { PageHeader } from "@/components/layout/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -38,19 +39,19 @@ export default async function VendorsPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Vendors</h1>
-        <p className="text-slate-400">
-          {live
+      <PageHeader
+        title="Vendors"
+        description={
+          live
             ? `IT spend by cost driver and concentration risk — ${currentYear}`
-            : `Vendor spend analysis and concentration risk — FY ${currentYear}`}
+            : `Vendor spend analysis and concentration risk — FY ${currentYear}`
+        }
+      />
+      {live && (
+        <p className="text-xs text-muted-foreground/70 -mt-4">
+          Real vendor names from posted Business Central purchase invoices, limited to IT spend.
         </p>
-        {live && (
-          <p className="text-xs text-slate-600 mt-1">
-            Real vendor names from posted Business Central purchase invoices, limited to IT spend.
-          </p>
-        )}
-      </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
@@ -84,9 +85,9 @@ export default async function VendorsPage({
         />
       </div>
 
-      <Card className="bg-slate-900 border-slate-800">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white">Top 10 Vendors by Spend</CardTitle>
+          <CardTitle className="text-foreground">Top 10 Vendors by Spend</CardTitle>
         </CardHeader>
         <CardContent>
           <VendorSpendChart vendors={top10} />
@@ -94,7 +95,7 @@ export default async function VendorsPage({
       </Card>
 
       <div>
-        <h2 className="text-lg font-semibold text-white mb-4">All Vendors — Ranked by Spend</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">All Vendors — Ranked by Spend</h2>
         <VendorList vendors={vendors} invoices={invoices} />
       </div>
     </div>

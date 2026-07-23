@@ -129,10 +129,10 @@ export function ContractFormDialog({ open, onOpenChange, contract, onSaved }: Co
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-slate-950 border-slate-800">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-background border-border">
         <DialogHeader>
-          <DialogTitle className="text-white">{isEdit ? "Edit contract" : "Add contract"}</DialogTitle>
-          <DialogDescription className="text-slate-400">
+          <DialogTitle className="text-foreground">{isEdit ? "Edit contract" : "Add contract"}</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
             Track renewal dates, costs and the signed document so nothing auto-renews unnoticed.
           </DialogDescription>
         </DialogHeader>
@@ -140,15 +140,15 @@ export function ContractFormDialog({ open, onOpenChange, contract, onSaved }: Co
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-slate-300">Vendor *</Label>
+              <Label className="text-foreground">Vendor *</Label>
               <Input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="e.g. EASI" />
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-slate-300">Description</Label>
+              <Label className="text-foreground">Description</Label>
               <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What is this contract for?" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-slate-300">Category</Label>
+              <Label className="text-foreground">Category</Label>
               <Select value={category} onValueChange={(v) => { if (v) setCategory(v); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -157,7 +157,7 @@ export function ContractFormDialog({ open, onOpenChange, contract, onSaved }: Co
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-slate-300">Billing cycle</Label>
+              <Label className="text-foreground">Billing cycle</Label>
               <Select value={billingCycle} onValueChange={(v) => { if (v) setBillingCycle(v); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -166,51 +166,51 @@ export function ContractFormDialog({ open, onOpenChange, contract, onSaved }: Co
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-slate-300">Annual cost (€)</Label>
+              <Label className="text-foreground">Annual cost (€)</Label>
               <Input type="number" inputMode="decimal" value={annualCost} onChange={(e) => setAnnualCost(e.target.value)} placeholder="0" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-slate-300">Owner</Label>
+              <Label className="text-foreground">Owner</Label>
               <Input value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="Responsible person" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-slate-300">Start date</Label>
+              <Label className="text-foreground">Start date</Label>
               <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-slate-300">Renewal / end date</Label>
+              <Label className="text-foreground">Renewal / end date</Label>
               <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-slate-300">Notice period (days)</Label>
+              <Label className="text-foreground">Notice period (days)</Label>
               <Input type="number" inputMode="numeric" value={noticePeriodDays} onChange={(e) => setNoticePeriodDays(e.target.value)} placeholder="e.g. 90" />
             </div>
             <div className="flex items-end gap-2 pb-1">
               <Switch checked={autoRenew} onCheckedChange={(v) => setAutoRenew(Boolean(v))} />
-              <Label className="text-slate-300">Auto-renews</Label>
+              <Label className="text-foreground">Auto-renews</Label>
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-slate-300">Tags (comma-separated)</Label>
+              <Label className="text-foreground">Tags (comma-separated)</Label>
               <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="erp, critical, cloud" />
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-slate-300">Notes</Label>
+              <Label className="text-foreground">Notes</Label>
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Renewal terms, contact, conditions…" />
             </div>
           </div>
 
           {/* Document upload zone */}
           <div className="space-y-1.5">
-            <Label className="text-slate-300">Contract document</Label>
+            <Label className="text-foreground">Contract document</Label>
             {fileName ? (
-              <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2">
-                <FileText className="h-4 w-4 text-teal-400 shrink-0" />
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+                <FileText className="h-4 w-4 text-primary shrink-0" />
                 {fileId ? (
-                  <a href={`/api/contracts/file?id=${fileId}`} target="_blank" rel="noreferrer" className="text-sm text-teal-400 hover:underline truncate flex-1">{fileName}</a>
+                  <a href={`/api/contracts/file?id=${fileId}`} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline truncate flex-1">{fileName}</a>
                 ) : (
-                  <span className="text-sm text-slate-300 truncate flex-1">{fileName}</span>
+                  <span className="text-sm text-foreground truncate flex-1">{fileName}</span>
                 )}
-                <button type="button" onClick={() => { setFileId(undefined); setFileName(undefined); }} className="text-slate-500 hover:text-red-400" aria-label="Remove file">
+                <button type="button" onClick={() => { setFileId(undefined); setFileName(undefined); }} className="text-muted-foreground hover:text-negative" aria-label="Remove file">
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -219,7 +219,7 @@ export function ContractFormDialog({ open, onOpenChange, contract, onSaved }: Co
                 type="button"
                 onClick={() => fileInput.current?.click()}
                 disabled={uploading}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-700 bg-slate-900/50 px-3 py-4 text-sm text-slate-400 hover:border-teal-500/50 hover:text-teal-400 transition-colors disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card px-3 py-4 text-sm text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors disabled:opacity-60"
               >
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 {uploading ? "Uploading…" : "Upload PDF / document (max 20 MB)"}
@@ -229,10 +229,10 @@ export function ContractFormDialog({ open, onOpenChange, contract, onSaved }: Co
               accept=".pdf,.png,.jpg,.jpeg,.docx,.doc,.xlsx,.xls,.txt,.eml,.msg" />
           </div>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-negative">{error}</p>}
         </div>
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+        <div className="flex justify-end gap-2 pt-2 border-t border-border">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving || uploading} className="gap-2">
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}

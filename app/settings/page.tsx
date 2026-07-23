@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   DEFAULT_GL_MAPPING,
   IT_CATEGORIES,
@@ -119,7 +120,7 @@ function SaveButton({
     <Button
       onClick={onClick}
       disabled={saving}
-      className="bg-teal-600 hover:bg-teal-500 text-white disabled:opacity-60 transition-colors"
+      className="bg-primary hover:bg-primary text-primary-foreground disabled:opacity-60 transition-colors"
     >
       {saving ? (
         <>
@@ -128,7 +129,7 @@ function SaveButton({
         </>
       ) : saved ? (
         <>
-          <CheckCircle2 className="size-4 mr-2 text-teal-200" />
+          <CheckCircle2 className="size-4 mr-2 text-primary" />
           Saved
         </>
       ) : (
@@ -218,10 +219,10 @@ function GeneralTab() {
   };
 
   const statusColor: Record<SyncState["status"], string> = {
-    idle: "text-slate-400",
-    syncing: "text-amber-400",
-    success: "text-teal-400",
-    error: "text-red-400",
+    idle: "text-muted-foreground",
+    syncing: "text-warning",
+    success: "text-primary",
+    error: "text-negative",
   };
 
   const StatusIcon =
@@ -248,7 +249,7 @@ function GeneralTab() {
             "Directory.Read.All",
             "DeviceManagementManagedDevices.Read.All",
           ].map((p) => (
-            <code key={p} className="text-[10px] bg-slate-800 px-1 py-0.5 rounded text-teal-300 mx-0.5">{p}</code>
+            <code key={p} className="text-[10px] bg-muted px-1 py-0.5 rounded text-primary mx-0.5">{p}</code>
           ))}
         </span>
       ),
@@ -275,7 +276,7 @@ function GeneralTab() {
             "BC_COMPANY_ID",
             "BC_ENVIRONMENT",
           ].map((v) => (
-            <code key={v} className="text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded text-teal-300 inline-block w-fit">
+            <code key={v} className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-primary inline-block w-fit">
               {v}
             </code>
           ))}
@@ -287,9 +288,9 @@ function GeneralTab() {
       detail: (
         <span>
           In{" "}
-          <code className="text-[10px] bg-slate-800 px-1 py-0.5 rounded text-teal-300">.env.local</code>
+          <code className="text-[10px] bg-muted px-1 py-0.5 rounded text-primary">.env.local</code>
           {" "}set{" "}
-          <code className="text-[10px] bg-slate-800 px-1 py-0.5 rounded text-teal-300">NEXT_PUBLIC_DEMO_MODE=false</code>
+          <code className="text-[10px] bg-muted px-1 py-0.5 rounded text-primary">NEXT_PUBLIC_DEMO_MODE=false</code>
           . This disables all mock data generators.
         </span>
       ),
@@ -316,24 +317,24 @@ function GeneralTab() {
     <div className="space-y-6">
 
       {/* ── BIG MODE BADGE ─────────────────────────────────────────── */}
-      <Card className={`border-2 ${isDemo ? "bg-amber-500/5 border-amber-500/40" : "bg-emerald-500/5 border-emerald-500/40"}`}>
+      <Card className={`border-2 ${isDemo ? "bg-warning/5 border-warning/40" : "bg-positive/5 border-positive/40"}`}>
         <CardContent className="pt-5 pb-5">
           <div className="flex items-start gap-4 flex-wrap">
-            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${isDemo ? "bg-amber-500/15" : "bg-emerald-500/15"}`}>
+            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${isDemo ? "bg-warning/15" : "bg-positive/15"}`}>
               {isDemo
-                ? <AlertTriangle className="size-6 text-amber-400" />
-                : <Wifi className="size-6 text-emerald-400" />
+                ? <AlertTriangle className="size-6 text-warning" />
+                : <Wifi className="size-6 text-positive" />
               }
             </div>
             <div className="flex-1 min-w-0">
               <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-bold tracking-widest uppercase mb-1.5 ${
                 isDemo
-                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                  : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                  ? "bg-warning/20 text-warning border border-warning/40"
+                  : "bg-positive/20 text-positive border border-positive/40"
               }`}>
                 {isDemo ? "DEMO MODE — Using sample data" : "LIVE MODE — Connected to real APIs"}
               </div>
-              <p className="text-sm text-slate-400 leading-relaxed mt-1">
+              <p className="text-sm text-muted-foreground leading-relaxed mt-1">
                 {isDemo
                   ? "No real API calls are being made. All numbers are generated from static seed data. Follow the steps below to switch to live mode."
                   : "The dashboard is reading from real Business Central, Microsoft Graph, and other API integrations. All figures reflect actual data."}
@@ -345,10 +346,10 @@ function GeneralTab() {
 
       {/* ── GO-LIVE CHECKLIST (only shown in demo mode) ─────────────── */}
       {isDemo && (
-        <Card className="bg-slate-900 border-slate-700">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
-              <Info className="size-4 text-amber-400" />
+            <CardTitle className="text-foreground text-sm font-semibold flex items-center gap-2">
+              <Info className="size-4 text-warning" />
               How to go live — step-by-step
             </CardTitle>
             <CardDescription>
@@ -359,20 +360,20 @@ function GeneralTab() {
             {goLiveSteps.map((step, i) => (
               <div
                 key={i}
-                className="flex items-start gap-3 rounded-lg bg-slate-800/60 border border-slate-700/60 px-4 py-3"
+                className="flex items-start gap-3 rounded-lg bg-accent border border-border px-4 py-3"
               >
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-700 border border-slate-600 text-[11px] font-bold text-slate-300 mt-0.5">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted border border-border text-[11px] font-bold text-foreground mt-0.5">
                   {i + 1}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white leading-snug">{step.label}</p>
-                  <div className="text-xs text-slate-400 mt-0.5 leading-relaxed">{step.detail}</div>
+                  <p className="text-sm font-semibold text-foreground leading-snug">{step.label}</p>
+                  <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{step.detail}</div>
                   {"link" in step && step.link && (
                     <a
                       href={step.link.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-teal-400 hover:text-teal-300 text-xs mt-1 transition-colors"
+                      className="inline-flex items-center gap-1 text-primary hover:text-primary/80 text-xs mt-1 transition-colors"
                     >
                       <ExternalLink className="h-3 w-3" />
                       {step.link.text}
@@ -386,10 +387,10 @@ function GeneralTab() {
       )}
 
       {/* ── CONNECTION STATUS ───────────────────────────────────────── */}
-      <Card className="bg-slate-900 border-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
-            <Wifi className="size-4 text-slate-400" />
+          <CardTitle className="text-foreground text-sm font-semibold flex items-center gap-2">
+            <Wifi className="size-4 text-muted-foreground" />
             Connection Status
           </CardTitle>
           <CardDescription>
@@ -398,12 +399,12 @@ function GeneralTab() {
         </CardHeader>
         <CardContent className="space-y-2">
           {connLoading ? (
-            <div className="flex items-center gap-2 text-slate-500 text-sm py-2">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
               <RefreshCw className="size-4 animate-spin" />
               Checking connections…
             </div>
           ) : connStatus === null ? (
-            <p className="text-xs text-red-400">Could not reach /api/status.</p>
+            <p className="text-xs text-negative">Could not reach /api/status.</p>
           ) : (
             integrationConnections.map(({ label, key, description }) => {
               const svc = connStatus.services[key];
@@ -411,19 +412,19 @@ function GeneralTab() {
               return (
                 <div
                   key={key}
-                  className="flex items-center justify-between rounded-lg bg-slate-800 px-4 py-2.5 gap-4"
+                  className="flex items-center justify-between rounded-lg bg-muted px-4 py-2.5 gap-4"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     {connected
-                      ? <Wifi className="size-4 text-emerald-400 shrink-0" />
-                      : <WifiOff className="size-4 text-slate-500 shrink-0" />
+                      ? <Wifi className="size-4 text-positive shrink-0" />
+                      : <WifiOff className="size-4 text-muted-foreground shrink-0" />
                     }
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-white leading-tight">{label}</p>
-                      <p className="text-[10px] font-mono text-slate-500 truncate">{description}</p>
+                      <p className="text-sm font-medium text-foreground leading-tight">{label}</p>
+                      <p className="text-[10px] font-mono text-muted-foreground truncate">{description}</p>
                     </div>
                   </div>
-                  <span className={`text-xs font-semibold shrink-0 ${svc?.connected ? "text-emerald-400" : connected ? "text-amber-400" : "text-slate-500"}`}>
+                  <span className={`text-xs font-semibold shrink-0 ${svc?.connected ? "text-positive" : connected ? "text-warning" : "text-muted-foreground"}`}>
                     {svc?.connected ? "Connected" : connected ? "Configured" : "Not set"}
                   </span>
                 </div>
@@ -434,10 +435,10 @@ function GeneralTab() {
       </Card>
 
       {/* ── SYNC STATUS ─────────────────────────────────────────────── */}
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
-            <RefreshCw className="size-4 text-slate-400" />
+          <CardTitle className="text-foreground text-sm font-semibold flex items-center gap-2">
+            <RefreshCw className="size-4 text-muted-foreground" />
             Data Sync
           </CardTitle>
           <CardDescription>
@@ -460,9 +461,9 @@ function GeneralTab() {
                   {sync.status === "error" && "Sync failed"}
                 </span>
               </div>
-              <p className="text-xs text-slate-500">{sync.message}</p>
+              <p className="text-xs text-muted-foreground">{sync.message}</p>
               {sync.lastSyncAt && (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   Last sync:{" "}
                   {new Date(sync.lastSyncAt).toLocaleString("en-BE", {
                     dateStyle: "medium",
@@ -474,7 +475,7 @@ function GeneralTab() {
             <Button
               onClick={handleSync}
               disabled={sync.status === "syncing"}
-              className="bg-teal-600 hover:bg-teal-500 text-white disabled:opacity-60 transition-colors shrink-0"
+              className="bg-primary hover:bg-primary text-primary-foreground disabled:opacity-60 transition-colors shrink-0"
             >
               <RefreshCw
                 className={`size-4 mr-2 ${
@@ -488,10 +489,10 @@ function GeneralTab() {
       </Card>
 
       {/* ── ACTIVE ENTITIES ─────────────────────────────────────────── */}
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
-            <Building2 className="size-4 text-slate-400" />
+          <CardTitle className="text-foreground text-sm font-semibold flex items-center gap-2">
+            <Building2 className="size-4 text-muted-foreground" />
             Active Entities
           </CardTitle>
           <CardDescription>
@@ -501,28 +502,28 @@ function GeneralTab() {
         </CardHeader>
         <CardContent className="space-y-3">
           {companies.length === 0 && (
-            <p className="text-sm text-slate-500 py-2">No companies loaded yet…</p>
+            <p className="text-sm text-muted-foreground py-2">No companies loaded yet…</p>
           )}
           {companies.map((company) => (
             <div
               key={company.id}
-              className="flex items-center justify-between rounded-lg bg-slate-800 px-4 py-3"
+              className="flex items-center justify-between rounded-lg bg-muted px-4 py-3"
             >
               <div className="flex items-center gap-3">
-                <Building2 className="size-4 text-slate-400 shrink-0" />
+                <Building2 className="size-4 text-muted-foreground shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-white">{company.name}</p>
-                  <p className="text-xs text-slate-500">{company.id}</p>
+                  <p className="text-sm font-medium text-foreground">{company.name}</p>
+                  <p className="text-xs text-muted-foreground">{company.id}</p>
                 </div>
               </div>
               <Switch
                 checked={company.active}
                 onCheckedChange={() => toggleCompany(company.id)}
-                className="data-[state=checked]:bg-teal-600"
+                className="data-[state=checked]:bg-primary"
               />
             </div>
           ))}
-          <p className="text-xs text-slate-500 pt-1">
+          <p className="text-xs text-muted-foreground pt-1">
             Disabled entities are excluded from spend totals, variance
             calculations, and all charts.
           </p>
@@ -530,10 +531,10 @@ function GeneralTab() {
       </Card>
 
       {/* ── SETUP WIZARD ────────────────────────────────────────────── */}
-      <Card className="bg-slate-900 border-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
-            <Wand2 className="size-4 text-slate-400" />
+          <CardTitle className="text-foreground text-sm font-semibold flex items-center gap-2">
+            <Wand2 className="size-4 text-muted-foreground" />
             First-Run Setup Wizard
           </CardTitle>
           <CardDescription>
@@ -544,7 +545,7 @@ function GeneralTab() {
           <Link href="/setup">
             <Button
               variant="ghost"
-              className="border border-slate-700 text-slate-300 hover:text-white hover:border-slate-600 text-sm"
+              className="border border-border text-foreground hover:text-foreground hover:border-border-strong text-sm"
             >
               <Wand2 className="size-4 mr-2" />
               Run Setup Wizard Again
@@ -631,9 +632,9 @@ function GLMappingTab() {
 
   return (
     <div className="space-y-6">
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold">
+          <CardTitle className="text-foreground text-sm font-semibold">
             GL Account → IT Category Mapping
           </CardTitle>
           <CardDescription>
@@ -644,14 +645,14 @@ function GLMappingTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-lg border border-slate-700 overflow-hidden">
+          <div className="rounded-lg border border-border overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-700 hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-medium w-48">
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-muted-foreground font-medium w-48">
                     GL Account No.
                   </TableHead>
-                  <TableHead className="text-slate-400 font-medium">
+                  <TableHead className="text-muted-foreground font-medium">
                     IT Cost Category
                   </TableHead>
                   <TableHead className="w-12" />
@@ -661,7 +662,7 @@ function GLMappingTab() {
                 {rows.map((row) => (
                   <TableRow
                     key={row.id}
-                    className="border-slate-700 hover:bg-slate-800/50"
+                    className="border-border hover:bg-accent"
                   >
                     <TableCell className="py-2">
                       <Input
@@ -670,7 +671,7 @@ function GLMappingTab() {
                           updateAccount(row.id, e.target.value)
                         }
                         placeholder="e.g. 61100"
-                        className="h-8 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-teal-500 focus:ring-teal-500/20 w-36"
+                        className="h-8 bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 w-36"
                       />
                     </TableCell>
                     <TableCell className="py-2">
@@ -678,15 +679,15 @@ function GLMappingTab() {
                         value={row.category}
                         onValueChange={(val) => val && updateCategory(row.id, val)}
                       >
-                        <SelectTrigger className="h-8 bg-slate-800 border-slate-700 text-white w-56 focus:border-teal-500">
+                        <SelectTrigger className="h-8 bg-muted border-border text-foreground w-56 focus:border-primary">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                        <SelectContent className="bg-muted border-border text-foreground">
                           {IT_CATEGORIES.map((cat) => (
                             <SelectItem
                               key={cat}
                               value={cat}
-                              className="focus:bg-slate-700 focus:text-white"
+                              className="focus:bg-accent focus:text-foreground"
                             >
                               {cat}
                             </SelectItem>
@@ -699,7 +700,7 @@ function GLMappingTab() {
                         variant="ghost"
                         size="sm"
                         onClick={() => removeRow(row.id)}
-                        className="size-8 p-0 text-slate-500 hover:text-red-400 hover:bg-red-400/10"
+                        className="size-8 p-0 text-muted-foreground hover:text-negative hover:bg-negative/10"
                       >
                         <Trash2 className="size-4" />
                         <span className="sr-only">Remove</span>
@@ -711,7 +712,7 @@ function GLMappingTab() {
                   <TableRow>
                     <TableCell
                       colSpan={3}
-                      className="text-center text-slate-500 py-8 text-sm"
+                      className="text-center text-muted-foreground py-8 text-sm"
                     >
                       No mappings defined. Add one below.
                     </TableCell>
@@ -726,7 +727,7 @@ function GLMappingTab() {
               variant="outline"
               size="sm"
               onClick={addRow}
-              className="border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+              className="border-border bg-muted text-foreground hover:bg-accent hover:text-foreground"
             >
               <Plus className="size-4 mr-2" />
               Add Mapping
@@ -741,10 +742,22 @@ function GLMappingTab() {
 
 // ─── Tab: Budget ───────────────────────────────────────────────────────────────
 
+// PCMN-kostenklassen waarvoor een CFO-jaardoel gezet kan worden.
+const CFO_CLASSES: { cls: string; label: string }[] = [
+  { cls: "60", label: "60 · Aankopen & handelsgoederen" },
+  { cls: "61", label: "61 · Diensten & diverse goederen" },
+  { cls: "62", label: "62 · Bezoldigingen & sociale lasten" },
+  { cls: "63", label: "63 · Afschrijvingen & waardeverm." },
+  { cls: "64", label: "64 · Andere bedrijfskosten" },
+];
+
 function BudgetTab() {
   const [budgets, setBudgets] = useState<Record<string, string>>({});
   const [consolidatedRevenue, setConsolidatedRevenue] = useState("");
   const [benchmarkPct, setBenchmarkPct] = useState("");
+  const [cfoRev, setCfoRev] = useState("");
+  const [cfoCost, setCfoCost] = useState("");
+  const [cfoClass, setCfoClass] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -759,6 +772,13 @@ function BudgetTab() {
         }
         if (d && typeof d.consolidatedRevenue === "number" && d.consolidatedRevenue > 0) setConsolidatedRevenue(String(d.consolidatedRevenue));
         if (d && typeof d.revenueBenchmarkPercent === "number") setBenchmarkPct(String(d.revenueBenchmarkPercent));
+        if (d && typeof d.cfoRevenueTarget === "number" && d.cfoRevenueTarget > 0) setCfoRev(String(d.cfoRevenueTarget));
+        if (d && typeof d.cfoCostTarget === "number" && d.cfoCostTarget > 0) setCfoCost(String(d.cfoCostTarget));
+        if (d && d.cfoClassTargets) {
+          const c: Record<string, string> = {};
+          for (const [k, v] of Object.entries(d.cfoClassTargets as Record<string, number>)) c[k] = String(v);
+          setCfoClass(c);
+        }
       })
       .catch(() => {});
   }, []);
@@ -778,6 +798,13 @@ function BudgetTab() {
       }
       const rev = parseFloat(consolidatedRevenue);
       const bench = parseFloat(benchmarkPct);
+      const cRev = parseFloat(cfoRev);
+      const cCost = parseFloat(cfoCost);
+      const classTargets: Record<string, number> = {};
+      for (const [cls, raw] of Object.entries(cfoClass)) {
+        const n = parseFloat(raw);
+        if (Number.isFinite(n) && n > 0) classTargets[cls] = n;
+      }
       await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -785,6 +812,9 @@ function BudgetTab() {
           budgets: parsed,
           consolidatedRevenue: Number.isFinite(rev) && rev > 0 ? rev : 0,
           revenueBenchmarkPercent: Number.isFinite(bench) && bench > 0 ? bench : 3.3,
+          cfoRevenueTarget: Number.isFinite(cRev) && cRev > 0 ? cRev : 0,
+          cfoCostTarget: Number.isFinite(cCost) && cCost > 0 ? cCost : 0,
+          cfoClassTargets: classTargets,
         }),
       });
       setSaved(true);
@@ -795,9 +825,9 @@ function BudgetTab() {
 
   return (
     <div className="space-y-6">
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold">Revenue & IT-Spend Benchmark</CardTitle>
+          <CardTitle className="text-foreground text-sm font-semibold">Revenue & IT-Spend Benchmark</CardTitle>
           <CardDescription>
             IT spend as a % of revenue is the key economic benchmark. We use gross BC turnover by default,
             but that&apos;s inflated by intercompany — enter your <strong>audited consolidated revenue</strong>
@@ -808,55 +838,104 @@ function BudgetTab() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-400">Consolidated annual revenue (EUR) — optional</label>
+              <label className="text-xs text-muted-foreground">Consolidated annual revenue (EUR) — optional</label>
               <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 text-sm">€</span>
+                <span className="text-muted-foreground text-sm">€</span>
                 <Input type="number" min={0} step={100000} value={consolidatedRevenue}
                   onChange={(e) => { setConsolidatedRevenue(e.target.value); setSaved(false); }}
                   placeholder="leave blank to use gross BC turnover"
-                  className="h-8 bg-slate-800 border-slate-700 text-white focus:border-teal-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                  className="h-8 bg-muted border-border text-foreground focus:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-400">Benchmark IT-spend % of revenue</label>
+              <label className="text-xs text-muted-foreground">Benchmark IT-spend % of revenue</label>
               <div className="flex items-center gap-1.5">
                 <Input type="number" min={0} step={0.1} value={benchmarkPct}
                   onChange={(e) => { setBenchmarkPct(e.target.value); setSaved(false); }}
                   placeholder="3.3"
-                  className="h-8 w-28 bg-slate-800 border-slate-700 text-white focus:border-teal-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                <span className="text-slate-400 text-sm">%</span>
+                  className="h-8 w-28 bg-muted border-border text-foreground focus:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                <span className="text-muted-foreground text-sm">%</span>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold">Monthly Budget by Category</CardTitle>
+          <CardTitle className="text-foreground text-sm font-semibold">CFO Cockpit — jaardoelen (groep)</CardTitle>
+          <CardDescription>
+            Jaardoelen voor de financiële cockpit (/cfo): omzet- en kostendoel voor de budgetlijn,
+            plus optioneel een <strong>jaardoel per PCMN-kostenklasse</strong> — de cockpit toont dan
+            per klasse de afwijking t.o.v. het pro-rata doel. Bedragen in EUR per jaar; leeg = geen doel.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Omzetdoel (EUR/jaar)</label>
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground text-sm">€</span>
+                <Input type="number" min={0} step={500000} value={cfoRev}
+                  onChange={(e) => { setCfoRev(e.target.value); setSaved(false); }}
+                  placeholder="bv. 66000000"
+                  className="h-8 bg-muted border-border text-foreground focus:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Kostendoel (EUR/jaar)</label>
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground text-sm">€</span>
+                <Input type="number" min={0} step={500000} value={cfoCost}
+                  onChange={(e) => { setCfoCost(e.target.value); setSaved(false); }}
+                  placeholder="bv. 62000000"
+                  className="h-8 bg-muted border-border text-foreground focus:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {CFO_CLASSES.map(({ cls, label }) => (
+              <div key={cls} className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">{label}</label>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground text-sm">€</span>
+                  <Input type="number" min={0} step={100000} value={cfoClass[cls] ?? ""}
+                    onChange={(e) => { setCfoClass((c) => ({ ...c, [cls]: e.target.value })); setSaved(false); }}
+                    placeholder="geen doel"
+                    className="h-8 bg-muted border-border text-foreground focus:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-foreground text-sm font-semibold">Monthly Budget by Category</CardTitle>
           <CardDescription>
             Enter a <strong>monthly</strong> budget (EUR, excl. VAT) per IT cost category. The Budget
             page and dashboard then show variance vs your real spend. Leave blank/0 for no budget.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-lg border border-slate-700 overflow-hidden">
+          <div className="rounded-lg border border-border overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-700 hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-medium">Category</TableHead>
-                  <TableHead className="text-slate-400 font-medium w-56 text-right pr-6">
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-muted-foreground font-medium">Category</TableHead>
+                  <TableHead className="text-muted-foreground font-medium w-56 text-right pr-6">
                     Monthly Budget (EUR)
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {IT_CATEGORIES.map((cat) => (
-                  <TableRow key={cat} className="border-slate-700 hover:bg-slate-800/50">
-                    <TableCell className="py-2 text-sm text-slate-300">{cat}</TableCell>
+                  <TableRow key={cat} className="border-border hover:bg-accent">
+                    <TableCell className="py-2 text-sm text-foreground">{cat}</TableCell>
                     <TableCell className="py-2 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5">
-                        <span className="text-slate-400 text-sm">€</span>
+                        <span className="text-muted-foreground text-sm">€</span>
                         <Input
                           type="number"
                           min={0}
@@ -864,7 +943,7 @@ function BudgetTab() {
                           value={budgets[cat] ?? ""}
                           onChange={(e) => update(cat, e.target.value)}
                           placeholder="0"
-                          className="h-8 w-32 bg-slate-800 border-slate-700 text-white text-right focus:border-teal-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="h-8 w-32 bg-muted border-border text-foreground text-right focus:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                     </TableCell>
@@ -951,9 +1030,9 @@ function VendorRulesTab() {
 
   return (
     <div className="space-y-6">
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold">IT Vendor Allowlist</CardTitle>
+          <CardTitle className="text-foreground text-sm font-semibold">IT Vendor Allowlist</CardTitle>
           <CardDescription>
             Vendors whose spend should count as IT <em>regardless of which G/L account it lands on</em>
             (e.g. iDocta, or Canon printers booked to office supplies). Matching is case-insensitive on
@@ -962,34 +1041,34 @@ function VendorRulesTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-lg border border-slate-700 overflow-hidden">
+          <div className="rounded-lg border border-border overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-700 hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-medium w-64">Vendor name contains…</TableHead>
-                  <TableHead className="text-slate-400 font-medium">Cost Category</TableHead>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-muted-foreground font-medium w-64">Vendor name contains…</TableHead>
+                  <TableHead className="text-muted-foreground font-medium">Cost Category</TableHead>
                   <TableHead className="w-12" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((row) => (
-                  <TableRow key={row.id} className="border-slate-700 hover:bg-slate-800/50">
+                  <TableRow key={row.id} className="border-border hover:bg-accent">
                     <TableCell className="py-2">
                       <Input
                         value={row.pattern}
                         onChange={(e) => updatePattern(row.id, e.target.value)}
                         placeholder="e.g. idocta"
-                        className="h-8 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-teal-500 w-56"
+                        className="h-8 bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary w-56"
                       />
                     </TableCell>
                     <TableCell className="py-2">
                       <Select value={row.category} onValueChange={(val) => val && updateCategory(row.id, val)}>
-                        <SelectTrigger className="h-8 bg-slate-800 border-slate-700 text-white w-56 focus:border-teal-500">
+                        <SelectTrigger className="h-8 bg-muted border-border text-foreground w-56 focus:border-primary">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                        <SelectContent className="bg-muted border-border text-foreground">
                           {IT_CATEGORIES.map((cat) => (
-                            <SelectItem key={cat} value={cat} className="focus:bg-slate-700 focus:text-white">
+                            <SelectItem key={cat} value={cat} className="focus:bg-accent focus:text-foreground">
                               {cat}
                             </SelectItem>
                           ))}
@@ -1001,7 +1080,7 @@ function VendorRulesTab() {
                         variant="ghost"
                         size="sm"
                         onClick={() => removeRow(row.id)}
-                        className="size-8 p-0 text-slate-500 hover:text-red-400 hover:bg-red-400/10"
+                        className="size-8 p-0 text-muted-foreground hover:text-negative hover:bg-negative/10"
                       >
                         <Trash2 className="size-4" />
                         <span className="sr-only">Remove</span>
@@ -1011,7 +1090,7 @@ function VendorRulesTab() {
                 ))}
                 {rows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center text-slate-500 py-8 text-sm">
+                    <TableCell colSpan={3} className="text-center text-muted-foreground py-8 text-sm">
                       No vendor rules. Add one below.
                     </TableCell>
                   </TableRow>
@@ -1024,7 +1103,7 @@ function VendorRulesTab() {
               variant="outline"
               size="sm"
               onClick={addRow}
-              className="border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+              className="border-border bg-muted text-foreground hover:bg-accent hover:text-foreground"
             >
               <Plus className="size-4 mr-2" />
               Add Vendor
@@ -1080,9 +1159,9 @@ function OperationalSoftwareTab() {
 
   return (
     <div className="space-y-6">
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold">Operational / Business-System Software</CardTitle>
+          <CardTitle className="text-foreground text-sm font-semibold">Operational / Business-System Software</CardTitle>
           <CardDescription>
             Transport software that runs the <em>business</em> rather than the IT estate — TMS, telematics,
             route &amp; port platforms (Transics, PTV, Trimble, Eurotracs, Transporeon…). These are tagged
@@ -1091,10 +1170,10 @@ function OperationalSoftwareTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-3">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-accent px-4 py-3">
             <div>
-              <p className="text-sm font-medium text-white">Count operational software in the IT total</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-sm font-medium text-foreground">Count operational software in the IT total</p>
+              <p className="text-xs text-muted-foreground">
                 {include
                   ? "On — shown as its own “Operational Software” category and included in IT spend."
                   : "Off — excluded from IT spend (treated as non-IT business cost)."}
@@ -1103,27 +1182,27 @@ function OperationalSoftwareTab() {
             <Switch checked={include} onCheckedChange={(v) => { setInclude(Boolean(v)); setSaved(false); }} />
           </div>
 
-          <div className="rounded-lg border border-slate-700 overflow-hidden">
+          <div className="rounded-lg border border-border overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-700 hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-medium">Vendor name contains…</TableHead>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-muted-foreground font-medium">Vendor name contains…</TableHead>
                   <TableHead className="w-12" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {vendors.map((row) => (
-                  <TableRow key={row.id} className="border-slate-700 hover:bg-slate-800/50">
+                  <TableRow key={row.id} className="border-border hover:bg-accent">
                     <TableCell className="py-2">
                       <Input
                         value={row.pattern}
                         onChange={(e) => updateRow(row.id, e.target.value)}
                         placeholder="e.g. transics"
-                        className="h-8 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-teal-500 w-64"
+                        className="h-8 bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary w-64"
                       />
                     </TableCell>
                     <TableCell className="py-2">
-                      <Button variant="ghost" size="sm" onClick={() => removeRow(row.id)} className="size-8 p-0 text-slate-500 hover:text-red-400 hover:bg-red-400/10">
+                      <Button variant="ghost" size="sm" onClick={() => removeRow(row.id)} className="size-8 p-0 text-muted-foreground hover:text-negative hover:bg-negative/10">
                         <Trash2 className="size-4" />
                         <span className="sr-only">Remove</span>
                       </Button>
@@ -1132,7 +1211,7 @@ function OperationalSoftwareTab() {
                 ))}
                 {vendors.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={2} className="text-center text-slate-500 py-8 text-sm">
+                    <TableCell colSpan={2} className="text-center text-muted-foreground py-8 text-sm">
                       No operational-software vendors. Add one below.
                     </TableCell>
                   </TableRow>
@@ -1141,7 +1220,7 @@ function OperationalSoftwareTab() {
             </Table>
           </div>
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <Button variant="outline" size="sm" onClick={addRow} className="border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white">
+            <Button variant="outline" size="sm" onClick={addRow} className="border-border bg-muted text-foreground hover:bg-accent hover:text-foreground">
               <Plus className="size-4 mr-2" />
               Add Vendor
             </Button>
@@ -1191,19 +1270,19 @@ function FeaturesTab() {
 
   return (
     <div className="space-y-6">
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold">Beta / Optional Features</CardTitle>
+          <CardTitle className="text-foreground text-sm font-semibold">Beta / Optional Features</CardTitle>
           <CardDescription>
             Toggle features that aren&apos;t fully wired to a live source yet. Off by default so they
             don&apos;t show half-finished.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-3">
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-accent px-4 py-3">
             <div>
-              <p className="text-sm font-medium text-white">Peppol e-invoicing page</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-sm font-medium text-foreground">Peppol e-invoicing page</p>
+              <p className="text-xs text-muted-foreground">
                 {showPeppol
                   ? "On — shown in the navigation."
                   : "Off — hidden from the navigation. It isn't connected to a live Peppol Access Point yet (manual UBL upload + compliance reference only)."}
@@ -1212,12 +1291,12 @@ function FeaturesTab() {
             <Switch checked={showPeppol} onCheckedChange={(v) => { setShowPeppol(Boolean(v)); setSaved(false); }} />
           </div>
 
-          <div className="rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-3 space-y-1.5">
-            <p className="text-sm font-medium text-white">License optimization buffer (spare seats)</p>
-            <p className="text-xs text-slate-500">Spare seats per SKU NOT counted as reclaimable waste (kept for new hires). 0 = flag every unused seat.</p>
+          <div className="rounded-lg border border-border bg-accent px-4 py-3 space-y-1.5">
+            <p className="text-sm font-medium text-foreground">License optimization buffer (spare seats)</p>
+            <p className="text-xs text-muted-foreground">Spare seats per SKU NOT counted as reclaimable waste (kept for new hires). 0 = flag every unused seat.</p>
             <Input type="number" min={0} step={1} value={licBuffer}
               onChange={(e) => { setLicBuffer(e.target.value); setSaved(false); }}
-              placeholder="0" className="h-8 w-28 bg-slate-800 border-slate-700 text-white focus:border-teal-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              placeholder="0" className="h-8 w-28 bg-muted border-border text-foreground focus:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
           </div>
 
           <div className="flex items-center justify-end gap-4">
@@ -1282,9 +1361,9 @@ function LicensePricesTab() {
 
   return (
     <div className="space-y-6">
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold">
+          <CardTitle className="text-foreground text-sm font-semibold">
             Microsoft License Prices
           </CardTitle>
           <CardDescription>
@@ -1294,17 +1373,17 @@ function LicensePricesTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-lg border border-slate-700 overflow-hidden">
+          <div className="rounded-lg border border-border overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-700 hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-medium w-48">
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-muted-foreground font-medium w-48">
                     SKU Part Number
                   </TableHead>
-                  <TableHead className="text-slate-400 font-medium">
+                  <TableHead className="text-muted-foreground font-medium">
                     Display Name
                   </TableHead>
-                  <TableHead className="text-slate-400 font-medium w-44 text-right pr-6">
+                  <TableHead className="text-muted-foreground font-medium w-44 text-right pr-6">
                     Price / User / Month (EUR)
                   </TableHead>
                 </TableRow>
@@ -1313,26 +1392,26 @@ function LicensePricesTab() {
                 {rows.map((row) => (
                   <TableRow
                     key={row.id}
-                    className="border-slate-700 hover:bg-slate-800/50"
+                    className="border-border hover:bg-accent"
                   >
                     <TableCell className="py-2">
-                      <code className="text-xs text-teal-300 bg-slate-800 px-2 py-1 rounded font-mono">
+                      <code className="text-xs text-primary bg-muted px-2 py-1 rounded font-mono">
                         {row.skuPartNumber}
                       </code>
                     </TableCell>
-                    <TableCell className="py-2 text-sm text-slate-300">
+                    <TableCell className="py-2 text-sm text-foreground">
                       {row.displayName}
                     </TableCell>
                     <TableCell className="py-2 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5">
-                        <span className="text-slate-400 text-sm">€</span>
+                        <span className="text-muted-foreground text-sm">€</span>
                         <Input
                           type="number"
                           min={0}
                           step={0.01}
                           value={row.pricePerUser}
                           onChange={(e) => updatePrice(row.id, e.target.value)}
-                          className="h-8 w-24 bg-slate-800 border-slate-700 text-white text-right focus:border-teal-500 focus:ring-teal-500/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="h-8 w-24 bg-muted border-border text-foreground text-right focus:border-primary focus:ring-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                     </TableCell>
@@ -1343,7 +1422,7 @@ function LicensePricesTab() {
           </div>
 
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <p className="text-xs text-slate-500 max-w-md">
+            <p className="text-xs text-muted-foreground max-w-md">
               Prices are stored on the server and applied to license cost/waste
               calculations. They are never sent to Microsoft.
             </p>
@@ -1389,29 +1468,29 @@ function AboutTab() {
       description:
         "Azure subscription resource costs, grouped by service and resource group.",
       icon: Database,
-      color: "text-teal-400",
-      bg: "bg-teal-400/10",
+      color: "text-primary",
+      bg: "bg-primary/10",
     },
   ];
 
   return (
     <div className="space-y-6">
       {/* App info */}
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+      <Card>
         <CardHeader>
           <div className="flex items-start gap-4">
-            <div className="size-12 rounded-xl bg-teal-600/20 flex items-center justify-center shrink-0">
-              <Database className="size-6 text-teal-400" />
+            <div className="size-12 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+              <Database className="size-6 text-primary" />
             </div>
             <div className="space-y-1">
-              <CardTitle className="text-white text-base font-semibold">
+              <CardTitle className="text-foreground text-base font-semibold">
                 IT Finance Dashboard
               </CardTitle>
               <CardDescription>
                 Unified IT spend visibility across Business Central entities,
                 Microsoft 365 licensing, and Azure cloud costs.
               </CardDescription>
-              <Badge className="mt-1 bg-teal-500/20 text-teal-300 border-teal-500/30 text-xs">
+              <Badge className="mt-1 bg-primary/15 text-primary border-primary/30 text-xs">
                 v1.0.0
               </Badge>
             </div>
@@ -1420,10 +1499,10 @@ function AboutTab() {
       </Card>
 
       {/* Tech stack */}
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
-            <Code2 className="size-4 text-slate-400" />
+          <CardTitle className="text-foreground text-sm font-semibold flex items-center gap-2">
+            <Code2 className="size-4 text-muted-foreground" />
             Technology Stack
           </CardTitle>
         </CardHeader>
@@ -1432,10 +1511,10 @@ function AboutTab() {
             {techStack.map(({ label, value }) => (
               <div
                 key={label}
-                className="flex items-center justify-between rounded-lg bg-slate-800 px-3 py-2 gap-4"
+                className="flex items-center justify-between rounded-lg bg-muted px-3 py-2 gap-4"
               >
-                <span className="text-xs text-slate-400 shrink-0">{label}</span>
-                <span className="text-xs text-slate-200 font-medium text-right">
+                <span className="text-xs text-muted-foreground shrink-0">{label}</span>
+                <span className="text-xs text-foreground font-medium text-right">
                   {value}
                 </span>
               </div>
@@ -1445,10 +1524,10 @@ function AboutTab() {
       </Card>
 
       {/* Data sources */}
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
-            <Database className="size-4 text-slate-400" />
+          <CardTitle className="text-foreground text-sm font-semibold flex items-center gap-2">
+            <Database className="size-4 text-muted-foreground" />
             Data Sources
           </CardTitle>
         </CardHeader>
@@ -1456,7 +1535,7 @@ function AboutTab() {
           {dataSources.map(({ name, description, icon: Icon, color, bg }) => (
             <div
               key={name}
-              className="flex items-start gap-3 rounded-lg bg-slate-800 px-4 py-3"
+              className="flex items-start gap-3 rounded-lg bg-muted px-4 py-3"
             >
               <div
                 className={`size-8 rounded-lg ${bg} flex items-center justify-center shrink-0 mt-0.5`}
@@ -1464,8 +1543,8 @@ function AboutTab() {
                 <Icon className={`size-4 ${color}`} />
               </div>
               <div className="space-y-0.5">
-                <p className="text-sm font-medium text-white">{name}</p>
-                <p className="text-xs text-slate-400 leading-relaxed">
+                <p className="text-sm font-medium text-foreground">{name}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
                   {description}
                 </p>
               </div>
@@ -1475,10 +1554,10 @@ function AboutTab() {
       </Card>
 
       {/* Documentation links */}
-      <Card className="bg-slate-900 border-slate-700 ring-slate-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
-            <ExternalLink className="size-4 text-slate-400" />
+          <CardTitle className="text-foreground text-sm font-semibold flex items-center gap-2">
+            <ExternalLink className="size-4 text-muted-foreground" />
             Documentation
           </CardTitle>
         </CardHeader>
@@ -1508,15 +1587,15 @@ function AboutTab() {
             <a
               key={label}
               href={href}
-              className="flex items-start justify-between rounded-lg bg-slate-800 px-4 py-3 group hover:bg-slate-700 transition-colors"
+              className="flex items-start justify-between rounded-lg bg-muted px-4 py-3 group hover:bg-accent transition-colors"
             >
               <div className="space-y-0.5">
-                <p className="text-sm font-medium text-teal-400 group-hover:text-teal-300">
+                <p className="text-sm font-medium text-primary group-hover:text-primary/80">
                   {label}
                 </p>
-                <p className="text-xs text-slate-500">{note}</p>
+                <p className="text-xs text-muted-foreground">{note}</p>
               </div>
-              <ExternalLink className="size-3.5 text-slate-500 group-hover:text-slate-300 shrink-0 mt-1" />
+              <ExternalLink className="size-3.5 text-muted-foreground group-hover:text-foreground shrink-0 mt-1" />
             </a>
           ))}
         </CardContent>
@@ -1530,60 +1609,58 @@ function AboutTab() {
 export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-4xl">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Settings</h1>
-        <p className="text-slate-400">
-          Configure data sources, account mappings, and licence prices.
-        </p>
-      </div>
+      <PageHeader
+        title="Settings"
+        description="Configure data sources, account mappings, and licence prices."
+      />
 
       <Tabs defaultValue="general">
-        <TabsList className="bg-slate-800 border border-slate-700 h-auto p-1 gap-1 w-full sm:w-auto">
+        <TabsList className="bg-muted border border-border h-auto p-1 gap-1 w-full sm:w-auto">
           <TabsTrigger
             value="general"
-            className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
+            className="text-muted-foreground data-active:bg-accent data-active:text-foreground px-4 py-1.5 text-sm rounded-md transition-colors"
           >
             General
           </TabsTrigger>
           <TabsTrigger
             value="gl-mapping"
-            className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
+            className="text-muted-foreground data-active:bg-accent data-active:text-foreground px-4 py-1.5 text-sm rounded-md transition-colors"
           >
             GL Mapping
           </TabsTrigger>
           <TabsTrigger
             value="budget"
-            className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
+            className="text-muted-foreground data-active:bg-accent data-active:text-foreground px-4 py-1.5 text-sm rounded-md transition-colors"
           >
             Budget
           </TabsTrigger>
           <TabsTrigger
             value="vendors"
-            className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
+            className="text-muted-foreground data-active:bg-accent data-active:text-foreground px-4 py-1.5 text-sm rounded-md transition-colors"
           >
             IT Vendors
           </TabsTrigger>
           <TabsTrigger
             value="operational"
-            className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
+            className="text-muted-foreground data-active:bg-accent data-active:text-foreground px-4 py-1.5 text-sm rounded-md transition-colors"
           >
             Operational SW
           </TabsTrigger>
           <TabsTrigger
             value="features"
-            className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
+            className="text-muted-foreground data-active:bg-accent data-active:text-foreground px-4 py-1.5 text-sm rounded-md transition-colors"
           >
             Features
           </TabsTrigger>
           <TabsTrigger
             value="license-prices"
-            className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
+            className="text-muted-foreground data-active:bg-accent data-active:text-foreground px-4 py-1.5 text-sm rounded-md transition-colors"
           >
             License Prices
           </TabsTrigger>
           <TabsTrigger
             value="about"
-            className="text-slate-400 data-active:bg-slate-700 data-active:text-white px-4 py-1.5 text-sm rounded-md transition-colors"
+            className="text-muted-foreground data-active:bg-accent data-active:text-foreground px-4 py-1.5 text-sm rounded-md transition-colors"
           >
             About
           </TabsTrigger>

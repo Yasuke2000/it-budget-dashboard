@@ -4,8 +4,10 @@ import { useState } from "react";
 import { GDPRToggle } from "./gdpr-toggle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KPICard } from "@/components/dashboard/kpi-card";
+import { PageHeader } from "@/components/layout/page-header";
 import { ITTeamTable } from "./it-team-table";
 import { formatCurrency } from "@/lib/utils";
+import { useChartPalette } from "@/lib/chart-theme";
 import type { Employee, PersonnelKPIs } from "@/lib/types";
 import {
   BarChart,
@@ -32,8 +34,6 @@ function anonymizeEmployees(employees: Employee[]): Employee[] {
   }));
 }
 
-const COST_COLORS = ["#14b8a6", "#3b82f6", "#a855f7"];
-
 interface CostTooltipPayloadEntry {
   value: number;
   payload?: { name?: string };
@@ -43,9 +43,9 @@ function CostTooltip({ active, payload, privacyMode }: { active?: boolean; paylo
   if (!active || !payload || !payload.length) return null;
   const entry = payload[0];
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-xs shadow-xl">
-      <p className="text-slate-300 mb-0.5 font-medium">{entry.payload?.name}</p>
-      <p className="font-mono text-white">
+    <div className="rounded-lg border border-border bg-popover/95 p-3 text-xs shadow-xl backdrop-blur-sm">
+      <p className="text-muted-foreground mb-0.5 font-medium">{entry.payload?.name}</p>
+      <p className="font-mono text-foreground">
         {privacyMode ? "•••" : formatCurrency(entry.value as number)}
       </p>
     </div>
@@ -54,6 +54,8 @@ function CostTooltip({ active, payload, privacyMode }: { active?: boolean; paylo
 
 export function PersonnelContent({ employees, kpis }: PersonnelContentProps) {
   const [privacyMode, setPrivacyMode] = useState(true);
+  const p = useChartPalette();
+  const COST_COLORS = [p.categorical[0], p.categorical[1], p.categorical[4]];
 
   const displayEmployees = privacyMode ? anonymizeEmployees(employees) : employees;
 
@@ -67,15 +69,11 @@ export function PersonnelContent({ employees, kpis }: PersonnelContentProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">IT Team</h1>
-          <p className="text-slate-400">
-            Roster &amp; per-person employer cost from Officient HR
-          </p>
-        </div>
-        <GDPRToggle enabled={privacyMode} onChange={setPrivacyMode} />
-      </div>
+      <PageHeader
+        title="IT Team"
+        description="Roster & per-person employer cost from Officient HR"
+        actions={<GDPRToggle enabled={privacyMode} onChange={setPrivacyMode} />}
+      />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -109,10 +107,10 @@ export function PersonnelContent({ employees, kpis }: PersonnelContentProps) {
       </div>
 
       {/* IT Cost Breakdown */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white">IT Cost Breakdown</CardTitle>
-          <p className="text-sm text-slate-400">
+          <CardTitle className="text-foreground">IT Cost Breakdown</CardTitle>
+          <p className="text-sm text-muted-foreground">
             {privacyMode
               ? "Monthly cost categories — amounts hidden"
               : `${formatCurrency(kpis.itSalaryCost + kpis.externalServicesCost + kpis.toolsLicensesCost)} / month total`}
@@ -125,15 +123,15 @@ export function PersonnelContent({ employees, kpis }: PersonnelContentProps) {
               margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
               barCategoryGap="30%"
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+              <CartesianGrid stroke={p.grid} vertical={false} />
               <XAxis
                 dataKey="name"
-                tick={{ fill: "#94a3b8", fontSize: 11 }}
+                tick={{ fill: p.text, fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fill: "#94a3b8", fontSize: 11 }}
+                tick={{ fill: p.textMuted, fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v: number) =>
@@ -158,9 +156,9 @@ export function PersonnelContent({ employees, kpis }: PersonnelContentProps) {
                     className="inline-block w-2.5 h-2.5 rounded-sm"
                     style={{ backgroundColor: item.color }}
                   />
-                  <span className="text-slate-400">{item.name}</span>
+                  <span className="text-muted-foreground">{item.name}</span>
                 </div>
-                <span className="font-mono text-slate-300 tabular-nums">
+                <span className="font-mono text-foreground tabular-nums">
                   {privacyMode ? "•••" : formatCurrency(item.value)}
                 </span>
               </div>
@@ -170,10 +168,10 @@ export function PersonnelContent({ employees, kpis }: PersonnelContentProps) {
       </Card>
 
       {/* IT Team Table */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white">IT Team</CardTitle>
-          <p className="text-sm text-slate-400">
+          <CardTitle className="text-foreground">IT Team</CardTitle>
+          <p className="text-sm text-muted-foreground">
             {kpis.itHeadcount} members · monthly employer cost — internal from Officient (gross + charges + provisions), external from BC
           </p>
         </CardHeader>

@@ -79,17 +79,17 @@ export function ChatPanel() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-950">
+    <div className="flex flex-col h-full bg-background">
       {/* Header actions */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800">
-        <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
           Chat
         </span>
         {messages.length > 0 && (
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-xs text-slate-400 hover:text-white hover:bg-slate-800"
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent"
             onClick={clearChat}
           >
             <RotateCcw className="h-3 w-3 mr-1" />
@@ -105,13 +105,13 @@ export function ChatPanel() {
             {/* Empty state with suggestions */}
             {messages.length === 0 && (
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-teal-400">
+                <div className="flex items-center gap-2 text-primary">
                   <Sparkles className="h-5 w-5" />
                   <span className="text-sm font-medium">
                     Ask about your IT finances
                   </span>
                 </div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   I can analyze your spending, licenses, vendors, contracts, and
                   budget. Try one of these:
                 </p>
@@ -121,7 +121,7 @@ export function ChatPanel() {
                       key={suggestion}
                       type="button"
                       onClick={() => sendMessage(suggestion)}
-                      className="inline-flex items-center rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-teal-400 hover:border-teal-400/50 transition-colors cursor-pointer"
+                      className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1.5 text-xs text-foreground hover:bg-accent hover:text-primary hover:border-primary/50 transition-colors cursor-pointer"
                     >
                       {suggestion}
                     </button>
@@ -137,26 +137,26 @@ export function ChatPanel() {
                 className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 {msg.role === "assistant" && (
-                  <div className="flex-shrink-0 h-7 w-7 rounded-full bg-teal-600/20 flex items-center justify-center mt-0.5">
-                    <Bot className="h-4 w-4 text-teal-400" />
+                  <div className="flex-shrink-0 h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center mt-0.5">
+                    <Bot className="h-4 w-4 text-primary" />
                   </div>
                 )}
                 <div
                   className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed ${
                     msg.role === "user"
-                      ? "bg-teal-600/20 text-slate-200"
-                      : "bg-slate-800 text-slate-300"
+                      ? "bg-primary/15 text-foreground"
+                      : "bg-muted text-foreground"
                   }`}
                 >
                   {msg.role === "assistant" ? (
                     <ReactMarkdown
                       components={{
                         p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                        strong: ({ children }) => <strong className="text-white font-semibold">{children}</strong>,
+                        strong: ({ children }) => <strong className="text-foreground font-semibold">{children}</strong>,
                         ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
                         ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
                         li: ({ children }) => <li>{children}</li>,
-                        code: ({ children }) => <code className="bg-slate-700 px-1 py-0.5 rounded text-xs font-mono text-teal-300">{children}</code>,
+                        code: ({ children }) => <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono text-primary">{children}</code>,
                       }}
                     >
                       {msg.content}
@@ -166,8 +166,8 @@ export function ChatPanel() {
                   )}
                 </div>
                 {msg.role === "user" && (
-                  <div className="flex-shrink-0 h-7 w-7 rounded-full bg-slate-700 flex items-center justify-center mt-0.5">
-                    <User className="h-4 w-4 text-slate-300" />
+                  <div className="flex-shrink-0 h-7 w-7 rounded-full bg-muted flex items-center justify-center mt-0.5">
+                    <User className="h-4 w-4 text-foreground" />
                   </div>
                 )}
               </div>
@@ -176,14 +176,14 @@ export function ChatPanel() {
             {/* Loading indicator */}
             {loading && (
               <div className="flex gap-3 justify-start">
-                <div className="flex-shrink-0 h-7 w-7 rounded-full bg-teal-600/20 flex items-center justify-center mt-0.5">
-                  <Bot className="h-4 w-4 text-teal-400" />
+                <div className="flex-shrink-0 h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center mt-0.5">
+                  <Bot className="h-4 w-4 text-primary" />
                 </div>
-                <div className="bg-slate-800 rounded-lg px-3 py-2">
+                <div className="bg-muted rounded-lg px-3 py-2">
                   <div className="flex gap-1">
-                    <span className="h-2 w-2 rounded-full bg-teal-400 animate-bounce [animation-delay:0ms]" />
-                    <span className="h-2 w-2 rounded-full bg-teal-400 animate-bounce [animation-delay:150ms]" />
-                    <span className="h-2 w-2 rounded-full bg-teal-400 animate-bounce [animation-delay:300ms]" />
+                    <span className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:0ms]" />
+                    <span className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:150ms]" />
+                    <span className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:300ms]" />
                   </div>
                 </div>
               </div>
@@ -193,7 +193,7 @@ export function ChatPanel() {
       </ScrollArea>
 
       {/* Input bar */}
-      <div className="border-t border-slate-800 p-3">
+      <div className="border-t border-border p-3">
         <div className="flex gap-2">
           <Input
             value={input}
@@ -201,11 +201,11 @@ export function ChatPanel() {
             onKeyDown={handleKeyDown}
             placeholder="Ask about your IT finances..."
             disabled={loading}
-            className="flex-1 bg-slate-900 border-slate-700 text-slate-200 placeholder:text-slate-500 focus-visible:border-teal-500 focus-visible:ring-teal-500/20"
+            className="flex-1 bg-card border-border-strong text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
           />
           <Button
             size="icon"
-            className="h-8 w-8 bg-teal-600 hover:bg-teal-500 text-white shrink-0"
+            className="h-8 w-8 bg-primary hover:bg-primary/90 text-primary-foreground shrink-0"
             onClick={() => sendMessage(input)}
             disabled={loading || !input.trim()}
           >

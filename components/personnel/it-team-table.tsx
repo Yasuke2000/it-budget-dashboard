@@ -30,40 +30,40 @@ export function ITTeamTable({ employees }: ITTeamTableProps) {
   const hasExternal = itTeam.some((e) => e.isExternal);
 
   return (
-    <div className="rounded-lg border border-slate-800 overflow-x-auto">
+    <div className="rounded-lg border border-border overflow-x-auto">
       <Table>
         <TableHeader>
-          <TableRow className="border-slate-800 hover:bg-transparent">
-            <TableHead className="text-slate-400 font-semibold pl-4">Name</TableHead>
-            <TableHead className="text-slate-400 font-semibold">Role</TableHead>
-            <TableHead className="text-slate-400 font-semibold">Start Date</TableHead>
-            <TableHead className="text-slate-400 font-semibold text-right">Monthly Cost</TableHead>
-            <TableHead className="text-slate-400 font-semibold text-right pr-4">Annual Cost</TableHead>
+          <TableRow className="border-border hover:bg-transparent">
+            <TableHead className="text-muted-foreground font-semibold pl-4">Name</TableHead>
+            <TableHead className="text-muted-foreground font-semibold">Role</TableHead>
+            <TableHead className="text-muted-foreground font-semibold">Start Date</TableHead>
+            <TableHead className="text-muted-foreground font-semibold text-right">Monthly Cost</TableHead>
+            <TableHead className="text-muted-foreground font-semibold text-right pr-4">Annual Cost</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {itTeam.length === 0 ? (
-            <TableRow className="border-slate-800 hover:bg-transparent">
-              <TableCell colSpan={5} className="text-center text-slate-600 py-12 text-sm">
+            <TableRow className="border-border hover:bg-transparent">
+              <TableCell colSpan={5} className="text-center text-muted-foreground/70 py-12 text-sm">
                 No IT team members found.
               </TableCell>
             </TableRow>
           ) : (
             itTeam.map((emp) => (
-              <TableRow key={emp.id} className="border-slate-800/50 hover:bg-slate-800/30">
+              <TableRow key={emp.id} className="border-border/50 hover:bg-accent">
                 <TableCell className="pl-4 py-3">
                   <div className="flex flex-col">
-                    <span className="text-sm font-medium text-white">{emp.name}</span>
-                    <span className="text-xs text-slate-500">{emp.email}</span>
+                    <span className="text-sm font-medium text-foreground">{emp.name}</span>
+                    <span className="text-xs text-muted-foreground">{emp.email}</span>
                   </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5">
-                    <Badge className="bg-teal-500/10 text-teal-400 border border-teal-500/20 text-[11px]">
+                    <Badge className="bg-primary/10 text-primary border border-primary/20 text-[11px]">
                       {emp.functionTitle || "—"}
                     </Badge>
                     {emp.isStudent && (
-                      <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px]">
+                      <Badge className="bg-warning/10 text-warning border border-warning/20 text-[11px]">
                         Student
                       </Badge>
                     )}
@@ -74,13 +74,13 @@ export function ITTeamTable({ employees }: ITTeamTableProps) {
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="text-xs text-slate-400 tabular-nums">
+                <TableCell className="text-xs text-muted-foreground tabular-nums">
                   {formatDate(emp.startDate)}
                 </TableCell>
-                <TableCell className={`text-right font-mono text-sm tabular-nums ${emp.isStudent ? "text-slate-500" : "text-white"}`}>
+                <TableCell className={`text-right font-mono text-sm tabular-nums ${emp.isStudent ? "text-muted-foreground" : "text-foreground"}`}>
                   {emp.monthlyCost ? `${formatCurrency(emp.monthlyCost)}${emp.isStudent ? "*" : ""}` : "—"}
                 </TableCell>
-                <TableCell className={`text-right font-mono text-sm tabular-nums pr-4 ${emp.isStudent ? "text-slate-500" : "text-slate-300"}`}>
+                <TableCell className={`text-right font-mono text-sm tabular-nums pr-4 ${emp.isStudent ? "text-muted-foreground" : "text-foreground"}`}>
                   {emp.monthlyCost ? `${formatCurrency(emp.monthlyCost * 12)}${emp.isStudent ? "*" : ""}` : "—"}
                 </TableCell>
               </TableRow>
@@ -89,7 +89,7 @@ export function ITTeamTable({ employees }: ITTeamTableProps) {
         </TableBody>
       </Table>
       {(hasStudent || hasExternal) && (
-        <p className="text-[11px] text-slate-500 px-4 py-2.5 border-t border-slate-800 space-y-0.5">
+        <p className="text-[11px] text-muted-foreground px-4 py-2.5 border-t border-border space-y-0.5">
           {hasStudent && <>* Jobstudent — contractual full-month rate shown for reference; works variable hours, so excluded from the internal IT salary total.<br /></>}
           {hasExternal && <>External — contractor billed via a vendor (not payroll); cost is counted under External Services, not internal salary.</>}
         </p>

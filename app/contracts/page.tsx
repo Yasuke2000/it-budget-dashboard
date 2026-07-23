@@ -7,6 +7,7 @@ import { ContractTable } from "@/components/contracts/contract-table";
 import { ContractFormDialog } from "@/components/contracts/contract-form-dialog";
 import { ContractDiscoverDialog } from "@/components/contracts/contract-discover-dialog";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/layout/page-header";
 import { Plus, Sparkles } from "lucide-react";
 import { formatCurrencyCompact } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,9 +53,9 @@ export default function ContractsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div><h1 className="text-2xl font-bold text-white">Contracts</h1></div>
+        <PageHeader title="Contracts" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 bg-slate-800 rounded-xl" />)}
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
         </div>
       </div>
     );
@@ -62,20 +63,20 @@ export default function ContractsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Contracts</h1>
-          <p className="text-slate-400">IT contract & renewal management</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => setDiscoverOpen(true)}>
-            <Sparkles className="h-4 w-4" /> Discover from spend
-          </Button>
-          <Button size="sm" className="gap-2" onClick={openNew}>
-            <Plus className="h-4 w-4" /> Add contract
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Contracts"
+        description="IT contract & renewal management"
+        actions={
+          <>
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => setDiscoverOpen(true)}>
+              <Sparkles className="h-4 w-4" /> Discover from spend
+            </Button>
+            <Button size="sm" className="gap-2" onClick={openNew}>
+              <Plus className="h-4 w-4" /> Add contract
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard title="Active Contracts" value={kpis.activeCount.toString()} iconName="Shield" description="Currently active" />
@@ -85,9 +86,9 @@ export default function ContractsPage() {
       </div>
 
       {contracts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl border border-slate-800 bg-slate-900/40">
-          <p className="text-slate-300 font-medium">No contracts tracked yet</p>
-          <p className="text-slate-500 text-sm mt-1 max-w-md">
+        <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl border border-border bg-card">
+          <p className="text-foreground font-medium">No contracts tracked yet</p>
+          <p className="text-muted-foreground text-sm mt-1 max-w-md">
             Add a contract manually, or let the dashboard find your recurring IT vendors
             from Business Central spend — then fill in renewal dates and upload the signed documents.
           </p>

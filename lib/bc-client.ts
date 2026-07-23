@@ -306,6 +306,7 @@ export interface BCOpenAPRow {
   oweEUR: number; // positive = we owe
   due: string;    // "YYYY-MM-DD" or ""
   vendor: string;
+  docNo: string;  // BC document number — the drill-to-BC coordinate
 }
 
 // Open vendor ledger entries (money-out) via the ODataV4 published web service.
@@ -317,7 +318,7 @@ export async function fetchBCOpenAP(companyCode: string): Promise<BCOpenAPRow[]>
   let url: string | null =
     `${BC_ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(
       companyCode
-    )}')/VendorLedgerEntries?$filter=Open eq true&$select=Remaining_Amt_LCY,Due_Date,Vendor_Name`;
+    )}')/VendorLedgerEntries?$filter=Open eq true&$select=Remaining_Amt_LCY,Due_Date,Vendor_Name,Document_No`;
   let page = 0;
   while (url && page < 40) {
     const res: Response = await fetchWithRetry(url, {
@@ -328,7 +329,7 @@ export async function fetchBCOpenAP(companyCode: string): Promise<BCOpenAPRow[]>
     for (const e of data.value || []) {
       const rem = (e.Remaining_Amt_LCY as number) || 0;
       const dueRaw = String(e.Due_Date || "");
-      out.push({ oweEUR: -rem, due: dueRaw && !dueRaw.startsWith("0001") ? dueRaw.slice(0, 10) : "", vendor: String(e.Vendor_Name || "") });
+      out.push({ oweEUR: -rem, due: dueRaw && !dueRaw.startsWith("0001") ? dueRaw.slice(0, 10) : "", vendor: String(e.Vendor_Name || ""), docNo: String(e.Document_No || "") });
     }
     url = data["@odata.nextLink"] || null;
     page++;
@@ -340,6 +341,7 @@ export interface BCOpenARRow {
   amount: number;  // remaining receivable (positive = they owe us)
   due: string;     // "YYYY-MM-DD" or ""
   customer: string;
+  docNo: string;   // posted sales invoice number — the drill-to-BC coordinate
 }
 
 // Open receivables (money-in) from posted sales invoices. salesInvoices carries
@@ -349,7 +351,7 @@ export async function fetchBCOpenAR(companyId: string): Promise<BCOpenARRow[]> {
   const token = await getBCToken();
   const url = `${BC_BASE_URL}/companies(${companyId})/salesInvoices?$filter=${encodeURIComponent(
     "status eq 'Open'"
-  )}&$select=remainingAmount,dueDate,customerName`;
+  )}&$select=remainingAmount,dueDate,customerName,number`;
   const rows = await fetchAllPages<Record<string, unknown>>(url, token);
   return rows.map((r) => {
     const d = String(r.dueDate || "");
@@ -357,8 +359,37 @@ export async function fetchBCOpenAR(companyId: string): Promise<BCOpenARRow[]> {
       amount: (r.remainingAmount as number) || 0,
       due: d && !d.startsWith("0001") ? d.slice(0, 10) : "",
       customer: String(r.customerName || ""),
+      docNo: String(r.number || ""),
     };
   });
+}
+
+export interface BCGlEntry {
+  postingDate: string;   // "YYYY-MM-DD"
+  documentNumber: string;
+  description: string;
+  debit: number;
+  credit: number;
+}
+
+// Individual GL postings for ONE account in a period — the drill-down bottom:
+// from a P&L line via its accounts to the actual bookings, each linkable into BC.
+export async function fetchBCGlEntriesForAccount(
+  companyId: string, accountNumber: string, dateFrom: string, dateTo: string
+): Promise<BCGlEntry[]> {
+  const token = await getBCToken();
+  const filter = `accountNumber eq '${accountNumber}' and postingDate ge ${dateFrom} and postingDate le ${dateTo}`;
+  const url = `${BC_BASE_URL}/companies(${companyId})/generalLedgerEntries?$filter=${encodeURIComponent(
+    filter
+  )}&$select=postingDate,documentNumber,description,debitAmount,creditAmount`;
+  const rows = await fetchAllPages<Record<string, unknown>>(url, token);
+  return rows.map((r) => ({
+    postingDate: String(r.postingDate || "").slice(0, 10),
+    documentNumber: String(r.documentNumber || ""),
+    description: String(r.description || ""),
+    debit: (r.debitAmount as number) || 0,
+    credit: (r.creditAmount as number) || 0,
+  }));
 }
 
 // Full-history net balance (debit − credit) per GL account for one company — the

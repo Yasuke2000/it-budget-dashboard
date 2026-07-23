@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import type { EntitySpend } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
+import { useChartPalette } from "@/lib/chart-theme";
 
 interface EntityComparisonProps {
   data: EntitySpend[];
@@ -22,13 +23,13 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Entity
   if (!active || !payload?.length || !payload[0].payload) return null;
   const d = payload[0].payload;
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
-      <p className="text-sm font-medium text-slate-300">{d.companyName}</p>
-      <p className="text-sm font-mono text-teal-400">Total: {formatCurrency(d.totalSpend)}</p>
+    <div className="rounded-lg border border-border bg-popover/95 p-3 shadow-xl backdrop-blur-sm">
+      <p className="text-sm font-medium text-foreground">{d.companyName}</p>
+      <p className="font-mono text-sm tabnum text-primary">Total: {formatCurrency(d.totalSpend)}</p>
       {d.userCount > 0 && (
         <>
-          <p className="text-sm font-mono text-slate-400">Per user: {formatCurrency(d.perUserSpend)}</p>
-          <p className="text-xs text-slate-500">{d.userCount} users</p>
+          <p className="font-mono text-sm tabnum text-muted-foreground">Per user: {formatCurrency(d.perUserSpend)}</p>
+          <p className="text-xs text-muted-foreground/70">{d.userCount} users</p>
         </>
       )}
     </div>
@@ -36,6 +37,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Entity
 }
 
 export function EntityComparison({ data }: EntityComparisonProps) {
+  const p = useChartPalette();
   const chartData = data.map((d) => ({
     ...d,
     // Shorten long names for chart labels
@@ -50,19 +52,19 @@ export function EntityComparison({ data }: EntityComparisonProps) {
   }));
 
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-white">Spend by Entity</CardTitle>
+        <CardTitle>Spend by entity</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-[250px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
-              <XAxis type="number" stroke="#94a3b8" fontSize={12} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}K`} />
-              <YAxis type="category" dataKey="name" stroke="#94a3b8" fontSize={12} width={100} />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="totalSpend" fill="#0d9488" radius={[0, 4, 4, 0]} barSize={24} />
+              <CartesianGrid stroke={p.grid} horizontal={false} />
+              <XAxis type="number" stroke={p.axis} tick={{ fill: p.textMuted, fontSize: 11 }} tickLine={false} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}K`} />
+              <YAxis type="category" dataKey="name" stroke={p.axis} tick={{ fill: p.text, fontSize: 11 }} tickLine={false} width={100} />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: "color-mix(in oklch, var(--foreground) 5%, transparent)" }} />
+              <Bar dataKey="totalSpend" fill={p.categorical[0]} radius={[0, 4, 4, 0]} barSize={22} />
             </BarChart>
           </ResponsiveContainer>
         </div>

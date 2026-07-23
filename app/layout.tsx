@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -12,6 +12,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  display: "swap",
+});
+
+// Tabular monospace for financial figures (was a dangling --font-geist-mono ref).
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
   display: "swap",
 });
 
@@ -34,11 +41,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} h-full antialiased`}
+      className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="dark min-h-full bg-slate-950 text-slate-100">
-        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:bg-teal-600 focus:text-white focus:px-4 focus:py-2 focus:rounded-md focus:text-sm">
+      <body className="min-h-full bg-background text-foreground">
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:bg-primary focus:text-primary-foreground focus:px-4 focus:py-2 focus:rounded-md focus:text-sm">
           Skip to main content
         </a>
         <SessionProvider>
@@ -56,14 +63,16 @@ export default function RootLayout({
                 {/* Fixed desktop sidebar */}
                 <Sidebar />
 
-                {/* Main content column — offset by sidebar width on desktop */}
-                <div className="flex flex-1 flex-col lg:pl-64 min-w-0">
+                {/* Main content column — offset by the (collapsible) sidebar width on desktop */}
+                <div className="flex flex-1 flex-col min-w-0 transition-[padding] duration-300 ease-out lg:[padding-left:var(--sidebar-w)]">
                   {/* Sticky header */}
                   <Header />
 
                   {/* Scrollable page content */}
-                  <main id="main-content" className="flex-1 overflow-auto p-6">
-                    {children}
+                  <main id="main-content" className="flex-1 overflow-auto">
+                    <div className="mx-auto w-full max-w-[1600px] p-6 lg:p-8">
+                      {children}
+                    </div>
                   </main>
                 </div>
               </div>

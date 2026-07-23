@@ -5,6 +5,8 @@ import { KPICard } from "@/components/dashboard/kpi-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useDateRange } from "@/components/layout/date-range-context";
+import { PageHeader } from "@/components/layout/page-header";
+import { useChartPalette } from "@/lib/chart-theme";
 import { formatCurrency } from "@/lib/utils";
 import type { DeveloperDashboard } from "@/lib/types";
 
@@ -16,6 +18,7 @@ function fmtDate(d: string): string {
 
 export default function DevelopersPage() {
   const { selectedRange } = useDateRange();
+  const p = useChartPalette();
   const [branch, setBranch] = useState<"dev" | "production">("dev");
   const [data, setData] = useState<DeveloperDashboard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,54 +37,54 @@ export default function DevelopersPage() {
   }, [selectedRange.from, selectedRange.to, branch]);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><p className="text-slate-400">Loading developer metrics…</p></div>;
+    return <div className="flex items-center justify-center h-64"><p className="text-muted-foreground">Loading developer metrics…</p></div>;
   }
   if (errored || !data) {
-    return <div className="flex items-center justify-center h-64"><p className="text-slate-400">Developer metrics could not be loaded.</p></div>;
+    return <div className="flex items-center justify-center h-64"><p className="text-muted-foreground">Developer metrics could not be loaded.</p></div>;
   }
 
   if (!data.configured) {
     return (
       <div className="space-y-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Developer Dashboard</h1>
-          <p className="text-slate-400">Per-developer activity from Azure DevOps</p>
-        </div>
-        <Card className="bg-slate-900 border-slate-800">
+        <PageHeader
+          title="Developer Dashboard"
+          description="Per-developer activity from Azure DevOps"
+        />
+        <Card>
           <CardContent className="py-12 text-center space-y-2">
-            <p className="text-slate-300 font-medium">Azure DevOps is not connected yet.</p>
-            <p className="text-slate-500 text-sm">Set <code className="text-teal-300">AZURE_DEVOPS_ORG</code> and <code className="text-teal-300">AZURE_DEVOPS_PAT</code> (Code = Read) to enable per-developer commit metrics.</p>
+            <p className="text-foreground font-medium">Azure DevOps is not connected yet.</p>
+            <p className="text-muted-foreground text-sm">Set <code className="text-primary">AZURE_DEVOPS_ORG</code> and <code className="text-primary">AZURE_DEVOPS_PAT</code> (Code = Read) to enable per-developer commit metrics.</p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const barColor = (pct: number) => (pct >= 40 ? "#34d399" : pct >= 20 ? "#38bdf8" : "#fbbf24");
+  const barColor = (pct: number) => (pct >= 40 ? p.positive : pct >= 20 ? p.categorical[1] : p.warning);
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Developer Dashboard</h1>
-          <p className="text-slate-400">
-            {data.org}/{data.project} · {selectedRange.label.toLowerCase()} · commits on <span className="text-teal-300">{data.branches.find((b) => b.commits === data.totalCommits)?.name || (branch === "production" ? "master" : "develop")}</span>
-            {data.commitsTruncated ? <span className="text-amber-400"> · ⚠ capped at 5000 commits (undercount)</span> : null}
-          </p>
-        </div>
-        {/* Dev (develop) ↔ Production (master) branch toggle */}
-        <div className="inline-flex rounded-lg border border-slate-700 bg-slate-900 p-0.5 text-sm">
-          {(["dev", "production"] as const).map((b) => (
-            <button
-              key={b}
-              onClick={() => setBranch(b)}
-              className={`px-3 py-1.5 rounded-md font-medium transition-colors ${branch === b ? "bg-teal-500/20 text-teal-300" : "text-slate-400 hover:text-slate-200"}`}
-            >
-              {b === "dev" ? "Dev (develop)" : "Production (master)"}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Developer Dashboard"
+        actions={
+          /* Dev (develop) ↔ Production (master) branch toggle */
+          <div className="inline-flex rounded-lg border border-border bg-card p-0.5 text-sm">
+            {(["dev", "production"] as const).map((b) => (
+              <button
+                key={b}
+                onClick={() => setBranch(b)}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${branch === b ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {b === "dev" ? "Dev (develop)" : "Production (master)"}
+              </button>
+            ))}
+          </div>
+        }
+      />
+      <p className="text-muted-foreground -mt-4">
+        {data.org}/{data.project} · {selectedRange.label.toLowerCase()} · commits on <span className="text-primary">{data.branches.find((b) => b.commits === data.totalCommits)?.name || (branch === "production" ? "master" : "develop")}</span>
+        {data.commitsTruncated ? <span className="text-warning"> · ⚠ capped at 5000 commits (undercount)</span> : null}
+      </p>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -93,12 +96,12 @@ export default function DevelopersPage() {
 
       {/* Cost vs Output — the ROI question */}
       {data.roi && data.roi.length > 0 && (
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader><CardTitle className="text-white text-base">Cost vs Output — is the dev spend worth it?</CardTitle></CardHeader>
+        <Card>
+          <CardHeader><CardTitle className="text-foreground text-base">Cost vs Output — is the dev spend worth it?</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b border-slate-800 text-slate-400">
+                <thead><tr className="border-b border-border text-muted-foreground">
                   <th className="text-left px-4 py-3 font-medium">Developer</th>
                   <th className="text-left px-4 py-3 font-medium">Cost source</th>
                   <th className="text-right px-4 py-3 font-medium">Commits</th>
@@ -109,21 +112,21 @@ export default function DevelopersPage() {
                 </tr></thead>
                 <tbody>
                   {data.roi.map((r) => (
-                    <tr key={r.email} className="border-b border-slate-800/50">
-                      <td className="px-4 py-3 text-white font-medium">{r.name}</td>
-                      <td className="px-4 py-3 text-slate-400 text-xs">{r.costLabel}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-slate-300">{r.commits}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-slate-300">{r.issues}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-white">{r.periodCost != null ? formatCurrency(r.periodCost) : "—"}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-teal-300">{r.costPerCommit != null ? formatCurrency(r.costPerCommit) : "—"}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-teal-300">{r.costPerIssue != null ? formatCurrency(r.costPerIssue) : "—"}</td>
+                    <tr key={r.email} className="border-b border-border">
+                      <td className="px-4 py-3 text-foreground font-medium">{r.name}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{r.costLabel}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-foreground">{r.commits}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-foreground">{r.issues}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-foreground">{r.periodCost != null ? formatCurrency(r.periodCost) : "—"}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-primary">{r.costPerCommit != null ? formatCurrency(r.costPerCommit) : "—"}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-primary">{r.costPerIssue != null ? formatCurrency(r.costPerIssue) : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="px-4 py-3 text-xs text-slate-500 space-y-1 border-t border-slate-800">
-              <p>· Internal devs use their per-person Officient employer cost (gross + charges + provisions), prorated over the period. External devs use BC vendor spend.{data.itDeptPayrollPeriod ? <> Total internal IT-dept payroll booked in BC this period: <span className="text-slate-300">{formatCurrency(data.itDeptPayrollPeriod)}</span>.</> : null}</p>
+            <div className="px-4 py-3 text-xs text-muted-foreground space-y-1 border-t border-border">
+              <p>· Internal devs use their per-person Officient employer cost (gross + charges + provisions), prorated over the period. External devs use BC vendor spend.{data.itDeptPayrollPeriod ? <> Total internal IT-dept payroll booked in BC this period: <span className="text-foreground">{formatCurrency(data.itDeptPayrollPeriod)}</span>.</> : null}</p>
               <p>· Commits &amp; issues are activity proxies, not value. Invoice timing is lumpy — read € / commit over months, not days. A directional signal, not a verdict on individuals.</p>
             </div>
           </CardContent>
@@ -132,12 +135,12 @@ export default function DevelopersPage() {
 
       {/* Jira — tickets & hours per developer */}
       {data.jira ? (
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader><CardTitle className="text-white text-base">Jira — tickets &amp; hours{data.jira.partial ? " · hours sampled" : ""}{data.jira.countsReliable === false ? " · ⚠ some counts unavailable" : ""}</CardTitle></CardHeader>
+        <Card>
+          <CardHeader><CardTitle className="text-foreground text-base">Jira — tickets &amp; hours{data.jira.partial ? " · hours sampled" : ""}{data.jira.countsReliable === false ? " · ⚠ some counts unavailable" : ""}</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b border-slate-800 text-slate-400">
+                <thead><tr className="border-b border-border text-muted-foreground">
                   <th className="text-left px-4 py-3 font-medium">Developer</th>
                   <th className="text-right px-4 py-3 font-medium">Opened</th>
                   <th className="text-right px-4 py-3 font-medium">Closed</th>
@@ -150,30 +153,30 @@ export default function DevelopersPage() {
                   {data.developers.map((d) => {
                     const j = data.jira?.perDev[d.email] ?? { opened: 0, closed: 0, openNow: 0, updated: 0, hours: 0, responseHours: null };
                     return (
-                      <tr key={d.email} className="border-b border-slate-800/50">
-                        <td className="px-4 py-3 text-white font-medium">{d.name}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{j.opened}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-emerald-400">{j.closed}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{j.openNow}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-300">{j.updated}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-teal-300">{j.hours}h</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-amber-300">{j.responseHours != null ? `${j.responseHours}h` : "—"}</td>
+                      <tr key={d.email} className="border-b border-border">
+                        <td className="px-4 py-3 text-foreground font-medium">{d.name}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-foreground">{j.opened}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-positive">{j.closed}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-foreground">{j.openNow}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-foreground">{j.updated}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-primary">{j.hours}h</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-warning">{j.responseHours != null ? `${j.responseHours}h` : "—"}</td>
                       </tr>
                     );
                   })}
-                  <tr className="border-t border-slate-700">
-                    <td className="px-4 py-3 text-slate-400 font-semibold">Team (GP + IT)</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.opened}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.closed}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.openNow}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.updated}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.hours}h</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-white font-semibold">{data.jira.team.responseHours != null ? `${data.jira.team.responseHours}h` : "—"}</td>
+                  <tr className="border-t border-border">
+                    <td className="px-4 py-3 text-muted-foreground font-semibold">Team (GP + IT)</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-foreground font-semibold">{data.jira.team.opened}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-foreground font-semibold">{data.jira.team.closed}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-foreground font-semibold">{data.jira.team.openNow}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-foreground font-semibold">{data.jira.team.updated}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-foreground font-semibold">{data.jira.team.hours}h</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-foreground font-semibold">{data.jira.team.responseHours != null ? `${data.jira.team.responseHours}h` : "—"}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <div className="px-4 py-3 text-xs text-slate-500 border-t border-slate-800">
+            <div className="px-4 py-3 text-xs text-muted-foreground border-t border-border">
               · Opened = created (reporter) · Closed = resolved (assignee) · Open now = currently assigned &amp; not Done · Updated = touched in period · Hours = worklog time · Response = avg time from ticket creation to first comment/worklog.{data.jira.partial ? " Hours sampled from the 250 most recent issues with worklogs; response time from the 100 most recently created issues." : ""}
             </div>
           </CardContent>
@@ -182,12 +185,12 @@ export default function DevelopersPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Developer statistics */}
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader><CardTitle className="text-white text-base">Developer Statistics</CardTitle></CardHeader>
+        <Card>
+          <CardHeader><CardTitle className="text-foreground text-base">Developer Statistics</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b border-slate-800 text-slate-400">
+                <thead><tr className="border-b border-border text-muted-foreground">
                   <th className="text-left px-4 py-3 font-medium">Developer</th>
                   <th className="text-right px-4 py-3 font-medium">Commits</th>
                   <th className="text-right px-4 py-3 font-medium">Issues</th>
@@ -197,30 +200,30 @@ export default function DevelopersPage() {
                 </tr></thead>
                 <tbody>
                   {data.developers.map((d) => (
-                    <tr key={d.email} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                    <tr key={d.email} className="border-b border-border hover:bg-accent">
                       <td className="px-4 py-3">
-                        <div className="text-white font-medium">{d.name}</div>
-                        <div className="text-xs text-slate-500">{d.email}</div>
+                        <div className="text-foreground font-medium">{d.name}</div>
+                        <div className="text-xs text-muted-foreground">{d.email}</div>
                       </td>
-                      <td className="px-4 py-3 text-right"><Badge className="bg-blue-600/80 text-blue-100 border-0">{d.commits}</Badge></td>
-                      <td className="px-4 py-3 text-right text-slate-300 tabular-nums">{d.issues}</td>
+                      <td className="px-4 py-3 text-right"><Badge className="bg-blue-500/15 text-blue-400 border-0">{d.commits}</Badge></td>
+                      <td className="px-4 py-3 text-right text-foreground tabular-nums">{d.issues}</td>
                       <td className="px-4 py-3 text-right tabular-nums">
-                        <span className="text-emerald-400">+{d.filesAdded}</span>{" "}
-                        <span className="text-slate-400">~{d.filesEdited}</span>{" "}
-                        <span className="text-red-400">-{d.filesDeleted}</span>
+                        <span className="text-positive">+{d.filesAdded}</span>{" "}
+                        <span className="text-muted-foreground">~{d.filesEdited}</span>{" "}
+                        <span className="text-negative">-{d.filesDeleted}</span>
                       </td>
-                      <td className="px-4 py-3 text-right text-slate-300 tabular-nums">{d.avgFilesPerCommit}</td>
+                      <td className="px-4 py-3 text-right text-foreground tabular-nums">{d.avgFilesPerCommit}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 rounded-full bg-slate-700 overflow-hidden">
+                          <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                             <div className="h-full rounded-full" style={{ width: `${d.contributionPercent}%`, backgroundColor: barColor(d.contributionPercent) }} />
                           </div>
-                          <span className="text-xs text-slate-400 tabular-nums w-12 text-right">{d.contributionPercent}%</span>
+                          <span className="text-xs text-muted-foreground tabular-nums w-12 text-right">{d.contributionPercent}%</span>
                         </div>
                       </td>
                     </tr>
                   ))}
-                  {data.developers.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No commits in this period.</td></tr>}
+                  {data.developers.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No commits in this period.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -228,25 +231,25 @@ export default function DevelopersPage() {
         </Card>
 
         {/* Recent commits */}
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader><CardTitle className="text-white text-base">Recent Commits</CardTitle></CardHeader>
+        <Card>
+          <CardHeader><CardTitle className="text-foreground text-base">Recent Commits</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-slate-900"><tr className="border-b border-slate-800 text-slate-400">
+                <thead className="sticky top-0 bg-card"><tr className="border-b border-border text-muted-foreground">
                   <th className="text-left px-4 py-3 font-medium">Author</th>
                   <th className="text-left px-4 py-3 font-medium">Message</th>
                   <th className="text-right px-4 py-3 font-medium">Date</th>
                 </tr></thead>
                 <tbody>
                   {data.recentCommits.map((c) => (
-                    <tr key={c.id} className="border-b border-slate-800/50">
-                      <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{c.author}</td>
-                      <td className="px-4 py-3 text-slate-400"><span className="font-mono text-xs">{c.message}</span></td>
-                      <td className="px-4 py-3 text-right text-slate-500 whitespace-nowrap text-xs">{fmtDate(c.date)}</td>
+                    <tr key={c.id} className="border-b border-border">
+                      <td className="px-4 py-3 text-foreground whitespace-nowrap">{c.author}</td>
+                      <td className="px-4 py-3 text-muted-foreground"><span className="font-mono text-xs">{c.message}</span></td>
+                      <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap text-xs">{fmtDate(c.date)}</td>
                     </tr>
                   ))}
-                  {data.recentCommits.length === 0 && <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-500">No commits.</td></tr>}
+                  {data.recentCommits.length === 0 && <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">No commits.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -256,21 +259,21 @@ export default function DevelopersPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Branch statistics */}
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader><CardTitle className="text-white text-base">Branch Statistics</CardTitle></CardHeader>
+        <Card>
+          <CardHeader><CardTitle className="text-foreground text-base">Branch Statistics</CardTitle></CardHeader>
           <CardContent className="p-0">
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-slate-800 text-slate-400">
+              <thead><tr className="border-b border-border text-muted-foreground">
                 <th className="text-left px-4 py-3 font-medium">Branch</th>
                 <th className="text-right px-4 py-3 font-medium">Commits</th>
                 <th className="text-right px-4 py-3 font-medium">Last Activity</th>
               </tr></thead>
               <tbody>
                 {data.branches.map((b) => (
-                  <tr key={b.name} className="border-b border-slate-800/50">
-                    <td className="px-4 py-3"><Badge className="bg-slate-700 text-slate-200 border-0 font-mono">{b.name}</Badge></td>
-                    <td className="px-4 py-3 text-right text-slate-300 tabular-nums">{b.commits}</td>
-                    <td className="px-4 py-3 text-right text-slate-500 text-xs">{fmtDate(b.lastActivity || "")}</td>
+                  <tr key={b.name} className="border-b border-border">
+                    <td className="px-4 py-3"><Badge className="bg-muted text-foreground border-0 font-mono">{b.name}</Badge></td>
+                    <td className="px-4 py-3 text-right text-foreground tabular-nums">{b.commits}</td>
+                    <td className="px-4 py-3 text-right text-muted-foreground text-xs">{fmtDate(b.lastActivity || "")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -279,24 +282,24 @@ export default function DevelopersPage() {
         </Card>
 
         {/* Code churn */}
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader><CardTitle className="text-white text-base">Most Changed Files (churn)</CardTitle></CardHeader>
+        <Card>
+          <CardHeader><CardTitle className="text-foreground text-base">Most Changed Files (churn)</CardTitle></CardHeader>
           <CardContent className="p-0">
             <table className="w-full text-sm">
-              <thead><tr className="border-b border-slate-800 text-slate-400">
+              <thead><tr className="border-b border-border text-muted-foreground">
                 <th className="text-left px-4 py-3 font-medium">File</th>
                 <th className="text-right px-4 py-3 font-medium">Changes</th>
                 <th className="text-left px-4 py-3 font-medium">Contributors</th>
               </tr></thead>
               <tbody>
                 {data.churn.map((f) => (
-                  <tr key={f.path} className="border-b border-slate-800/50">
-                    <td className="px-4 py-3 text-slate-300 font-mono text-xs">{f.path.split("/").slice(-1)[0]}</td>
-                    <td className="px-4 py-3 text-right"><Badge className="bg-amber-600/70 text-amber-100 border-0">{f.changes}</Badge></td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{f.contributors.join(", ")}</td>
+                  <tr key={f.path} className="border-b border-border">
+                    <td className="px-4 py-3 text-foreground font-mono text-xs">{f.path.split("/").slice(-1)[0]}</td>
+                    <td className="px-4 py-3 text-right"><Badge className="bg-warning/15 text-warning border-0">{f.changes}</Badge></td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{f.contributors.join(", ")}</td>
                   </tr>
                 ))}
-                {data.churn.length === 0 && <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-500">No churn data.</td></tr>}
+                {data.churn.length === 0 && <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">No churn data.</td></tr>}
               </tbody>
             </table>
           </CardContent>
@@ -304,7 +307,7 @@ export default function DevelopersPage() {
       </div>
 
       {/* Methodology notes */}
-      <div className="text-xs text-slate-500 space-y-1 border-t border-slate-800 pt-4">
+      <div className="text-xs text-muted-foreground space-y-1 border-t border-border pt-4">
         {data.notes.map((n, i) => <p key={i}>· {n}</p>)}
       </div>
     </div>

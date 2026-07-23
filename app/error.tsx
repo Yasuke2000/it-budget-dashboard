@@ -13,13 +13,13 @@ export default function Error({
 }) {
   return (
     <div className="space-y-4 max-w-2xl">
-      <h1 className="text-2xl font-bold text-white">Something went wrong</h1>
-      <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-4 space-y-3">
-        <p className="text-sm text-red-300">A client-side error stopped this page from rendering:</p>
-        <pre className="text-xs text-red-200 whitespace-pre-wrap font-mono bg-slate-900/60 rounded-md p-3">
+      <h1 className="text-2xl font-bold text-foreground">Something went wrong</h1>
+      <div className="rounded-xl border border-negative/30 bg-negative/10 px-4 py-4 space-y-3">
+        <p className="text-sm text-negative">A client-side error stopped this page from rendering:</p>
+        <pre className="text-xs text-negative/90 whitespace-pre-wrap font-mono bg-card/60 rounded-md p-3">
           {String(error?.message || error)}{error?.digest ? `\n\ndigest: ${error.digest}` : ""}
         </pre>
-        <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300" onClick={() => reset()}>
+        <Button size="sm" variant="ghost" className="text-negative hover:text-negative/80" onClick={() => reset()}>
           Try again
         </Button>
       </div>

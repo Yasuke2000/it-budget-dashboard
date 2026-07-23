@@ -78,9 +78,9 @@ function buildCumulativeData(
 function cellBgClass(variancePercent: number, hasData: boolean): string {
   if (!hasData) return "";
   const status = getVarianceStatus(variancePercent);
-  if (status === "green") return "bg-emerald-950/30";
-  if (status === "amber") return "bg-amber-950/40";
-  return "bg-red-950/40";
+  if (status === "green") return "bg-positive/10";
+  if (status === "amber") return "bg-warning/10";
+  return "bg-negative/10";
 }
 
 export function BudgetTable({ entries, hasBudget = true, year }: BudgetTableProps) {
@@ -159,9 +159,9 @@ export function BudgetTable({ entries, hasBudget = true, year }: BudgetTableProp
   }, [ytdPerCategory]);
 
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-4">
-        <CardTitle className="text-white">
+        <CardTitle className="text-foreground">
           {hasBudget ? "Budget vs Actual" : "Actual Spend by Category"}
         </CardTitle>
         {hasBudget && (
@@ -171,8 +171,8 @@ export function BudgetTable({ entries, hasBudget = true, year }: BudgetTableProp
               size="sm"
               onClick={() => setViewMode("monthly")}
               className={cn(
-                "border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800",
-                viewMode === "monthly" && "bg-slate-700 text-white border-slate-600"
+                "border-border text-foreground hover:text-foreground hover:bg-accent",
+                viewMode === "monthly" && "bg-muted text-foreground border-border-strong"
               )}
             >
               Monthly
@@ -182,8 +182,8 @@ export function BudgetTable({ entries, hasBudget = true, year }: BudgetTableProp
               size="sm"
               onClick={() => setViewMode("ytd")}
               className={cn(
-                "border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800",
-                viewMode === "ytd" && "bg-slate-700 text-white border-slate-600"
+                "border-border text-foreground hover:text-foreground hover:bg-accent",
+                viewMode === "ytd" && "bg-muted text-foreground border-border-strong"
               )}
             >
               YTD Cumulative
@@ -194,19 +194,19 @@ export function BudgetTable({ entries, hasBudget = true, year }: BudgetTableProp
       <CardContent className="p-0 overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="border-slate-800 hover:bg-transparent">
-              <TableHead className="text-slate-400 font-semibold sticky left-0 bg-slate-900 z-10 min-w-[180px] pl-6">
+            <TableRow className="border-border hover:bg-transparent">
+              <TableHead className="text-muted-foreground font-semibold sticky left-0 bg-card z-10 min-w-[180px] pl-6">
                 Category
               </TableHead>
               {MONTHS.map((month) => (
                 <TableHead
                   key={month}
-                  className="text-slate-400 font-semibold text-center min-w-[90px] px-1"
+                  className="text-muted-foreground font-semibold text-center min-w-[90px] px-1"
                 >
                   {getMonthName(month)}
                 </TableHead>
               ))}
-              <TableHead className="text-slate-400 font-semibold text-center min-w-[110px] pr-6">
+              <TableHead className="text-muted-foreground font-semibold text-center min-w-[110px] pr-6">
                 YTD Total
               </TableHead>
             </TableRow>
@@ -216,9 +216,9 @@ export function BudgetTable({ entries, hasBudget = true, year }: BudgetTableProp
               const monthMap = activeMap.get(category)!;
               const ytd = ytdPerCategory.get(category)!;
               return (
-                <TableRow key={category} className="border-slate-800/50 hover:bg-slate-800/30">
-                  <TableCell className="sticky left-0 bg-slate-900 z-10 pl-6 py-2">
-                    <span className="text-sm font-medium text-slate-200">{category}</span>
+                <TableRow key={category} className="border-border/50 hover:bg-accent">
+                  <TableCell className="sticky left-0 bg-card z-10 pl-6 py-2">
+                    <span className="text-sm font-medium text-foreground">{category}</span>
                   </TableCell>
                   {MONTHS.map((month) => {
                     const d = monthMap.get(month);
@@ -233,13 +233,13 @@ export function BudgetTable({ entries, hasBudget = true, year }: BudgetTableProp
                       >
                         {hasData ? (
                           <div className="flex flex-col items-center leading-tight">
-                            <span className="text-xs font-mono text-white tabular-nums">
+                            <span className="text-xs font-mono text-foreground tabular-nums">
                               {d!.actual >= 1000
                                 ? `€${(d!.actual / 1000).toFixed(1)}K`
                                 : `€${d!.actual.toFixed(0)}`}
                             </span>
                             {hasBudget && (
-                              <span className="text-[10px] font-mono text-slate-500 tabular-nums">
+                              <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
                                 {d!.budget >= 1000
                                   ? `€${(d!.budget / 1000).toFixed(1)}K`
                                   : `€${d!.budget.toFixed(0)}`}
@@ -247,7 +247,7 @@ export function BudgetTable({ entries, hasBudget = true, year }: BudgetTableProp
                             )}
                           </div>
                         ) : (
-                          <span className="text-slate-700 text-xs">—</span>
+                          <span className="text-muted-foreground/70 text-xs">—</span>
                         )}
                       </TableCell>
                     );
@@ -259,12 +259,12 @@ export function BudgetTable({ entries, hasBudget = true, year }: BudgetTableProp
                     )}
                   >
                     <div className="flex flex-col items-center gap-0.5">
-                      <span className="text-xs font-mono font-semibold text-white tabular-nums">
+                      <span className="text-xs font-mono font-semibold text-foreground tabular-nums">
                         {formatCurrency(ytd.actual)}
                       </span>
                       {hasBudget && (
                         <>
-                          <span className="text-[10px] font-mono text-slate-500 tabular-nums">
+                          <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
                             {formatCurrency(ytd.budget)}
                           </span>
                           <VarianceIndicator variancePercent={ytd.variancePercent} />
@@ -277,9 +277,9 @@ export function BudgetTable({ entries, hasBudget = true, year }: BudgetTableProp
             })}
 
             {/* Totals row */}
-            <TableRow className="border-t-2 border-slate-700 hover:bg-slate-800/30 bg-slate-800/20">
-              <TableCell className="sticky left-0 bg-slate-800/40 z-10 pl-6 py-3">
-                <span className="text-sm font-bold text-white">Total</span>
+            <TableRow className="border-t-2 border-border hover:bg-accent bg-muted/50">
+              <TableCell className="sticky left-0 bg-muted z-10 pl-6 py-3">
+                <span className="text-sm font-bold text-foreground">Total</span>
               </TableCell>
               {totalsPerMonth.map(({ month, actual, budget, variancePercent }) => {
                 const hasData = actual > 0 || budget > 0;
@@ -293,13 +293,13 @@ export function BudgetTable({ entries, hasBudget = true, year }: BudgetTableProp
                   >
                     {hasData ? (
                       <div className="flex flex-col items-center leading-tight">
-                        <span className="text-xs font-mono font-bold text-white tabular-nums">
+                        <span className="text-xs font-mono font-bold text-foreground tabular-nums">
                           {actual >= 1000
                             ? `€${(actual / 1000).toFixed(1)}K`
                             : `€${actual.toFixed(0)}`}
                         </span>
                         {hasBudget && (
-                          <span className="text-[10px] font-mono text-slate-500 tabular-nums">
+                          <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
                             {budget >= 1000
                               ? `€${(budget / 1000).toFixed(1)}K`
                               : `€${budget.toFixed(0)}`}
@@ -307,7 +307,7 @@ export function BudgetTable({ entries, hasBudget = true, year }: BudgetTableProp
                         )}
                       </div>
                     ) : (
-                      <span className="text-slate-700 text-xs">—</span>
+                      <span className="text-muted-foreground/70 text-xs">—</span>
                     )}
                   </TableCell>
                 );
@@ -319,12 +319,12 @@ export function BudgetTable({ entries, hasBudget = true, year }: BudgetTableProp
                 )}
               >
                 <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-xs font-mono font-bold text-white tabular-nums">
+                  <span className="text-xs font-mono font-bold text-foreground tabular-nums">
                     {formatCurrency(grandTotal.actual)}
                   </span>
                   {hasBudget && (
                     <>
-                      <span className="text-[10px] font-mono text-slate-500 tabular-nums">
+                      <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
                         {formatCurrency(grandTotal.budget)}
                       </span>
                       <VarianceIndicator variancePercent={grandTotal.variancePercent} />

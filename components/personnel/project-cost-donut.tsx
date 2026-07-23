@@ -8,17 +8,11 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { JiraProjectCost } from "@/lib/types";
+import { useChartPalette } from "@/lib/chart-theme";
 
 interface ProjectCostDonutProps {
   projectCosts: JiraProjectCost[];
 }
-
-const PROJECT_COLORS: Record<string, string> = {
-  ITSUP: "#14b8a6",
-  INFRA: "#6366f1",
-  SEC: "#f59e0b",
-  PROJ: "#10b981",
-};
 
 interface TooltipPayloadEntry {
   name: string;
@@ -39,14 +33,14 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
+    <div className="rounded-lg border border-border bg-popover/95 p-3 shadow-xl backdrop-blur-sm">
       <p className="text-sm font-semibold" style={{ color: entry.payload.fill }}>
         {entry.name}
       </p>
-      <p className="text-sm font-mono text-white">
+      <p className="text-sm font-mono text-foreground">
         €{entry.value.toFixed(0)}
       </p>
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-muted-foreground">
         {entry.payload.totalHours}h · {entry.payload.contributors} contributor{entry.payload.contributors !== 1 ? "s" : ""}
       </p>
     </div>
@@ -84,6 +78,13 @@ function renderCustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent
 }
 
 export function ProjectCostDonut({ projectCosts }: ProjectCostDonutProps) {
+  const pal = useChartPalette();
+  const PROJECT_COLORS: Record<string, string> = {
+    ITSUP: pal.categorical[0],
+    INFRA: pal.categorical[1],
+    SEC: pal.categorical[2],
+    PROJ: pal.categorical[3],
+  };
   const total = projectCosts.reduce((sum, p) => sum + p.totalCost, 0);
 
   const data = projectCosts.map((p) => ({
@@ -91,7 +92,7 @@ export function ProjectCostDonut({ projectCosts }: ProjectCostDonutProps) {
     value: p.totalCost,
     totalHours: p.totalHours,
     contributors: p.contributors,
-    fill: PROJECT_COLORS[p.projectKey] || "#64748b",
+    fill: PROJECT_COLORS[p.projectKey] || pal.budget,
   }));
 
   return (
@@ -117,10 +118,10 @@ export function ProjectCostDonut({ projectCosts }: ProjectCostDonutProps) {
           </PieChart>
         </ResponsiveContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="text-lg font-bold text-white tabular-nums">
+          <span className="text-lg font-bold text-foreground tabular-nums">
             €{total.toFixed(0)}
           </span>
-          <span className="text-xs text-slate-500">total cost</span>
+          <span className="text-xs text-muted-foreground">total cost</span>
         </div>
       </div>
 
@@ -131,9 +132,9 @@ export function ProjectCostDonut({ projectCosts }: ProjectCostDonutProps) {
               className="h-2.5 w-2.5 rounded-full shrink-0"
               style={{ backgroundColor: entry.fill }}
             />
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-muted-foreground">
               {entry.name}{" "}
-              <span className="font-mono font-semibold text-white">
+              <span className="font-mono font-semibold text-foreground">
                 €{entry.value.toFixed(0)}
               </span>
             </span>

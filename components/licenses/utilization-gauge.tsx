@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useChartPalette } from "@/lib/chart-theme";
 
 interface UtilizationGaugeProps {
   value: number;
@@ -15,16 +16,17 @@ export function UtilizationGauge({
   label,
   isFree = false,
 }: UtilizationGaugeProps) {
+  const p = useChartPalette();
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
 
   // Color logic
   const color = isFree
-    ? { stroke: "#64748b", text: "text-slate-400", ring: "#334155" }
+    ? { stroke: p.budget, text: "text-muted-foreground", ring: p.grid }
     : pct >= 90
-    ? { stroke: "#10b981", text: "text-emerald-400", ring: "#064e3b" }
+    ? { stroke: p.positive, text: "text-positive", ring: p.grid }
     : pct >= 70
-    ? { stroke: "#f59e0b", text: "text-amber-400", ring: "#451a03" }
-    : { stroke: "#ef4444", text: "text-red-400", ring: "#450a0a" };
+    ? { stroke: p.warning, text: "text-warning", ring: p.grid }
+    : { stroke: p.negative, text: "text-negative", ring: p.grid };
 
   // SVG circle gauge
   const size = 96;
@@ -55,7 +57,7 @@ export function UtilizationGauge({
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#1e293b"
+            stroke={p.grid}
             strokeWidth={strokeWidth}
             strokeDasharray={`${dashArray} ${circumference}`}
             strokeLinecap="round"
@@ -78,20 +80,20 @@ export function UtilizationGauge({
         {/* Center label */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           {isFree ? (
-            <span className="text-xs font-medium text-slate-500">Free</span>
+            <span className="text-xs font-medium text-muted-foreground">Free</span>
           ) : (
             <>
               <span className={cn("text-lg font-bold leading-none", color.text)}>
                 {pct.toFixed(0)}%
               </span>
-              <span className="text-[10px] text-slate-500 mt-0.5">used</span>
+              <span className="text-[10px] text-muted-foreground mt-0.5">used</span>
             </>
           )}
         </div>
       </div>
 
       {label && (
-        <span className="text-xs text-slate-500 text-center">{label}</span>
+        <span className="text-xs text-muted-foreground text-center">{label}</span>
       )}
     </div>
   );
