@@ -758,6 +758,12 @@ function BudgetTab() {
   const [cfoRev, setCfoRev] = useState("");
   const [cfoCost, setCfoCost] = useState("");
   const [cfoClass, setCfoClass] = useState<Record<string, string>>({});
+  // Leasing-analyse (spec Birgit): rekeningen + uitgesloten leveranciers, komma-gescheiden.
+  const [leaseEnabled, setLeaseEnabled] = useState(true);
+  const [leaseAccounts, setLeaseAccounts] = useState("");
+  const [leaseInterest, setLeaseInterest] = useState("");
+  const [leaseDebt, setLeaseDebt] = useState("");
+  const [leaseExcluded, setLeaseExcluded] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -778,6 +784,13 @@ function BudgetTab() {
           const c: Record<string, string> = {};
           for (const [k, v] of Object.entries(d.cfoClassTargets as Record<string, number>)) c[k] = String(v);
           setCfoClass(c);
+        }
+        if (d && d.leasing) {
+          setLeaseEnabled(d.leasing.enabled !== false);
+          setLeaseAccounts((d.leasing.accounts || []).join(", "));
+          setLeaseInterest((d.leasing.interestAccounts || []).join(", "));
+          setLeaseDebt((d.leasing.debtAccounts || []).join(", "));
+          setLeaseExcluded((d.leasing.excludedVendors || []).join(", "));
         }
       })
       .catch(() => {});
@@ -805,6 +818,7 @@ function BudgetTab() {
         const n = parseFloat(raw);
         if (Number.isFinite(n) && n > 0) classTargets[cls] = n;
       }
+      const splitList = (raw: string) => raw.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
       await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -815,6 +829,13 @@ function BudgetTab() {
           cfoRevenueTarget: Number.isFinite(cRev) && cRev > 0 ? cRev : 0,
           cfoCostTarget: Number.isFinite(cCost) && cCost > 0 ? cCost : 0,
           cfoClassTargets: classTargets,
+          leasing: {
+            enabled: leaseEnabled,
+            accounts: splitList(leaseAccounts),
+            interestAccounts: splitList(leaseInterest),
+            debtAccounts: splitList(leaseDebt),
+            excludedVendors: splitList(leaseExcluded),
+          },
         }),
       });
       setSaved(true);
@@ -906,6 +927,52 @@ function BudgetTab() {
                 </div>
               </div>
             ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-foreground text-sm font-semibold">Leasing-analyse (CFO-cockpit)</CardTitle>
+          <CardDescription>
+            Welke BC-rekeningen tellen als leasing/huur rollend materieel (spec finance/Birgit,
+            bedragen excl. btw). Intercompany-facturen worden automatisch gefilterd (naam-match);
+            leveranciers hieronder tellen ook niet mee (bv. huur bij een onderaannemer).
+            Komma-gescheiden; opslaan ververst de cockpit-kaart.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <input type="checkbox" checked={leaseEnabled}
+              onChange={(e) => { setLeaseEnabled(e.target.checked); setSaved(false); }}
+              className="h-4 w-4 accent-primary" />
+            Leasing-kaart tonen in de CFO-cockpit
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Kostenrekeningen leasing/huur (6*)</label>
+              <Input value={leaseAccounts} onChange={(e) => { setLeaseAccounts(e.target.value); setSaved(false); }}
+                placeholder="610200, 610250, 610260, 610500"
+                className="h-8 bg-muted border-border text-foreground focus:border-primary font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Uitgesloten leveranciers (geen leasing)</label>
+              <Input value={leaseExcluded} onChange={(e) => { setLeaseExcluded(e.target.value); setSaved(false); }}
+                placeholder="Vero Duco"
+                className="h-8 bg-muted border-border text-foreground focus:border-primary text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Intrestrekening(en)</label>
+              <Input value={leaseInterest} onChange={(e) => { setLeaseInterest(e.target.value); setSaved(false); }}
+                placeholder="650010"
+                className="h-8 bg-muted border-border text-foreground focus:border-primary font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Leasingschuld-rekening(en) (balans)</label>
+              <Input value={leaseDebt} onChange={(e) => { setLeaseDebt(e.target.value); setSaved(false); }}
+                placeholder="422000"
+                className="h-8 bg-muted border-border text-foreground focus:border-primary font-mono text-xs" />
+            </div>
           </div>
         </CardContent>
       </Card>

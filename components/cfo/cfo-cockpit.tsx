@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as echarts from "echarts";
 import type { CfoFinancials, CfoPnlLine, CfoEntityRow, CfoAgingBucket, CfoAgingItem } from "@/lib/types";
 import { EChart, type EChartClick } from "./echart";
@@ -242,6 +242,141 @@ function SnapshotPicker() {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Leasing & huur rollend materieel (spec Birgit, finance 24/07/2026).
+// Lazy geladen uit /api/cfo/leasing; rekening-klik drillt naar de boekingen.
+// ---------------------------------------------------------------------------
+const LEASE_LABELS: Record<string, string> = {
+  "610200": "Huur motorvoertuigen",
+  "610250": "Huur getrokken materiaal",
+  "610260": "Huur logistiek materiaal",
+  "610500": "Huur personenwagens",
+};
+interface LeasingPayload {
+  enabled: boolean; demo?: boolean;
+  period: { from: string; to: string };
+  config: { accounts: string[]; excludedVendors: string[] };
+  totals: { bruto: number; ic: number; uitgesloten: number; extern: number; nietToegewezen: number; intrest: number; schuld: number };
+  perAccount: { account: string; extern: number; bruto: number }[];
+  monthly: { month: string; byAccount: Record<string, number> }[];
+  perCompany: { code: string; extern: number }[];
+  vendors: { name: string; amount: number; kind: "extern" | "ic" | "uitgesloten" }[];
+  note?: string;
+}
+
+function LeasingCard({ excluded, onDrillAccount }: { excluded: string[]; onDrillAccount: (account: string, label: string, amount: number) => void }) {
+  const p = useChartPalette();
+  const [d, setD] = useState<LeasingPayload | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams();
+    if (excluded.length) params.set("exclude", excluded.join(","));
+    // Zware eerste pull (VLE-join per firma) — daarna 12h gecachet.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 180_000);
+    fetch(`/api/cfo/leasing?${params}`, { signal: controller.signal })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((x) => { if (!cancelled) setD(x); })
+      .catch((e) => { if (!cancelled) setErr(String(e).slice(0, 120)); })
+      .finally(() => clearTimeout(timer));
+    return () => { cancelled = true; controller.abort(); clearTimeout(timer); };
+  }, [excluded]);
+
+  const chart = useMemo<echarts.EChartsOption | null>(() => {
+    if (!d || d.monthly.length < 2) return null;
+    const accounts = d.perAccount.map((a) => a.account);
+    return {
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (v) => formatCurrency(Number(v)) },
+      legend: { data: accounts.map((a) => LEASE_LABELS[a] || a), textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+      grid: { top: 30, left: 6, right: 8, bottom: 20, containLabel: true },
+      xAxis: { type: "category", data: d.monthly.map((m) => m.month.slice(5)), axisLabel: { color: p.text, fontSize: 10 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
+      yAxis: { type: "value", axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
+      series: accounts.map((a, i) => ({
+        name: LEASE_LABELS[a] || a, type: "bar" as const, stack: "lease", barMaxWidth: 26,
+        itemStyle: { color: p.categorical[i % p.categorical.length] },
+        data: d.monthly.map((m) => m.byAccount[a] || 0),
+      })),
+    };
+  }, [d, p]);
+
+  if (d && !d.enabled) return null; // uitgezet in Settings
+
+  return (
+    <Card
+      title="Leasing & huur — rollend materieel"
+      hint={d ? `extern · excl. IC${d.config.excludedVendors.length ? ` & ${d.config.excludedVendors.join(", ")}` : ""}` : undefined}
+      source="Rekeningen volgens finance (Birgit) · excl. btw · BC grootboek + leveranciersjoin"
+    >
+      {!d && !err && (
+        <p className="flex items-center gap-2 py-6 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Leasingdata laden — eerste keer kan ±1 min duren (leveranciersjoin per firma)…
+        </p>
+      )}
+      {err && <p className="py-4 text-xs text-negative">Laden mislukt: {err}</p>}
+      {d && (
+        <>
+          <div className="mb-3 grid grid-cols-3 gap-2">
+            <div className="rounded-xl border border-border bg-muted/40 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Leasing/huur (extern)</div>
+              <div className="mt-0.5 text-lg font-bold text-foreground">{formatCurrencyCompact(d.totals.extern)}</div>
+              <div className="text-[10px] text-muted-foreground">bruto {formatCurrencyCompact(d.totals.bruto)} − IC {formatCurrencyCompact(d.totals.ic)}{d.totals.uitgesloten ? ` − uitgesl. ${formatCurrencyCompact(d.totals.uitgesloten)}` : ""}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-muted/40 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Intresten leasing</div>
+              <div className="mt-0.5 text-lg font-bold text-warning">{formatCurrencyCompact(d.totals.intrest)}</div>
+              <div className="text-[10px] text-muted-foreground">650010 · YTD</div>
+            </div>
+            <div className="rounded-xl border border-border bg-muted/40 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Openstaande leasingschuld</div>
+              <div className="mt-0.5 text-lg font-bold text-negative">{formatCurrencyCompact(d.totals.schuld)}</div>
+              <div className="text-[10px] text-muted-foreground">422000 · balans</div>
+            </div>
+          </div>
+          {chart && <EChart option={chart} height={220} ariaLabel="Leasingkost per maand per rekening" />}
+          <div className="mt-2 divide-y divide-border rounded-xl border border-border">
+            {d.perAccount.map((a) => (
+              <button
+                key={a.account}
+                onClick={() => onDrillAccount(a.account, LEASE_LABELS[a.account] || a.account, a.extern)}
+                className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-xs transition-colors hover:bg-accent"
+                title="Toon de boekingen op deze rekening (met BC-links)"
+              >
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span className="truncate text-foreground">{a.account} · {LEASE_LABELS[a.account] || "—"}</span>
+                </span>
+                <span className="shrink-0 tabular-nums text-foreground">{formatCurrency(a.extern)}</span>
+              </button>
+            ))}
+          </div>
+          {!!d.vendors.length && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {d.vendors.slice(0, 8).map((v) => (
+                <span
+                  key={v.name}
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${
+                    v.kind === "extern" ? "bg-muted text-muted-foreground"
+                    : v.kind === "ic" ? "bg-warning/10 text-warning line-through"
+                    : "bg-negative/10 text-negative line-through"
+                  }`}
+                  title={v.kind === "extern" ? `${v.name}: ${formatCurrency(v.amount)}` : `${v.name}: ${formatCurrency(v.amount)} — gefilterd (${v.kind === "ic" ? "intercompany" : "uitgesloten leverancier"})`}
+                >
+                  {v.name} · {eurAxis(v.amount)}
+                </span>
+              ))}
+            </div>
+          )}
+          {(d.note || d.totals.nietToegewezen > 0) && (
+            <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">{d.note || `€${d.totals.nietToegewezen.toLocaleString("nl-BE")} zonder leverancier-match telt als extern.`}</p>
+          )}
+        </>
+      )}
+    </Card>
   );
 }
 
@@ -530,6 +665,19 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
     });
   };
 
+  // Leasing-kaart → drill naar de boekingen van één huurrekening (BC-links via
+  // het bestaande /api/cfo/gl-pad in het bronpaneel).
+  const onLeasingAccount = (account: string, label: string, amount: number) => {
+    resetGl();
+    setDrill({
+      title: `${account} · ${label}`,
+      subtitle: "Leasing/huur rollend materieel · bron: BC grootboek",
+      total: Math.abs(amount),
+      rows: [{ label: `${account} · ${label}`, value: amount, accountNumber: account }],
+      note: "Klik de rekening voor de individuele boekingen (met BC-links). De boekingenlijst toont álles op de rekening — de IC/leverancier-filtering geldt op het kaarttotaal.",
+    });
+  };
+
   const onEntity = (e: CfoEntityRow) => setDrill({
     title: e.companyName, subtitle: `${e.code} · operationeel resultaat`, total: e.revenue,
     rows: [{ label: "Bedrijfsopbrengsten", value: e.revenue }, { label: "Bedrijfskosten", value: -e.costs }, { label: "Resultaat (EBIT)", value: e.result }],
@@ -548,8 +696,8 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
     { label: "EBIT", value: formatCurrencyCompact(k.operatingResult), sub: `marge ${k.operatingMarginPct}%`, icon: TrendingUp, accent: "text-positive", ring: "ring-positive/20", glow: "from-positive/15", delta: pct(k.operatingResult, py?.ebit) },
     { label: "Nettoresultaat", value: formatCurrencyCompact(k.netResult), sub: "na financieel & belastingen", icon: Landmark, accent: "text-positive", ring: "ring-positive/20", glow: "from-positive/15", delta: pct(k.netResult, py?.netResult) },
     { label: "Cashpositie", value: formatCurrencyCompact(k.cash), sub: "banksaldo (klasse 55)", icon: Wallet, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15" },
-    { label: "Te betalen (AP)", value: formatCurrencyCompact(apShown), sub: eliminateIC ? "extern" : "incl. intercompany", icon: ArrowDownCircle, accent: "text-negative", ring: "ring-negative/20", glow: "from-negative/15" },
-    { label: "Te ontvangen (AR)", value: arShown ? formatCurrencyCompact(arShown) : "—", sub: eliminateIC ? "extern" : "incl. intercompany", icon: ArrowUpCircle, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15" },
+    { label: "Te betalen (AP)", value: formatCurrencyCompact(apShown), sub: eliminateIC ? "extern · incl. btw" : "incl. intercompany · incl. btw", icon: ArrowDownCircle, accent: "text-negative", ring: "ring-negative/20", glow: "from-negative/15" },
+    { label: "Te ontvangen (AR)", value: arShown ? formatCurrencyCompact(arShown) : "—", sub: eliminateIC ? "extern · incl. btw" : "incl. intercompany · incl. btw", icon: ArrowUpCircle, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15" },
   ];
 
   const r = data.ratios;
@@ -746,14 +894,17 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
               )}
             </Card>
           )}
+
+          {/* Leasing & huur rollend materieel — lazy geladen, spec Birgit */}
+          <LeasingCard excluded={data.scope?.excluded || []} onDrillAccount={onLeasingAccount} />
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <Card title="Leveranciersaging (te betalen)" hint="Klik een bucket" source="Open leveranciersposten · vervaldatum">
+            <Card title="Leveranciersaging (te betalen)" hint="Klik een bucket" source="Open leveranciersposten · vervaldatum · incl. btw">
               <EChart option={apAging} height={260} onSelect={onApAging} ariaLabel="AP aging" />
             </Card>
             {arAging && (
-              <Card title="Klantenaging (te ontvangen)" hint="Klik een bucket" source="Open verkoopfacturen · vervaldatum">
+              <Card title="Klantenaging (te ontvangen)" hint="Klik een bucket" source="Open verkoopfacturen · vervaldatum · incl. btw">
                 <EChart option={arAging} height={260} onSelect={onArAging} ariaLabel="AR aging" />
               </Card>
             )}

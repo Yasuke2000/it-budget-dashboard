@@ -337,6 +337,35 @@ export async function fetchBCOpenAP(companyCode: string): Promise<BCOpenAPRow[]>
   return out;
 }
 
+// documentNumber → vendorName voor ALLE leveranciersposten in een periode (open én
+// betaald). Gebruikt om GL-rijen op kostenrekeningen aan een leverancier toe te
+// wijzen (leasing-analyse: IC en uitgesloten leveranciers eruit filteren).
+export async function fetchBCVendorDocMap(
+  companyCode: string, dateFrom: string, dateTo: string
+): Promise<Record<string, string>> {
+  const token = await getBCToken();
+  const map: Record<string, string> = {};
+  let url: string | null =
+    `${BC_ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(companyCode)}')/VendorLedgerEntries?$filter=${encodeURIComponent(
+      `Posting_Date ge ${dateFrom} and Posting_Date le ${dateTo}`
+    )}&$select=Document_No,Vendor_Name`;
+  let page = 0;
+  while (url && page < 80) {
+    const res: Response = await fetchWithRetry(url, {
+      headers: { Authorization: `Bearer ${token}`, "Data-Access-Intent": "ReadOnly", Accept: "application/json" },
+    }, { timeoutMs: 90_000, maxAttempts: 2 });
+    if (!res.ok) break;
+    const data: { value?: Record<string, unknown>[]; "@odata.nextLink"?: string } = await res.json();
+    for (const e of data.value || []) {
+      const doc = String(e.Document_No || "");
+      if (doc && !map[doc]) map[doc] = String(e.Vendor_Name || "");
+    }
+    url = data["@odata.nextLink"] || null;
+    page++;
+  }
+  return map;
+}
+
 export interface BCOpenARRow {
   amount: number;  // remaining receivable (positive = they owe us)
   due: string;     // "YYYY-MM-DD" or ""

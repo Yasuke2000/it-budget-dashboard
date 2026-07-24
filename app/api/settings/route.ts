@@ -18,6 +18,7 @@ export async function GET() {
     cfoRevenueTarget: s.cfoRevenueTarget,
     cfoCostTarget: s.cfoCostTarget,
     cfoClassTargets: s.cfoClassTargets,
+    leasing: s.leasing,
   });
 }
 
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
       cfoRevenueTarget?: number;
       cfoCostTarget?: number;
       cfoClassTargets?: Record<string, number>;
+      leasing?: import("@/lib/settings-store").LeasingConfig;
     };
     const settings = await saveAppSettings({
       glMappings: body.glMappings,
@@ -52,6 +54,7 @@ export async function POST(request: Request) {
       cfoRevenueTarget: body.cfoRevenueTarget,
       cfoCostTarget: body.cfoCostTarget,
       cfoClassTargets: body.cfoClassTargets,
+      leasing: body.leasing,
     });
     // Invalidate cached spend/licenses so the new mapping/prices take effect now
     // (instead of after the 2–4h TTL).

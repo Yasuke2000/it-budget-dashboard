@@ -56,7 +56,34 @@ export interface AppSettings {
   cfoCostTarget: number;
   // CFO cockpit — annual target per PCMN expense class ("60"–"64", EUR; 0/absent = none).
   cfoClassTargets: Record<string, number>;
+  // CFO cockpit — leasing/huur-analyse (spec Birgit, finance, 24/07/2026).
+  leasing: LeasingConfig;
 }
+
+export interface LeasingConfig {
+  enabled: boolean;
+  // Kostenrekeningen (6*) die als leasing/huur tellen — IC wordt eruit gefilterd.
+  accounts: string[];
+  // Financiële rekening(en) met leasing-/rentingintresten.
+  interestAccounts: string[];
+  // Balansrekening(en) met openstaande leasingschulden.
+  debtAccounts: string[];
+  // Leveranciers die NIET als leasing tellen (bv. huur bij een onderaannemer) —
+  // naam-substring, hoofdletterongevoelig.
+  excludedVendors: string[];
+}
+
+// Defaults exact volgens de mail van Birgit (finance, 24/07/2026):
+// 610200 huur motorvoertuigen · 610250 huur getrokken materiaal · 610260 huur
+// logistiek materiaal · 610500 huur personenwagens; intresten 650010; schuld
+// 422000. Vero Duco (GTR, 610200) = onderaannemer, geen leasing.
+const DEFAULT_LEASING: LeasingConfig = {
+  enabled: true,
+  accounts: ["610200", "610250", "610260", "610500"],
+  interestAccounts: ["650010"],
+  debtAccounts: ["422000"],
+  excludedVendors: ["Vero Duco"],
+};
 
 // Resilience: settings are written to BOTH Postgres (when enabled) and the
 // JSON file on the data PVC, and reads fall back DB → file → memory. A DB
@@ -146,6 +173,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     getSetting<number>("cfoCostTarget"),
   ]);
   const cfoClassTargets = await getSetting<Record<string, number>>("cfoClassTargets");
+  const leasing = await getSetting<LeasingConfig>("leasing");
   // Merge stored GL overrides over defaults, then strip any forbidden account
   // (depreciation 63x / suspense 49x) so it can never leak into the spend total.
   const mergedGl: Record<string, string> = { ...DEFAULT_GL_MAPPING, ...(gl ?? {}) };
@@ -170,6 +198,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     cfoRevenueTarget: cfoRev ?? envNumber("CFO_REVENUE_TARGET") ?? 0,
     cfoCostTarget: cfoCost ?? envNumber("CFO_COST_TARGET") ?? 0,
     cfoClassTargets: cfoClassTargets ?? {},
+    leasing: { ...DEFAULT_LEASING, ...(leasing ?? {}) },
   };
 }
 
@@ -187,5 +216,6 @@ export async function saveAppSettings(settings: Partial<AppSettings>): Promise<A
   if (settings.cfoRevenueTarget !== undefined) await setSetting("cfoRevenueTarget", settings.cfoRevenueTarget);
   if (settings.cfoCostTarget !== undefined) await setSetting("cfoCostTarget", settings.cfoCostTarget);
   if (settings.cfoClassTargets !== undefined) await setSetting("cfoClassTargets", settings.cfoClassTargets);
+  if (settings.leasing !== undefined) await setSetting("leasing", settings.leasing);
   return getAppSettings();
 }

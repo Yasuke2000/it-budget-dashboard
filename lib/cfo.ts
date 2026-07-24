@@ -29,8 +29,9 @@ function isOperatingCompany(name: string): boolean {
 const r0 = (n: number) => Math.round(n);
 
 // Intercompany counterparty (own group entity as vendor/customer) — name-based.
+// Exported: ook de leasing-analyse (lib/leasing.ts) filtert er IC-facturen mee uit.
 const IC_RX = /gheeraert|\bde\s*rudder\b|dr logistics|\brudder\b|marcel lamberts|lamberts en zonen|trans[\s-]?form|\bwarehouse\b|m[\s-]?express/i;
-const isIcName = (name: string) => IC_RX.test(name || "");
+export const isIcName = (name: string) => IC_RX.test(name || "");
 
 // Monday of the week containing `d` (UTC).
 function mondayOf(d: Date): Date {
