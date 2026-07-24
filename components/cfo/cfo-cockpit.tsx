@@ -331,10 +331,19 @@ function LeasingCard({ excluded, onDrillAccount }: { excluded: string[]; onDrill
               <div className="mt-0.5 text-lg font-bold text-warning">{formatCurrencyCompact(d.totals.intrest)}</div>
               <div className="text-[10px] text-muted-foreground">650010 · YTD</div>
             </div>
-            <div className="rounded-xl border border-border bg-muted/40 px-3 py-2">
+            <div className="rounded-xl border border-border bg-muted/40 px-3 py-2" title={d.totals.schuld <= 0 ? "Het 422x-saldo is netto debet — de openingssaldi van de leasingschulden staan onvolledig in BC (migratiejaar), dus het echte openstaande bedrag is hier niet betrouwbaar af te lezen." : undefined}>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Openstaande leasingschuld</div>
-              <div className="mt-0.5 text-lg font-bold text-negative">{formatCurrencyCompact(d.totals.schuld)}</div>
-              <div className="text-[10px] text-muted-foreground">422000 · balans</div>
+              {d.totals.schuld > 0 ? (
+                <>
+                  <div className="mt-0.5 text-lg font-bold text-negative">{formatCurrencyCompact(d.totals.schuld)}</div>
+                  <div className="text-[10px] text-muted-foreground">4222x · balans</div>
+                </>
+              ) : (
+                <>
+                  <div className="mt-0.5 text-lg font-bold text-muted-foreground">—</div>
+                  <div className="text-[10px] text-warning">openingssaldi onvolledig (migratiejaar)</div>
+                </>
+              )}
             </div>
           </div>
           {chart && <EChart option={chart} height={220} ariaLabel="Leasingkost per maand per rekening" />}
