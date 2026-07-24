@@ -14,11 +14,23 @@
 import { getCache, setCache } from "./sync-cache";
 import { getAppSettings, type LeasingConfig } from "./settings-store";
 import {
-  fetchBCCompanies, fetchBCGlEntriesForAccount, fetchBCVendorDocMap, fetchBCClassNetBalance,
+  fetchBCCompanies, fetchBCGlEntriesForAccount, fetchBCGlEntriesForPrefix,
+  fetchBCVendorDocMap, fetchBCClassNetBalance,
 } from "./bc-client";
 import { isIcName } from "./cfo";
+import { vendorLedgerDocLink, glDocumentLink } from "./bc-links";
 
 export interface LeasingVendorRow { name: string; amount: number; kind: "extern" | "ic" | "uitgesloten" }
+// Eén geclassificeerde boeking — het detailniveau voor de Excel-export (met BC-link).
+export interface LeasingEntry {
+  company: string; account: string; date: string; docNo: string;
+  vendor: string;               // "" = geen leveranciersmatch (memoriaal)
+  kind: "extern" | "ic" | "uitgesloten";
+  amount: number;
+  bcUrl: string;
+  description: string;
+}
+export interface LeasingCompanyMonth { huur: number; afl: number; nieuw: number; intrest: number }
 export interface LeasingData {
   enabled: boolean;
   demo?: boolean;
@@ -37,6 +49,11 @@ export interface LeasingData {
   monthly: { month: string; byAccount: Record<string, number> }[]; // extern
   perCompany: { code: string; extern: number }[];
   vendors: LeasingVendorRow[]; // grootste eerst; extern + gefilterde ter controle
+  // Voor de Excel-export: per vennootschap per maand (huur extern + aflossing +
+  // intrest) en alle geclassificeerde boekingen met BC-deeplink (cap 4000).
+  perCompanyMonthly?: { code: string; name: string; months: Record<string, LeasingCompanyMonth> }[];
+  entries?: LeasingEntry[];
+  entriesCapped?: boolean;
   note?: string;
 }
 
@@ -63,7 +80,7 @@ export async function buildLeasing(exclude: string[] = [], from?: string, to?: s
   if (process.env.NEXT_PUBLIC_DEMO_MODE !== "false") return demoLeasing(base);
 
   const cfgKey = JSON.stringify([cfg.accounts, cfg.interestAccounts, cfg.debtAccounts, cfg.excludedVendors]);
-  const cacheKey = `leasing-${f}-${t}-x:${excl.join(",")}-c:${cfgKey}`;
+  const cacheKey = `leasing-v2-${f}-${t}-x:${excl.join(",")}-c:${cfgKey}`;
   const cached = getCache<LeasingData>(cacheKey);
   if (cached) return cached;
 
@@ -81,16 +98,22 @@ export async function buildLeasing(exclude: string[] = [], from?: string, to?: s
   const monthly = new Map<string, Record<string, number>>();
   const perCompany: { code: string; extern: number }[] = [];
   const vendorTotals = new Map<string, { amount: number; kind: LeasingVendorRow["kind"] }>();
+  const perCompanyMonthly: NonNullable<LeasingData["perCompanyMonthly"]> = [];
+  const entries: LeasingEntry[] = [];
+  const ENTRY_CAP = 4000;
 
   const CHUNK = 3;
   for (let i = 0; i < companies.length; i += CHUNK) {
     const batch = companies.slice(i, i + CHUNK);
     await Promise.all(batch.map(async (c) => {
-      const [vendorMap, ...accountRows] = await Promise.all([
+      const [vendorMap, debtRows, ...accountRows] = await Promise.all([
         fetchBCVendorDocMap(c.code, f, t).catch(() => ({} as Record<string, string>)),
+        Promise.all(cfg.debtAccounts.map((a) => fetchBCGlEntriesForPrefix(c.id, a, f, t).catch(() => []))).then((x) => x.flat()),
         ...cfg.accounts.map((a) => fetchBCGlEntriesForAccount(c.id, a, f, t).catch(() => [])),
       ]);
       let companyExtern = 0;
+      const coMonths: Record<string, LeasingCompanyMonth> = {};
+      const coMonth = (mo: string) => (coMonths[mo] = coMonths[mo] || { huur: 0, afl: 0, nieuw: 0, intrest: 0 });
       cfg.accounts.forEach((account, ai) => {
         for (const row of accountRows[ai]) {
           const amount = row.debit - row.credit; // kosten zijn debet-normaal
@@ -98,11 +121,22 @@ export async function buildLeasing(exclude: string[] = [], from?: string, to?: s
           const vendor = vendorMap[row.documentNumber] || "";
           const ic = vendor ? isIcName(vendor) : (isIcName(row.description) || codeRx.test(row.description));
           const uitgesloten = !ic && !!vendor && exVendors.some((x) => vendor.toLowerCase().includes(x));
+          const kind: LeasingEntry["kind"] = ic ? "ic" : uitgesloten ? "uitgesloten" : "extern";
+          if (entries.length < ENTRY_CAP) {
+            entries.push({
+              company: c.code, account, date: row.postingDate, docNo: row.documentNumber,
+              vendor, kind, amount: r0(amount), description: row.description.slice(0, 80),
+              // Met leveranciersmatch → leveranciersposten-pagina; memoriaal → GL-posten op documentnr.
+              bcUrl: row.documentNumber
+                ? (vendor ? vendorLedgerDocLink(c.code, row.documentNumber) : glDocumentLink(c.code, row.documentNumber))
+                : "",
+            });
+          }
           const pa = perAccount.get(account) || { extern: 0, bruto: 0 };
           pa.bruto += amount;
           totals.bruto += amount;
           const vKey = vendor || (ic ? "(memoriaal · IC via omschrijving)" : "(geen leverancier-match)");
-          const vt = vendorTotals.get(vKey) || { amount: 0, kind: ic ? "ic" : uitgesloten ? "uitgesloten" : "extern" };
+          const vt = vendorTotals.get(vKey) || { amount: 0, kind };
           vt.amount += amount;
           vendorTotals.set(vKey, vt);
           if (ic) { totals.ic += amount; }
@@ -116,21 +150,41 @@ export async function buildLeasing(exclude: string[] = [], from?: string, to?: s
             const m = monthly.get(mo) || {};
             m[account] = (m[account] || 0) + amount;
             monthly.set(mo, m);
+            coMonth(mo).huur += amount;
           }
           perAccount.set(account, pa);
         }
       });
+      // Aflossingen leasingschulden (4222x): debet = aflossing (cash out),
+      // credit = nieuwe lease (geen cash).
+      for (const row of debtRows) {
+        const mo = row.postingDate.slice(0, 7);
+        if (!mo) continue;
+        coMonth(mo).afl += row.debit || 0;
+        coMonth(mo).nieuw += row.credit || 0;
+      }
       // Intresten (650010 e.d.) — bruto, geen IC-filter (lessors zijn extern).
       for (const a of cfg.interestAccounts) {
         const rows = await fetchBCGlEntriesForAccount(c.id, a, f, t).catch(() => []);
-        totals.intrest += rows.reduce((s, r) => s + (r.debit - r.credit), 0);
+        for (const row of rows) {
+          const mo = row.postingDate.slice(0, 7);
+          const v = (row.debit || 0) - (row.credit || 0);
+          totals.intrest += v;
+          if (mo) coMonth(mo).intrest += v;
+        }
       }
-      // Openstaande leasingschuld (422000): credit-normaal → schuld = −netto.
+      // Openstaande leasingschuld: saldo over de hele historiek, credit-normaal → schuld = −netto.
       for (const a of cfg.debtAccounts) {
         const net = await fetchBCClassNetBalance(c.id, a).catch(() => 0);
         totals.schuld += -net;
       }
       perCompany.push({ code: c.code, extern: r0(companyExtern) });
+      if (Object.keys(coMonths).length) {
+        perCompanyMonthly.push({
+          code: c.code, name: c.code,
+          months: Object.fromEntries(Object.entries(coMonths).map(([m, v]) => [m, { huur: r0(v.huur), afl: r0(v.afl), nieuw: r0(v.nieuw), intrest: r0(v.intrest) }])),
+        });
+      }
     }));
   }
 
@@ -152,6 +206,9 @@ export async function buildLeasing(exclude: string[] = [], from?: string, to?: s
       .map(([name, v]) => ({ name, amount: r0(v.amount), kind: v.kind }))
       .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
       .slice(0, 25),
+    perCompanyMonthly: perCompanyMonthly.sort((a, b) => a.code.localeCompare(b.code)),
+    entries: entries.sort((a, b) => (a.company + a.date).localeCompare(b.company + b.date)),
+    entriesCapped: entries.length >= ENTRY_CAP,
     note: totals.nietToegewezen > 0.02 * Math.max(totals.extern, 1)
       ? `€${r0(totals.nietToegewezen).toLocaleString("nl-BE")} zonder leverancier-match (memoriaal/journaal) telt als extern — controleer bij twijfel de boekingen via de drill.`
       : undefined,

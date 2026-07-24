@@ -955,10 +955,11 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
           <div className="sticky top-6 space-y-4">
           <div className="rounded-2xl border border-border bg-card p-5 backdrop-blur">
             <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-foreground"><Download className="h-4 w-4 text-primary" /> Exports — live uit Business Central</h3>
-            <p className="mb-3 text-[11px] text-muted-foreground">Elke export bevat de pull-timestamp (bestandsnaam + titelblad), zodat altijd duidelijk is van wanneer de data is.</p>
+            <p className="mb-3 text-[11px] text-muted-foreground">Elke export bevat de pull-timestamp (bestandsnaam + titelblad), IC-markering, doorklik-links naar de boekingen in Business Central en een methodiek-blad.</p>
             <div className="space-y-2">
               <ExportButton kind="ap" label="Leveranciersaging (Excel)" />
               <ExportButton kind="ar" label="Klantenaging (Excel)" />
+              <ExportButton kind="leasing" label="Leasing cash-out (Excel)" />
             </div>
           </div>
           <div className="rounded-2xl border border-border bg-card p-5 backdrop-blur">
@@ -1110,7 +1111,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
 }
 
 // ---- exports (de "knop": live pull uit BC, met timestamp) ----
-function ExportButton({ kind, label }: { kind: "ap" | "ar"; label: string }) {
+function ExportButton({ kind, label }: { kind: "ap" | "ar" | "leasing"; label: string }) {
   const [busy, setBusy] = useState(false);
   const [pulledAt, setPulledAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1118,7 +1119,11 @@ function ExportButton({ kind, label }: { kind: "ap" | "ar"; label: string }) {
   const run = async () => {
     setBusy(true); setError(null);
     try {
-      const res = await fetch(`/api/cfo/export/${kind}`);
+      // Leasing-export volgt de actieve consolidatiescope van de cockpit.
+      const exclude = kind === "leasing"
+        ? new URL(window.location.href).searchParams.get("exclude") || ""
+        : "";
+      const res = await fetch(`/api/cfo/export/${kind}${exclude ? `?exclude=${encodeURIComponent(exclude)}` : ""}`);
       if (!res.ok) {
         const j = await res.json().catch(() => null);
         throw new Error(j?.error || `Export mislukt (${res.status})`);
@@ -1130,7 +1135,7 @@ function ExportButton({ kind, label }: { kind: "ap" | "ar"; label: string }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = m?.[1] || `${kind === "ap" ? "Leveranciersaging" : "Klantenaging"}.xlsx`;
+      a.download = m?.[1] || `${kind === "ap" ? "Leveranciersaging" : kind === "ar" ? "Klantenaging" : "Leasing cash-out"}.xlsx`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
       if (stamp) setPulledAt(new Date(stamp).toLocaleString("nl-BE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }));

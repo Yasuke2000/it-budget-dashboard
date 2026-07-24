@@ -23,7 +23,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "from/to ongeldig" }, { status: 400 });
   }
   try {
-    return NextResponse.json(await buildLeasing(exclude, from, to));
+    const data = await buildLeasing(exclude, from, to);
+    // De cockpit-kaart heeft het boekingen-detail niet nodig — dat is voor de
+    // Excel-export (die buildLeasing rechtstreeks aanspreekt). Payload klein houden.
+    const light = { ...data };
+    delete light.entries;
+    delete light.perCompanyMonthly;
+    return NextResponse.json(light);
   } catch (err) {
     return NextResponse.json({ error: String(err).slice(0, 200) }, { status: 502 });
   }

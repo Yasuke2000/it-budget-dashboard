@@ -8,6 +8,7 @@
 import ExcelJS from "exceljs";
 import { getBCToken, fetchBCCompanies } from "./bc-client";
 import { fetchWithRetry } from "./http";
+import { vendorLedgerDocLink, salesInvoiceLink } from "./bc-links";
 
 const ODATA_ROOT = `https://api.businesscentral.dynamics.com/v2.0/${process.env.BC_TENANT_ID}/${process.env.BC_ENVIRONMENT || "production"}`;
 const API_ROOT = `${ODATA_ROOT}/api/v2.0`;
@@ -16,8 +17,10 @@ function isOperatingCompany(name: string): boolean {
   return !/^_/.test(name) && !/test|copie|fleetmate/i.test(name);
 }
 
-// Intercompany counterparty (own group entity) — same heuristic as the validated exports.
-const IC_RX = /gheeraert|\bde\s*rudder\b|dr logistics|\brudder\b|marcel lamberts|lamberts en zonen|trans[\s-]?form|\bwarehouse\b|m[\s-]?express/i;
+// Intercompany counterparty (own group entity) — same heuristic as the validated
+// exports. "lamberts (en|&) zonen": BC gebruikt beide schrijfwijzen voor de
+// groepsfirma (les uit de leasing-verificatie 24/07 — de &-variant miste).
+const IC_RX = /gheeraert|\bde\s*rudder\b|dr logistics|\brudder\b|marcel lamberts|lamberts\s*(?:en|&)\s*zonen|trans[\s-]?form|\bwarehouse\b|m[\s-]?express/i;
 // Merge name variants: strip company-code prefixes ("GTG - ") and legal forms.
 const PREFIX_RX = /^(GTR|GTG|GSS|GPR|TFO|GDI|GRE|WHS|TDR|LMB|GEX)\s*-\s*/i;
 const LEGAL_RX = /\b(NV\/SA|NV|SA|BVBA|BV|VOF|GMBH|LTD|INC|SPRL|SCRL|CVBA|COMM\.?\s*V|SRL|SARL|GCV)\b\.?/gi;
@@ -213,7 +216,19 @@ export async function buildAgingWorkbook(
     const sorted = [...g.rows].sort((a, b) => (a.company + (a.dueDate || "9999")).localeCompare(b.company + (b.dueDate || "9999")));
     for (const x of sorted) {
       ws.getCell(r, 1).value = g.display; ws.getCell(r, 1).font = { color: { argb: "FF808080" } };
-      ws.getCell(r, 2).value = x.docNo + (x.docType !== "Factuur" ? `  ·${x.docType}` : "");
+      // Factuurnummer = BC-deeplink (vindplaats, geen payload — zelfde conventie
+      // als de andere exports): AP → leveranciersposten (page 29), AR → geboekte
+      // verkoopfactuur (page 132). Zonder BC-login toont de link niets.
+      const label = x.docNo + (x.docType !== "Factuur" ? `  ·${x.docType}` : "");
+      if (x.docNo) {
+        ws.getCell(r, 2).value = {
+          text: label,
+          hyperlink: isAP ? vendorLedgerDocLink(x.company, x.docNo) : salesInvoiceLink(x.company, x.docNo),
+        };
+        ws.getCell(r, 2).font = { color: { argb: "FF1F5FA8" }, underline: true };
+      } else {
+        ws.getCell(r, 2).value = label;
+      }
       ws.getCell(r, 3).value = x.amountOrigin; ws.getCell(r, 3).numFmt = EUR_FMT;
       ws.getCell(r, 4).value = x.currency;
       ws.getCell(r, 5).value = x.invoiceDate;
@@ -265,6 +280,7 @@ export async function buildAgingWorkbook(
     "Buckets t.o.v. de VERVALDATUM: Niet vervallen / < 30d / < 60d / < 90d / > 90d / Onbekend (geen vervaldatum).",
     "Groepering per naam over alle vennootschappen (firmacode-prefix en rechtsvormen genegeerd bij het matchen).",
     "Soort: IC = intercompany (eigen groepsvennootschap als tegenpartij, naam-gebaseerd).",
+    "DOORKLIKKEN: het factuurnummer op het Aging-blad is een link die de post rechtstreeks in Business Central opent (BC-login vereist).",
     `Groepstotaal: € ${grandTotal.toLocaleString("nl-BE")} over ${rows.length} posten en ${groups.size} ${isAP ? "leveranciers" : "klanten"}.`,
   ];
   notes.forEach((t, i) => {

@@ -421,6 +421,27 @@ export async function fetchBCGlEntriesForAccount(
   }));
 }
 
+// Zoals fetchBCGlEntriesForAccount maar op REKENING-PREFIX (startswith) — voor
+// rekeningfamilies zoals 4222x (leasingschulden) waar het exacte nummer per
+// vennootschap kan verschillen.
+export async function fetchBCGlEntriesForPrefix(
+  companyId: string, prefix: string, dateFrom: string, dateTo: string
+): Promise<BCGlEntry[]> {
+  const token = await getBCToken();
+  const filter = `startswith(accountNumber,'${prefix}') and postingDate ge ${dateFrom} and postingDate le ${dateTo}`;
+  const url = `${BC_BASE_URL}/companies(${companyId})/generalLedgerEntries?$filter=${encodeURIComponent(
+    filter
+  )}&$select=postingDate,documentNumber,description,debitAmount,creditAmount`;
+  const rows = await fetchAllPages<Record<string, unknown>>(url, token);
+  return rows.map((r) => ({
+    postingDate: String(r.postingDate || "").slice(0, 10),
+    documentNumber: String(r.documentNumber || ""),
+    description: String(r.description || ""),
+    debit: (r.debitAmount as number) || 0,
+    credit: (r.creditAmount as number) || 0,
+  }));
+}
+
 // Full-history net balance (debit − credit) per GL account for one company — the
 // heavy pull that backs the materialized snapshot (POST /api/cfo/refresh-snapshot).
 // Pages the ENTIRE ledger (no $top), so run it as a background/nightly job.
