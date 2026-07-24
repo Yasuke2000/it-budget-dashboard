@@ -67,9 +67,13 @@ export async function buildLeasing(exclude: string[] = [], from?: string, to?: s
   const cached = getCache<LeasingData>(cacheKey);
   if (cached) return cached;
 
-  const companies = (await fetchBCCompanies())
+  const allOperating = (await fetchBCCompanies())
     .map((c) => ({ id: String(c.id), code: String(c.name) }))
-    .filter((c) => isOperatingCompany(c.code) && !excl.includes(c.code.toUpperCase()));
+    .filter((c) => isOperatingCompany(c.code));
+  const companies = allOperating.filter((c) => !excl.includes(c.code.toUpperCase()));
+  // Memoriaalboekingen hebben geen leveranciersmatch — als de omschrijving een
+  // groepsnaam of firmacode bevat ("Huur rollend materiaal GEX") is het tóch IC.
+  const codeRx = new RegExp(`\\b(${allOperating.map((c) => c.code).join("|")})\\b`, "i");
 
   const exVendors = cfg.excludedVendors.map((v) => v.trim().toLowerCase()).filter(Boolean);
   const totals = { bruto: 0, ic: 0, uitgesloten: 0, extern: 0, nietToegewezen: 0, intrest: 0, schuld: 0 };
@@ -92,12 +96,12 @@ export async function buildLeasing(exclude: string[] = [], from?: string, to?: s
           const amount = row.debit - row.credit; // kosten zijn debet-normaal
           if (!amount) continue;
           const vendor = vendorMap[row.documentNumber] || "";
-          const ic = vendor ? isIcName(vendor) : false;
-          const uitgesloten = !ic && vendor && exVendors.some((x) => vendor.toLowerCase().includes(x));
+          const ic = vendor ? isIcName(vendor) : (isIcName(row.description) || codeRx.test(row.description));
+          const uitgesloten = !ic && !!vendor && exVendors.some((x) => vendor.toLowerCase().includes(x));
           const pa = perAccount.get(account) || { extern: 0, bruto: 0 };
           pa.bruto += amount;
           totals.bruto += amount;
-          const vKey = vendor || "(geen leverancier-match)";
+          const vKey = vendor || (ic ? "(memoriaal · IC via omschrijving)" : "(geen leverancier-match)");
           const vt = vendorTotals.get(vKey) || { amount: 0, kind: ic ? "ic" : uitgesloten ? "uitgesloten" : "extern" };
           vt.amount += amount;
           vendorTotals.set(vKey, vt);

@@ -73,15 +73,16 @@ export interface LeasingConfig {
   excludedVendors: string[];
 }
 
-// Defaults exact volgens de mail van Birgit (finance, 24/07/2026):
-// 610200 huur motorvoertuigen · 610250 huur getrokken materiaal · 610260 huur
-// logistiek materiaal · 610500 huur personenwagens; intresten 650010; schuld
-// 422000. Vero Duco (GTR, 610200) = onderaannemer, geen leasing.
+// Defaults volgens de mail van Birgit (finance, 24/07/2026), met één data-gedreven
+// correctie: de mail noemde 422000, maar de rekening die effectief de leasing-
+// schulden draagt is 422200 "Leasingschulden rollend materieel" (verificatie-sweep
+// 24/07: €1,06M bewegingen jan–jun op 422200, nul op 422000). Prefix "422" vangt
+// beide. Vero Duco (GTR, 610200) = onderaannemer, geen leasing.
 const DEFAULT_LEASING: LeasingConfig = {
   enabled: true,
   accounts: ["610200", "610250", "610260", "610500"],
   interestAccounts: ["650010"],
-  debtAccounts: ["422000"],
+  debtAccounts: ["422"],
   excludedVendors: ["Vero Duco"],
 };
 

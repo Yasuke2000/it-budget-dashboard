@@ -30,7 +30,10 @@ const r0 = (n: number) => Math.round(n);
 
 // Intercompany counterparty (own group entity as vendor/customer) — name-based.
 // Exported: ook de leasing-analyse (lib/leasing.ts) filtert er IC-facturen mee uit.
-const IC_RX = /gheeraert|\bde\s*rudder\b|dr logistics|\brudder\b|marcel lamberts|lamberts en zonen|trans[\s-]?form|\bwarehouse\b|m[\s-]?express/i;
+// "lamberts (en|&) zonen": BC schrijft de groepsfirma zowel "…Marcel Lamberts en
+// Zonen" als kort "LAMBERTS & ZONEN" — de &-variant gemist = IC als extern geteld
+// (zelfde les als de omzet-export; her-ontdekt in de leasing-verificatie 24/07).
+const IC_RX = /gheeraert|\bde\s*rudder\b|dr logistics|\brudder\b|marcel lamberts|lamberts\s*(?:en|&)\s*zonen|trans[\s-]?form|\bwarehouse\b|m[\s-]?express/i;
 export const isIcName = (name: string) => IC_RX.test(name || "");
 
 // Monday of the week containing `d` (UTC).
