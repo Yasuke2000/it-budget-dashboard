@@ -960,8 +960,26 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
               <ExportButton kind="ap" label="Leveranciersaging (Excel)" />
               <ExportButton kind="ar" label="Klantenaging (Excel)" />
               <ExportButton kind="leasing" label="Leasing cash-out (Excel)" />
+              <a
+                href="/api/cfo/ai-export"
+                className="flex w-full items-center justify-between rounded-xl border border-border bg-background/40 px-3 py-2 text-left text-xs font-semibold text-foreground transition hover:border-primary/40 hover:bg-accent"
+                title="Volledige CFO-dataset (P&L, DSO/factoring, BTW) + methodiek als zelfbeschrijvend JSON — voor AI-analyse of eigen doorrekening"
+              >
+                <span>Export voor AI — volledige dataset (JSON)</span>
+                <Download className="h-3.5 w-3.5 text-primary" />
+              </a>
             </div>
           </div>
+          <a
+            href="/cfo/klanten"
+            className="block rounded-2xl border border-primary/30 bg-primary/5 p-5 backdrop-blur transition hover:border-primary/50 hover:bg-primary/10"
+          >
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground"><CalendarClock className="h-4 w-4 text-primary" /> Klanten &amp; Cash — DSO deep-dive</h3>
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+              Hoe snel klanten écht betalen, DSO per categorie (factoring / niet-factoring), facturatie per week,
+              factor-dynamiek (KBC · Belfius · BNP), verwachte inning en de BTW-positie — met doorklik tot in Business Central. →
+            </p>
+          </a>
           <div className="rounded-2xl border border-border bg-card p-5 backdrop-blur">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground"><Info className="h-4 w-4 text-primary" /> Bron &amp; detail</h3>

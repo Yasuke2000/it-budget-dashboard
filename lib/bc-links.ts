@@ -14,6 +14,7 @@ const BC_ENV = process.env.BC_ENVIRONMENT || "Production";
 
 // BC-paginanummers (zelfde tabel als bclink.py)
 const PAGE_GL_ENTRIES = 20;
+const PAGE_CUST_LEDGER_ENTRIES = 25;
 const PAGE_VENDOR_LEDGER_ENTRIES = 29;
 const PAGE_POSTED_SALES_INVOICE = 132;
 
@@ -41,4 +42,9 @@ export function vendorLedgerDocLink(company: string, documentNumber: string): st
 /** Geboekte verkoopfactuur-kaart gefilterd op factuurnummer. */
 export function salesInvoiceLink(company: string, invoiceNumber: string): string {
   return link(company, PAGE_POSTED_SALES_INVOICE, "No.", invoiceNumber);
+}
+
+/** Klantposten (CLE) gefilterd op documentnummer — werkt voor factuur én betaling. */
+export function custLedgerDocLink(company: string, documentNumber: string): string {
+  return link(company, PAGE_CUST_LEDGER_ENTRIES, "Document No.", documentNumber);
 }

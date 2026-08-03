@@ -53,6 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Overview", icon: LayoutDashboard, href: "/" },
       { label: "CFO Cockpit", icon: Landmark, href: "/cfo" },
+      { label: "Klanten & Cash", icon: Coins, href: "/cfo/klanten" },
     ],
   },
   {
@@ -109,7 +110,7 @@ function useNavGroups() {
 
   return NAV_GROUPS.map((g) => {
     let items = g.items;
-    if (!cfoAllowed) items = items.filter((i) => i.href !== "/cfo");
+    if (!cfoAllowed) items = items.filter((i) => !i.href.startsWith("/cfo"));
     if (showPeppol && g.title === "Data & Insights") {
       const at = items.findIndex((i) => i.href === "/import") + 1;
       items = [...items.slice(0, at), PEPPOL_ITEM, ...items.slice(at)];
@@ -225,8 +226,9 @@ function SidebarContent({
             )}
             <div className="space-y-0.5">
               {group.items.map(({ label, icon: Icon, href }) => {
+                // Exacte match voor "/" en "/cfo" (anders licht /cfo óók op bij /cfo/klanten).
                 const isActive =
-                  href === "/" ? pathname === "/" : pathname.startsWith(href);
+                  href === "/" || href === "/cfo" ? pathname === href : pathname.startsWith(href);
                 return (
                   <Link
                     key={href}

@@ -712,3 +712,113 @@ export interface WarrantyInfo {
   daysRemaining: number;
   status: "active" | "expired" | "expiring_soon";
 }
+
+// === CFO — Klanten & cash (DSO/factoring/betaalgedrag/BTW) ===
+// Payload van /api/cfo/receivables en /api/cfo/vat — de "deep-dive" die de CFO
+// vroeg: DSO per categorie, echt betaalgedrag, factoring-dynamiek en BTW-positie.
+
+export type RcvCategory = "extFactoring" | "extOther" | "ic";
+
+export interface RcvDsoSeries {
+  months: string[];                          // "YYYY-MM", oplopend
+  // DSO per categorie (balansmethode: AR-eindsaldo ÷ verkopen van de maand × dagen).
+  dsoTotal: (number | null)[];               // extern totaal (factoring + niet-factoring)
+  dsoExtFactoring: (number | null)[];
+  dsoExtOther: (number | null)[];
+  dpoTotal: (number | null)[];               // leverancierszijde (extern), ter vergelijking
+  arEndByCat: Record<RcvCategory, number[]>; // AR-eindsaldo per maandeinde, incl. btw
+  salesByCat: Record<RcvCategory, number[]>; // gefactureerd per maand (CLE-facturen), incl. btw
+}
+
+export interface RcvSpeedBucket { label: string; amount: number; count: number }
+
+export interface RcvInvoiceItem {
+  company: string; customer: string; docNo: string; invDate: string; dueDate: string;
+  amount: number; open: boolean; daysToPay: number | null; daysVsDue: number | null;
+  via: string;                               // dagboek-code van de betaling ("KBCF", "BELF", …) of ""
+  bcUrl: string;
+}
+
+export interface RcvCustomerRow {
+  name: string;                               // genormaliseerde naam
+  companies: string[];                        // firma's waar deze klant voorkomt
+  invoiced12m: number;                        // gefactureerd laatste 12m, incl. btw
+  openNow: number;                            // open saldo nu
+  overdueNow: number;                         // waarvan vervallen
+  paidCount: number;                          // volledig betaalde facturen in de meetperiode
+  avgDaysToPay: number | null;                // bedrag-gewogen: factuurdatum → laatste betaling
+  avgDaysVsDue: number | null;                // idem t.o.v. vervaldatum (positief = te laat)
+  factoredSharePct: number;                   // aandeel betaald volume via factor-dagboek
+  ic: boolean;
+}
+
+export interface RcvWeekFlow {
+  weekStart: string;                          // maandag (ISO)
+  factored: number;                           // gefactureerd aan factoring-klanten, incl. btw
+  other: number;                              // gefactureerd aan overige externe klanten
+  count: number;
+}
+
+export interface RcvFactorRow {
+  key: string;                                // dagboek-prefix ("KBCF", …)
+  label: string;                              // leesbare naam ("KBC Commercial Finance", …)
+  companies: string[];
+  settled12m: number;                         // afgewikkeld volume laatste 12m
+  medianDaysToSettle: number | null;          // factuurdatum → afwikkeling (mediaan)
+  avgDaysToSettle: number | null;
+  openFactored: number;                       // open AR bij factoring-klanten van deze factor
+  openFactoredOver90: number;                 // waarvan >90d vervallen (recourse-risico)
+}
+
+export interface RcvCashWeekExpectation {
+  weekStart: string; label: string;
+  expected: number;                           // verwachte inning o.b.v. betaalgedrag per klant
+  onDueDate: number;                          // baseline: inning exact op vervaldatum
+}
+
+export interface CfoReceivables {
+  asOf: string;                               // ISO-timestamp van de datapull
+  periodNote: string;                         // meetperiode betaalgedrag (bv. "betalingen sinds 01/01/2025")
+  isLive: boolean;
+  dso: RcvDsoSeries;
+  dsoNow: { total: number | null; extFactoring: number | null; extOther: number | null; dpo: number | null; asOfMonth: string };
+  dsoInvoiceLevel: { avgDays: number | null; medianDays: number | null; onTimePct: number | null; note: string };
+  speedBuckets: RcvSpeedBucket[];             // dagen-tot-betaling-verdeling (bedrag-gewogen)
+  customers: RcvCustomerRow[];                // top-N op gefactureerd 12m
+  weekFlow: RcvWeekFlow[];                    // facturatie per week (laatste 26w), excl. IC
+  factors: RcvFactorRow[];
+  factoringCost: { months: string[]; amounts: number[]; total12m: number };  // GL 613340
+  bounceBacks: { count: number; amount: number; note: string; examples: RcvInvoiceItem[] };
+  openInvoices: { total: number; overdue: number; items: RcvInvoiceItem[] }; // grootste open posten (drill)
+  cashExpectation: RcvCashWeekExpectation[];  // 13 weken verwachte inning
+  icShare: { arOpenIcPct: number; salesIcPct: number };
+  dataQuality: string[];                      // bv. INTERCO-dim ontbreekt bij X; beginbalans ontbreekt
+  sources: CfoSource[];
+  notes: string[];
+  loadError?: string;
+  refreshing?: boolean;
+}
+
+export interface VatMonthRow {
+  month: string;                              // "YYYY-MM" (btw-aangifteperiode)
+  saleBase: number; saleVat: number;          // verkoop: maatstaf + verschuldigde btw
+  purchBase: number; purchVat: number;        // aankoop: maatstaf + aftrekbare btw
+  net: number;                                // te betalen (+) / te vorderen (−)
+  nonDeductible: number;                      // niet-aftrekbare btw (werkelijke kost)
+}
+
+export interface CfoVat {
+  asOf: string;
+  isLive: boolean;
+  months: VatMonthRow[];                      // laatste 19 maanden (YoY-vergelijking mogelijk)
+  ytd: { net: number; paid: number; recoverable: number; year: number };
+  prevYtd: { net: number; year: number };     // zelfde periode vorig jaar
+  perCompany: { code: string; ytdNet: number; ytdSaleVat: number; ytdPurchVat: number }[];
+  icVat: { basePct: number; note: string };   // aandeel btw-basis met groeps-tegenpartij (VAT-match)
+  vatUnit: { active: boolean; note: string };
+  prefinance: { avgMonthlyNet: number; note: string }; // wat schieten we de overheid gem./maand voor
+  sources: CfoSource[];
+  notes: string[];
+  loadError?: string;
+  refreshing?: boolean;
+}
