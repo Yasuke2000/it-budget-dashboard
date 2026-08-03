@@ -36,9 +36,12 @@ async function agedTotal(kind: "agedAccountsReceivables" | "agedAccountsPayables
     }, { timeoutMs: 90_000, maxAttempts: 2 });
     if (!res.ok) return null;
     const d = await res.json() as { value?: Record<string, unknown>[] };
-    const total = (d.value || []).find((r) => String(r.name) === "Total" || String(r.customerNumber ?? r.vendorNumber ?? "") === "");
+    const rows = d.value || [];
+    const total = rows.find((r) => String(r.name) === "Total" || String(r.customerNumber ?? r.vendorNumber ?? "") === "");
     if (total) return r0((total.balanceDue as number) || 0);
-    return r0((d.value || []).reduce((s, r) => s + ((r.balanceDue as number) || 0), 0));
+    // Geen expliciete totaalrij → som van de partij-rijen (rijen zónder nummer overslaan,
+    // die zouden een anders benoemde totaalrij kunnen zijn en dubbel tellen).
+    return r0(rows.filter((r) => String(r.customerNumber ?? r.vendorNumber ?? "")).reduce((s, r) => s + ((r.balanceDue as number) || 0), 0));
   } catch { return null; }
 }
 

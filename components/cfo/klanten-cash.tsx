@@ -60,7 +60,7 @@ function CustomerTable({ customers, onPick }: { customers: RcvCustomerRow[]; onP
         <p className="text-[10px] text-muted-foreground">{rows.length} klanten · klik een rij voor detail</p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] border-collapse text-xs">
+        <table className="w-full min-w-[900px] border-collapse text-xs">
           <thead>
             <tr className="border-b border-border">
               <th className="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Klant</th>
@@ -170,6 +170,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
   const p = useChartPalette();
   const [pickedCustomer, setPickedCustomer] = useState<RcvCustomerRow | null>(null);
   const [showOpenList, setShowOpenList] = useState(false);
+  const [pickedMonth, setPickedMonth] = useState<number | null>(null); // index in dso.months (grafiek-drill)
   const d = rcv.data;
 
   // ---------- grafiek-opties ----------
@@ -321,7 +322,20 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
     const b = bank.data; if (!b) return null;
     const brands = Object.keys(b.byBrand).filter((br) => b.byBrand[br].inflow.some((x) => x) || b.byBrand[br].outflow.some((x) => x));
     return {
-      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (v) => formatCurrency(Number(v)) },
+      tooltip: {
+        trigger: "axis", axisPointer: { type: "shadow" },
+        // In- en uit-reeksen dragen dezelfde naam (één legend-item per bank) — de
+        // standaard-tooltip zou elke bank dus dubbel tonen; groepeer per bank.
+        formatter: (prs: unknown) => {
+          const arr = prs as { dataIndex: number }[];
+          const mi = arr[0]?.dataIndex ?? 0;
+          const lines = brands
+            .map((br) => ({ br, inV: b.byBrand[br].inflow[mi] || 0, outV: b.byBrand[br].outflow[mi] || 0 }))
+            .filter((x) => x.inV || x.outV)
+            .map((x) => `${x.br}: in <b>${formatCurrency(x.inV)}</b> · uit ${formatCurrency(x.outV)}`);
+          return `${fmtMonth(b.months[mi])}<br/>${lines.join("<br/>")}`;
+        },
+      },
       legend: { data: brands, textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
       grid: { top: 32, left: 6, right: 8, bottom: 20, containLabel: true },
       xAxis: { type: "category", data: b.months.map(fmtMonth), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
@@ -373,6 +387,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           <div>
             <div className="flex items-center gap-2">
               <a href="/cfo" className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground ring-1 ring-border hover:text-foreground"><ArrowLeft className="h-3 w-3" />CFO-cockpit</a>
+              <a href="/cfo/units" className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground ring-1 ring-border hover:text-foreground">Business Units →</a>
               <h1 className="text-lg font-bold text-foreground">Klanten & Cash</h1>
               {!d.isLive && <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase text-warning">demo</span>}
             </div>
@@ -410,9 +425,9 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
         <Card
           title="DSO-verloop per categorie"
           hint="Balansmethode per maand: AR-eindsaldo ÷ gefactureerd × dagen. Categorieën: via factoring vs niet-factoring (extern); IC uitgesloten."
-          source="Cust_LedgerEntries (alle historie) + factor-dagboekherkenning. De lijn 'via factoring' meet time-to-cash van de factor-afwikkeling, niet het gedrag van de eindklant. Maanden zonder noemenswaardige facturatie tonen geen punt."
+          source="Cust_LedgerEntries (alle historie) + factor-dagboekherkenning. De lijn 'via factoring' meet time-to-cash van de factor-afwikkeling, niet het gedrag van de eindklant. Maanden zonder noemenswaardige facturatie tonen geen punt. Klik een maand voor de onderliggende bedragen."
         >
-          {dsoTrend && <EChart option={dsoTrend} height={300} ariaLabel="DSO-verloop per categorie" />}
+          {dsoTrend && <EChart option={dsoTrend} height={300} onSelect={(pt) => { if (typeof pt.dataIndex === "number") setPickedMonth(pt.dataIndex); }} ariaLabel="DSO-verloop per categorie" />}
         </Card>
         <Card
           title="DSO year-over-year"
@@ -685,6 +700,54 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           {(vat.data?.notes || []).map((nte, i) => <li key={`v${i}`}>{nte}</li>)}
         </ul>
       </details>
+
+      {/* ---- maand-drill (DSO-grafiek) ---- */}
+      {pickedMonth != null && d.dso.months[pickedMonth] && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setPickedMonth(null)}>
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-foreground">DSO-detail — {fmtMonth(d.dso.months[pickedMonth])}</h3>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">AR-eindsaldo en gefactureerd per categorie (incl. btw); DSO = saldo ÷ gefactureerd × dagen.</p>
+              </div>
+              <button onClick={() => setPickedMonth(null)} className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <table className="mt-3 w-full border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <th className="px-2 py-1 text-left">Categorie</th>
+                  <th className="px-2 py-1 text-right">AR eind maand</th>
+                  <th className="px-2 py-1 text-right">Gefactureerd</th>
+                  <th className="px-2 py-1 text-right">DSO</th>
+                </tr>
+              </thead>
+              <tbody>
+                {([
+                  ["Extern via factoring", d.dso.arEndByCat.extFactoring[pickedMonth], d.dso.salesByCat.extFactoring[pickedMonth], d.dso.dsoExtFactoring[pickedMonth]],
+                  ["Extern niet-factoring", d.dso.arEndByCat.extOther[pickedMonth], d.dso.salesByCat.extOther[pickedMonth], d.dso.dsoExtOther[pickedMonth]],
+                  ["Intercompany", d.dso.arEndByCat.ic[pickedMonth], d.dso.salesByCat.ic[pickedMonth], null],
+                ] as [string, number, number, number | null][]).map(([label, ar, sales, dso]) => (
+                  <tr key={label} className="border-b border-border/40">
+                    <td className="px-2 py-1.5 font-semibold text-foreground">{label}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(ar)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(sales)}</td>
+                    <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{dso != null ? `${dso}d` : "—"}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td className="px-2 py-1.5 font-bold text-foreground">Extern totaal</td>
+                  <td className="px-2 py-1.5 text-right font-bold tabular-nums">{formatCurrency(d.dso.arEndByCat.extFactoring[pickedMonth] + d.dso.arEndByCat.extOther[pickedMonth])}</td>
+                  <td className="px-2 py-1.5 text-right font-bold tabular-nums">{formatCurrency(d.dso.salesByCat.extFactoring[pickedMonth] + d.dso.salesByCat.extOther[pickedMonth])}</td>
+                  <td className="px-2 py-1.5 text-right font-bold tabular-nums">{d.dso.dsoTotal[pickedMonth] != null ? `${d.dso.dsoTotal[pickedMonth]}d` : "—"}</td>
+                </tr>
+              </tbody>
+            </table>
+            {pickedMonth === d.dso.months.length - 1 && (
+              <p className="mt-2 rounded-lg bg-warning/10 p-2 text-[10px] leading-snug text-warning">Lopende maand — facturatie is nog niet compleet (facturen worden tot in de volgende maand geboekt), het DSO-punt zakt nog.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ---- klant-detailmodal ---- */}
       {pickedCustomer && (
