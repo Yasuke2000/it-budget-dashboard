@@ -776,7 +776,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
     ? " LET OP: de drill-bedragen hieronder zijn bruto — de geconsolideerde opbouw per klasse staat op Business Units."
     : "";
   const kpis: { label: string; value: string; sub: string; icon: typeof Wallet; accent: string; ring: string; glow: string; delta?: number | null; onClick?: () => void }[] = [
-    { label: "Bedrijfsopbrengsten", value: formatCurrencyCompact(icOn ? cons!.totals.revenueNet : k.revenue), sub: icOn ? `geconsolideerd · IC −${formatCurrencyCompact(cons!.totals.revenueIc)}` : icSub(data.period.label), icon: ArrowUpCircle, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15", delta: icOn ? null : pct(k.revenue, py?.revenue),
+    { label: "Bedrijfsopbrengsten", value: formatCurrencyCompact(icOn ? cons!.totals.revenueNet : k.revenue), sub: icOn ? `geconsolideerd · IC −${formatCurrencyCompact(cons!.totals.revenueIc)} · excl. btw` : icSub(`${data.period.label} · excl. btw`), icon: ArrowUpCircle, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15", delta: icOn ? null : pct(k.revenue, py?.revenue),
       onClick: () => { const l = data.pnl.find((x) => x.key === "revenue"); if (l) { drillLine(l); scrollToDrill(); } } },
     { label: "EBITDA", value: formatCurrencyCompact(icOn ? cons!.totals.ebitdaNet : k.ebitda), sub: icOn ? "geconsolideerd (operationeel)" : icSub(`${k.revenue ? Math.round((k.ebitda / k.revenue) * 1000) / 10 : 0}% van omzet`), icon: Activity, accent: "text-warning", ring: "ring-warning/20", glow: "from-warning/15", delta: icOn ? null : pct(k.ebitda, py?.ebitda),
       onClick: () => drillKpiPnl("EBITDA — opbouw", ["revenue", "c60", "c61", "c62", "c64"], "EBITDA = bedrijfsopbrengsten − klassen 60/61/62/64 (afschrijvingen 63 vallen erbuiten). Klik een regel voor de rekeningen erachter." + icNote) },
@@ -833,7 +833,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
                 ? data.scope?.excluded.length
                   ? `${data.scope.all.length - data.scope.excluded.length} van ${data.scope.all.length} vennootschappen · ${eliminateIC ? "geconsolideerd (IC geëlimineerd)" : "bruto (som firma's, incl. IC)"} · excl. ${data.scope.excluded.join(", ")}`
                   : `Alle vennootschappen · ${eliminateIC ? "geconsolideerd (IC geëlimineerd)" : "bruto (som firma's, incl. IC)"}`
-                : `Vennootschap ${data.company}`} · {data.period.label}
+                : `Vennootschap ${data.company}`} · {data.period.label} · P&L excl. btw, open posten incl. btw
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               {data.isLive ? `Data opgehaald: ${fmtStamp(data.generatedAt)}` : "Voorbeelddata"}
