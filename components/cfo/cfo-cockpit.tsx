@@ -66,7 +66,9 @@ function buildAgingOption(buckets: CfoAgingBucket[], eliminateIC: boolean, p: Ch
   };
 }
 
-interface DrillRow { label: string; value: number; accountNumber?: string }
+// pnlKey = cascade-stap: de rij opent de onderliggende P&L-regel (klasse → rekeningen
+// → boekingen → BC-link) — zo drillt een KPI-tegel gelaagd door tot in Business Central.
+interface DrillRow { label: string; value: number; accountNumber?: string; pnlKey?: string }
 interface Drill {
   title: string; subtitle?: string; total?: number; rows: DrillRow[]; note?: string;
   // Open AP/AR-posten in een aging-bucket, elk met BC-deeplink.
@@ -701,14 +703,55 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
   const py = data.prevYear;
   const pct = (cur: number, prev?: number): number | null =>
     prev ? Math.round(((cur - prev) / Math.abs(prev)) * 1000) / 10 : null;
-  const kpis: { label: string; value: string; sub: string; icon: typeof Wallet; accent: string; ring: string; glow: string; delta?: number | null }[] = [
-    { label: "Bedrijfsopbrengsten", value: formatCurrencyCompact(k.revenue), sub: data.period.label, icon: ArrowUpCircle, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15", delta: pct(k.revenue, py?.revenue) },
-    { label: "EBITDA", value: formatCurrencyCompact(k.ebitda), sub: `${k.revenue ? Math.round((k.ebitda / k.revenue) * 1000) / 10 : 0}% van omzet`, icon: Activity, accent: "text-warning", ring: "ring-warning/20", glow: "from-warning/15", delta: pct(k.ebitda, py?.ebitda) },
-    { label: "EBIT", value: formatCurrencyCompact(k.operatingResult), sub: `marge ${k.operatingMarginPct}%`, icon: TrendingUp, accent: "text-positive", ring: "ring-positive/20", glow: "from-positive/15", delta: pct(k.operatingResult, py?.ebit) },
-    { label: "Nettoresultaat", value: formatCurrencyCompact(k.netResult), sub: "na financieel & belastingen", icon: Landmark, accent: "text-positive", ring: "ring-positive/20", glow: "from-positive/15", delta: pct(k.netResult, py?.netResult) },
-    { label: "Cashpositie", value: formatCurrencyCompact(k.cash), sub: "banksaldo (klasse 55)", icon: Wallet, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15" },
-    { label: "Te betalen (AP)", value: formatCurrencyCompact(apShown), sub: eliminateIC ? "extern · incl. btw" : "incl. intercompany · incl. btw", icon: ArrowDownCircle, accent: "text-negative", ring: "ring-negative/20", glow: "from-negative/15" },
-    { label: "Te ontvangen (AR)", value: arShown ? formatCurrencyCompact(arShown) : "—", sub: eliminateIC ? "extern · incl. btw" : "incl. intercompany · incl. btw", icon: ArrowUpCircle, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15" },
+
+  // ---- cascade-drills vanaf de KPI-tegels ----
+  // Elke tegel opent een gelaagde drill: componentregels (klik → klasse) → rekeningen
+  // (klik → boekingen uit /api/cfo/gl) → ↗ Business Central. "Op alles kunnen doorklikken."
+  const lineRow = (key: string): DrillRow | null => {
+    const l = data.pnl.find((x) => x.key === key);
+    return l ? { label: l.label, value: l.amount, pnlKey: l.key } : null;
+  };
+  // Tegel-klik: breng het drill-paneel in beeld (op mobiel staat het onder de grafieken).
+  const scrollToDrill = () => setTimeout(() => document.getElementById("bron-detail")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
+  const cascadeRows = (keys: string[]): DrillRow[] => keys.map(lineRow).filter((r): r is DrillRow => Boolean(r));
+  const drillKpiPnl = (title: string, keys: string[], note: string) => { resetGl(); setDrill({
+    title, subtitle: "Cascade: regel → rekeningen → boekingen → Business Central",
+    rows: cascadeRows(keys),
+    note,
+  }); scrollToDrill(); };
+  const agingTileDrill = (kind: "ap" | "ar") => {
+    const buckets = (kind === "ap" ? data.apAging : data.arAging) || [];
+    const items = buckets.flatMap((b) => bucketItems(b)).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+    resetGl(); setDrill({
+      title: kind === "ap" ? "Te betalen — open leveranciersposten" : "Te ontvangen — open klantposten",
+      subtitle: eliminateIC ? "extern (IC geëlimineerd) · incl. btw" : "incl. intercompany · incl. btw",
+      total: kind === "ap" ? apShown : arShown,
+      rows: buckets.map((b) => ({ label: b.label, value: agingValue(b, eliminateIC) })),
+      items: items.slice(0, 15),
+      itemsCount: buckets.reduce((s, b) => s + (b.itemCount ?? b.items?.length ?? 0), 0),
+      note: `Grootste open posten hieronder — ↗ opent de post in Business Central. Alle posten: export '${kind === "ap" ? "Leveranciersaging" : "Klantenaging"}' of klik een bucket in de grafiek.`,
+    });
+    scrollToDrill();
+  };
+  const kpis: { label: string; value: string; sub: string; icon: typeof Wallet; accent: string; ring: string; glow: string; delta?: number | null; onClick?: () => void }[] = [
+    { label: "Bedrijfsopbrengsten", value: formatCurrencyCompact(k.revenue), sub: data.period.label, icon: ArrowUpCircle, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15", delta: pct(k.revenue, py?.revenue),
+      onClick: () => { const l = data.pnl.find((x) => x.key === "revenue"); if (l) { drillLine(l); scrollToDrill(); } } },
+    { label: "EBITDA", value: formatCurrencyCompact(k.ebitda), sub: `${k.revenue ? Math.round((k.ebitda / k.revenue) * 1000) / 10 : 0}% van omzet`, icon: Activity, accent: "text-warning", ring: "ring-warning/20", glow: "from-warning/15", delta: pct(k.ebitda, py?.ebitda),
+      onClick: () => drillKpiPnl("EBITDA — opbouw", ["revenue", "c60", "c61", "c62", "c64"], "EBITDA = bedrijfsopbrengsten − klassen 60/61/62/64 (afschrijvingen 63 vallen erbuiten). Klik een regel voor de rekeningen erachter.") },
+    { label: "EBIT", value: formatCurrencyCompact(k.operatingResult), sub: `marge ${k.operatingMarginPct}%`, icon: TrendingUp, accent: "text-positive", ring: "ring-positive/20", glow: "from-positive/15", delta: pct(k.operatingResult, py?.ebit),
+      onClick: () => drillKpiPnl("EBIT — opbouw", ["revenue", "c60", "c61", "c62", "c64", "c63"], "EBIT = EBITDA − afschrijvingen (klasse 63). Klik een regel voor de rekeningen erachter.") },
+    { label: "Nettoresultaat", value: formatCurrencyCompact(k.netResult), sub: "na financieel & belastingen", icon: Landmark, accent: "text-positive", ring: "ring-positive/20", glow: "from-positive/15", delta: pct(k.netResult, py?.netResult),
+      onClick: () => drillKpiPnl("Nettoresultaat — opbouw", ["revenue", "c60", "c61", "c62", "c64", "c63", "fin", "exc", "tax"], "Alle P&L-regels t/m nettoresultaat. Klik een regel voor de rekeningen, dan een rekening voor de boekingen met BC-link.") },
+    { label: "Cashpositie", value: formatCurrencyCompact(k.cash), sub: "banksaldo (klasse 55)", icon: Wallet, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15",
+      onClick: () => { resetGl(); setDrill({
+        title: "Cashpositie", subtitle: "nettosaldo grootboekklasse 55 (banken), alle vennootschappen",
+        total: k.cash, rows: [],
+        note: "Rekening-detail: de kaart 'Volledige balans op datum' (rubriek 5, met rekening-drill) hieronder; de werkelijke geldstromen per bankrekening staan op Klanten & Cash → Banken.",
+      }); scrollToDrill(); } },
+    { label: "Te betalen (AP)", value: formatCurrencyCompact(apShown), sub: eliminateIC ? "extern · incl. btw" : "incl. intercompany · incl. btw", icon: ArrowDownCircle, accent: "text-negative", ring: "ring-negative/20", glow: "from-negative/15",
+      onClick: () => agingTileDrill("ap") },
+    { label: "Te ontvangen (AR)", value: arShown ? formatCurrencyCompact(arShown) : "—", sub: eliminateIC ? "extern · incl. btw" : "incl. intercompany · incl. btw", icon: ArrowUpCircle, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15",
+      onClick: () => agingTileDrill("ar") },
   ];
 
   const r = data.ratios;
@@ -790,7 +833,13 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
       {/* KPI tiles */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {kpis.map((t) => (
-          <div key={t.label} className={`relative overflow-hidden rounded-2xl border border-border bg-card p-4 ring-1 ${t.ring} backdrop-blur`}>
+          <button
+            key={t.label}
+            onClick={t.onClick}
+            disabled={!t.onClick}
+            title={t.onClick ? "Klik voor de opbouw — drill door tot de boeking in Business Central" : undefined}
+            className={`relative overflow-hidden rounded-2xl border border-border bg-card p-4 text-left ring-1 ${t.ring} backdrop-blur transition ${t.onClick ? "cursor-pointer hover:border-primary/40 hover:ring-primary/30" : "cursor-default"}`}
+          >
             <div className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br ${t.glow} to-transparent blur-2xl`} />
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{t.label}</span>
@@ -803,7 +852,8 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
                 {t.delta >= 0 ? "▲" : "▼"} {Math.abs(t.delta)}% vs vorig jaar
               </div>
             )}
-          </div>
+            {t.onClick && <ChevronRight className="absolute bottom-3 right-3 h-3.5 w-3.5 text-muted-foreground/50" />}
+          </button>
         ))}
       </div>
 
@@ -987,7 +1037,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
               </a>
             </div>
           </div>
-          <div className="rounded-2xl border border-border bg-card p-5 backdrop-blur">
+          <div id="bron-detail" className="rounded-2xl border border-border bg-card p-5 backdrop-blur">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground"><Info className="h-4 w-4 text-primary" /> Bron &amp; detail</h3>
               {drill && <button onClick={() => { setDrill(null); resetGl(); }} className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Sluiten"><X className="h-4 w-4" /></button>}
@@ -1013,6 +1063,18 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
                             >
                               <span className="flex min-w-0 items-center gap-1.5">
                                 <ChevronRight className={`h-3 w-3 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`} />
+                                <span className="truncate text-foreground">{row.label}</span>
+                              </span>
+                              <span className={`shrink-0 tabular-nums ${row.value >= 0 ? "text-foreground" : "text-negative"}`}>{formatCurrency(row.value)}</span>
+                            </button>
+                          ) : row.pnlKey ? (
+                            <button
+                              onClick={() => { const l = data.pnl.find((x) => x.key === row.pnlKey); if (l) drillLine(l); }}
+                              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+                              title="Volgende laag: de rekeningen achter deze regel"
+                            >
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
                                 <span className="truncate text-foreground">{row.label}</span>
                               </span>
                               <span className={`shrink-0 tabular-nums ${row.value >= 0 ? "text-foreground" : "text-negative"}`}>{formatCurrency(row.value)}</span>
