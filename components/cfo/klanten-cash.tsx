@@ -179,7 +179,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
     const s = d.dso;
     return {
       tooltip: { trigger: "axis", valueFormatter: (v) => (v == null ? "—" : `${v} dagen`) },
-      legend: { data: ["DSO extern totaal", "DSO via factoring", "DSO niet-factoring", "DPO (leveranciers)"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+      legend: { data: ["DSO extern totaal", "DSO via factoring", "DSO niet-factoring", "DSO countback", "DPO (leveranciers)"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
       grid: { top: 32, left: 6, right: 8, bottom: 20, containLabel: true },
       xAxis: { type: "category", data: s.months.map(fmtMonth), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
       yAxis: { type: "value", name: "dagen", nameTextStyle: { color: p.textMuted, fontSize: 9 }, axisLabel: { color: p.textMuted }, splitLine: { lineStyle: { color: p.grid } } },
@@ -187,6 +187,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
         { name: "DSO extern totaal", type: "line", data: s.dsoTotal, itemStyle: { color: p.result }, lineStyle: { width: 2.5 }, symbol: "circle", symbolSize: 5, connectNulls: true },
         { name: "DSO via factoring", type: "line", data: s.dsoExtFactoring, itemStyle: { color: p.income }, lineStyle: { width: 1.8 }, symbol: "circle", symbolSize: 4, connectNulls: true },
         { name: "DSO niet-factoring", type: "line", data: s.dsoExtOther, itemStyle: { color: p.warning }, lineStyle: { width: 1.8 }, symbol: "circle", symbolSize: 4, connectNulls: true },
+        { name: "DSO countback", type: "line", data: s.dsoCountback, itemStyle: { color: p.categorical[5] }, lineStyle: { width: 1.5, type: "dotted" }, symbol: "none", connectNulls: true },
         { name: "DPO (leveranciers)", type: "line", data: s.dpoTotal, itemStyle: { color: p.textMuted }, lineStyle: { width: 1.5, type: "dashed" }, symbol: "none", connectNulls: true },
       ],
     };
@@ -410,7 +411,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
 
       {/* ---- KPI-rij ---- */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
-        <Kpi label="DSO extern" value={d.dsoNow.total != null ? `${d.dsoNow.total}d` : "—"} sub={`balansmethode · ${fmtMonth(d.dsoNow.asOfMonth)} (laatste volledige maand)`} />
+        <Kpi label="DSO extern" value={d.dsoNow.total != null ? `${d.dsoNow.total}d` : "—"} sub={`balans · countback ${d.dsoNow.countback != null ? `${d.dsoNow.countback}d` : "—"} · ${fmtMonth(d.dsoNow.asOfMonth)}`} />
         <Kpi label="DSO via factoring" value={d.dsoNow.extFactoring != null ? `${d.dsoNow.extFactoring}d` : "—"} sub="time-to-cash factor-afwikkeling" tone="pos" />
         <Kpi label="DSO niet-factoring" value={d.dsoNow.extOther != null ? `${d.dsoNow.extOther}d` : "—"} sub={nf != null ? `${nf > 0 ? "+" : ""}${nf}d vs factoring` : undefined} tone={nf != null && nf > 10 ? "warn" : "neutral"} />
         <Kpi label="DPO" value={d.dsoNow.dpo != null ? `${d.dsoNow.dpo}d` : "—"} sub="leveranciers extern" />

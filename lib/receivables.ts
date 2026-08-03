@@ -191,7 +191,10 @@ async function buildCompanyRcvBundle(
     arRows.push([monthIdx(pd), amt, ic ? ` IC` : cust]); // IC krijgt een sentinel-key
     // Binnen het venster ÉN altijd wanneer nog open — ook oeroude open posten
     // horen in het open-postenbeeld (anders wijkt het totaal af van BC's aging).
-    if (e.Document_Type === "Invoice" && (pd >= windowStart || e.Open)) {
+    // Creditnota's tellen mee (negatief): ze netten de maandfacturatie (DSO-noemer =
+    // netto verkoop) en open CN's horen in het open-totaal; betaalgedrag-statistieken
+    // filteren op amt>0 en blijven dus factuur-zuiver.
+    if ((e.Document_Type === "Invoice" || e.Document_Type === "Credit Memo") && (pd >= windowStart || e.Open)) {
       const rec: InvoiceRec = {
         entryNo: Number(e.Entry_No) || 0, co: co.code, cust, rawCust,
         custNo: String(e.Customer_No || ""),
@@ -345,11 +348,26 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   const salesExt = win.keys.map((_, i) => salesByCat.extFactoring[i] + salesByCat.extOther[i]);
   const apEnd = zero(); const apPurch = zero();
   for (const b of bundles) for (let i = 0; i < n; i++) { apEnd[i] += b.apMonthly.end[i]; apPurch[i] += b.apMonthly.purch[i]; }
+  // Countback (best practice bij schommelende omzet): vanaf het AR-eindsaldo maanden
+  // terugtellen tegen de werkelijke maandomzetten tot het saldo "op" is.
+  const countbackAt = (i: number): number | null => {
+    let rem = arExt[i];
+    if (rem <= 0) return 0;
+    let days = 0;
+    for (let m = i; m >= 0; m--) {
+      const s = salesExt[m];
+      if (s <= 0) continue;
+      if (rem >= s) { days += win.daysIn[m]; rem -= s; }
+      else { days += (rem / s) * win.daysIn[m]; rem = 0; break; }
+    }
+    return rem > 0 ? null : r0(days); // null = venster te kort om het saldo af te dekken
+  };
   const dso: RcvDsoSeries = {
     months: win.keys,
     dsoTotal: dsoOf(arExt, salesExt),
     dsoExtFactoring: dsoOf(arEndByCat.extFactoring, salesByCat.extFactoring),
     dsoExtOther: dsoOf(arEndByCat.extOther, salesByCat.extOther),
+    dsoCountback: win.keys.map((_, i) => countbackAt(i)),
     dpoTotal: win.keys.map((_, i) => (apPurch[i] > 1000 ? r0((-apEnd[i] / apPurch[i]) * win.daysIn[i]) : null)),
     arEndByCat: {
       extFactoring: arEndByCat.extFactoring.map(r0), extOther: arEndByCat.extOther.map(r0), ic: arEndByCat.ic.map(r0),
@@ -358,11 +376,14 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       extFactoring: salesByCat.extFactoring.map(r0), extOther: salesByCat.extOther.map(r0), ic: salesByCat.ic.map(r0),
     },
   };
-  // "Nu" = laatste VOLLEDIGE maand (lopende maand heeft nog geen volledige facturatie).
-  const nowIdx = n - 2;
+  // "Nu" = laatste RIJPE maand: facturen van maand M worden tot ver in M+1 geboekt,
+  // dus M is pas bruikbaar als noemer zodra we ±25 dagen voorbij het maandeinde zijn.
+  // (Live-check 03/08: juli als noemer gaf DSO 133d — artefact van ontbrekende juli-facturatie.)
+  const nowIdx = today.getUTCDate() >= 25 ? n - 2 : n - 3;
   const dsoNow = {
     total: dso.dsoTotal[nowIdx], extFactoring: dso.dsoExtFactoring[nowIdx],
-    extOther: dso.dsoExtOther[nowIdx], dpo: dso.dpoTotal[nowIdx], asOfMonth: win.keys[nowIdx],
+    extOther: dso.dsoExtOther[nowIdx], countback: dso.dsoCountback[nowIdx],
+    dpo: dso.dpoTotal[nowIdx], asOfMonth: win.keys[nowIdx],
   };
 
   // ---- factuur-niveau betaalgedrag ----
@@ -605,6 +626,11 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   const dataQuality: string[] = [
     "INTERCO-dimensie in BC kent géén waarden voor WHS/TDR/LMB/GEX (overname-entiteiten) — IC wordt daarom herkend op naam + IC-partnercode, niet op het dimensie-vlagje. Actiepunt finance: dimensiewaarden aanvullen.",
   ];
+  const buAbsTotal = businessUnits.reduce((s, b) => s + Math.abs(b.invoiced12m), 0);
+  const buNone = businessUnits.find((b) => b.code === "(geen)");
+  if (buNone && buAbsTotal && Math.abs(buNone.invoiced12m) / buAbsTotal > 0.9) {
+    dataQuality.push("Klantfacturen dragen (vrijwel) geen AFDELING-dimensie op de klantpost (live-check 03/08: ~alles '(geen)') — facturatie/DSO per business unit is daarom nog niet meetbaar. Omzet per unit komt wél correct uit het grootboek (pagina Business Units). Actiepunt finance: AFDELING op de verkoopboeking laten overerven.");
+  }
   for (const b of bundles) {
     if (b.earliestEntry > "2025-06-30" && b.earliestEntry < "9999") {
       dataQuality.push(`${b.code}: klantposten beginnen pas op ${b.earliestEntry} — beginbalans/historiek vóór die datum ontbreekt (DSO-historiek van vóór die maand is voor ${b.code} onvolledig).`);
@@ -624,6 +650,8 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     "Facturen van maand M worden tot ver in M+1 geboekt — de jongste maand groeit dus nog aan: haar facturatie stijgt en haar DSO-punt zakt nog. Daarom rekent de kop-KPI op de laatste VOLLEDIGE maand en is de allerlaatste maand in de grafieken indicatief.",
     "De 15%-retentie (niet-voorgeschoten deel) en de werkelijke klantbetaling aan de factor staan NIET in BC — die zitten in de factor-portalen (KBC/Belfius/BNP). Actiepunt: maandelijkse factor-rapporten aanleveren om de retentie-doorlooptijd te meten.",
     "Bedragen op deze pagina zijn klantposten en dus INCL. btw (het te innen bedrag). Omzetcijfers in de P&L-cockpit zijn excl. btw — vergelijk niet 1-op-1.",
+    "Factoringkost toont enkel GL 613340 (invorderingskosten — €59k/12m op ±€54M afgewikkeld volume). De rente-/financieringscomponent zit vermoedelijk in klasse 65 (financiële kosten) — bevestiging finance nodig; de werkelijke totaalkost ligt dus hoger.",
+    "Open-postentotaal = open facturen + open creditnota's (genet). Openstaande vooruitbetalingen/betalingen zonder toewijzing vallen buiten deze lijst maar zitten wél in de verificatie-totalen (paneel onderaan) — klein blijvend verschil is dus verklaarbaar.",
     excluded.length ? `Consolidatiescope: ${excluded.join(", ")} uitgesloten.` : "Alle 11 vennootschappen inbegrepen; intercompany is overal apart gehouden (categorie IC) of uitgesloten waar aangegeven.",
   ];
 
@@ -710,6 +738,7 @@ function demoReceivables(): CfoReceivables {
     dsoTotal: dsoOf(arF.map((v, i) => v + arO[i]), salesF.map((v, i) => v + salesO[i])),
     dsoExtFactoring: dsoOf(arF, salesF),
     dsoExtOther: dsoOf(arO, salesO),
+    dsoCountback: win.keys.map((_, i) => wave(i, 52, 5, 2)),
     dpoTotal: win.keys.map((_, i) => wave(i, 49, 6, 1)),
     arEndByCat: { extFactoring: arF, extOther: arO, ic: arI },
     salesByCat: { extFactoring: salesF, extOther: salesO, ic: salesI },
@@ -734,7 +763,7 @@ function demoReceivables(): CfoReceivables {
     periodNote: "voorbeelddata (demomodus)",
     isLive: false,
     dso,
-    dsoNow: { total: 54, extFactoring: 49, extOther: 63, dpo: 48, asOfMonth: win.keys[n - 2] },
+    dsoNow: { total: 54, extFactoring: 49, extOther: 63, countback: 52, dpo: 48, asOfMonth: win.keys[n - 2] },
     dsoInvoiceLevel: { avgDays: 38, medianDays: 33, onTimePct: 41.5, note: "Voorbeelddata — bedrag-gewogen op volledig betaalde facturen." },
     speedBuckets: [
       { label: "Op tijd / te vroeg", amount: 9_400_000, count: 4210 },

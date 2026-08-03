@@ -725,6 +725,7 @@ export interface RcvDsoSeries {
   dsoTotal: (number | null)[];               // extern totaal (factoring + niet-factoring)
   dsoExtFactoring: (number | null)[];
   dsoExtOther: (number | null)[];
+  dsoCountback: (number | null)[];           // countback-methode (extern totaal) — robuust bij seizoensomzet
   dpoTotal: (number | null)[];               // leverancierszijde (extern), ter vergelijking
   arEndByCat: Record<RcvCategory, number[]>; // AR-eindsaldo per maandeinde, incl. btw
   salesByCat: Record<RcvCategory, number[]>; // gefactureerd per maand (CLE-facturen), incl. btw
@@ -791,7 +792,7 @@ export interface CfoReceivables {
   periodNote: string;                         // meetperiode betaalgedrag (bv. "betalingen sinds 01/01/2025")
   isLive: boolean;
   dso: RcvDsoSeries;
-  dsoNow: { total: number | null; extFactoring: number | null; extOther: number | null; dpo: number | null; asOfMonth: string };
+  dsoNow: { total: number | null; extFactoring: number | null; extOther: number | null; countback: number | null; dpo: number | null; asOfMonth: string };
   dsoInvoiceLevel: { avgDays: number | null; medianDays: number | null; onTimePct: number | null; note: string };
   speedBuckets: RcvSpeedBucket[];             // dagen-tot-betaling-verdeling (bedrag-gewogen)
   customers: RcvCustomerRow[];                // top-N op gefactureerd 12m

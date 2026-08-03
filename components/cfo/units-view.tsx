@@ -162,7 +162,13 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
           source="Cust_LedgerEntries + DimensionSetEntries (AFDELING per Dimension_Set_ID). '(geen)' = factuur zonder AFDELING-dimensie."
         >
           {!rcv.data && <p className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Klantposten laden…</p>}
-          {rcv.data && (
+          {rcv.data && buRows.length === 1 && buRows[0].code === "(geen)" ? (
+            <p className="rounded-lg bg-warning/10 p-3 text-[11px] leading-snug text-warning">
+              Klantfacturen dragen in BC (vrijwel) geen AFDELING-dimensie — facturatie en DSO per unit zijn
+              daardoor nog niet meetbaar. De omzet per unit hierboven komt wél correct uit het grootboek.
+              Actiepunt finance: AFDELING op de verkoopboeking laten overerven; deze tabel vult zich dan vanzelf.
+            </p>
+          ) : rcv.data && (
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
