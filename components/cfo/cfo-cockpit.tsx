@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as echarts from "echarts";
 import type { CfoFinancials, CfoPnlLine, CfoEntityRow, CfoAgingBucket, CfoAgingItem } from "@/lib/types";
 import { EChart, type EChartClick } from "./echart";
+import { FullBalanceCard } from "./full-balance-card";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
 import { useChartPalette, type ChartPalette } from "@/lib/chart-theme";
 import {
@@ -925,9 +926,11 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
                 <BalanceCol title="Activa" total={bs.totalAssets} lines={bs.assets} max={bsMax} color={p.categorical[1]} />
                 <BalanceCol title="Passiva & eigen vermogen" total={bs.totalClaims} lines={bs.claims} max={bsMax} color={p.categorical[4]} />
               </div>
-              {!bs.complete && <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground"><Scale className="h-3 w-3" /> Condensed — volledige balans (fin. schulden, overige) via de gematerialiseerde snapshot.</p>}
+              {!bs.complete && <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground"><Scale className="h-3 w-3" /> Condensed — de volledige balans (alle klassen, met rekening-drill en datumkiezer) staat hieronder.</p>}
             </Card>
           )}
+
+          <FullBalanceCard excluded={data.scope?.excluded || []} />
 
           <Card title="Per vennootschap" hint="Klik een rij" source="Operationeel resultaat per entiteit">
             <div className="max-h-[300px] overflow-auto">

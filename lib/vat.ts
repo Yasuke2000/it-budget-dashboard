@@ -200,6 +200,25 @@ async function buildLiveVat(cacheKey: string, exclude: string[]): Promise<CfoVat
     bundles.push(...part);
   }
   const result = combineVat(bundles, keys, today);
+
+  // Live-check btw-eenheid: zodra finance de VAT-Group-module activeert, verschijnen
+  // hier submissions en kantelt de status vanzelf.
+  try {
+    const token = await getBCToken();
+    let submissions = 0;
+    for (const c of companies.slice(0, 3)) {
+      const res = await fetchWithRetry(
+        `${ODATA_ROOT}/api/microsoft/vatGroup/v1.0/companies(${c.id})/vatGroupSubmissions?$top=5`,
+        { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+        { timeoutMs: 30_000, maxAttempts: 1 }
+      );
+      if (res.ok) submissions += (((await res.json()) as { value?: unknown[] }).value || []).length;
+    }
+    result.vatUnit = submissions > 0
+      ? { active: true, note: `BC VAT-Group-module actief (${submissions} submission(s) gevonden).` }
+      : { active: false, note: "BC VAT-Group-module aanwezig maar zonder submissions — aangifte loopt per vennootschap (live gecheckt)." };
+  } catch { /* check optioneel */ }
+
   setCache(cacheKey, result, 720);
   return result;
 }

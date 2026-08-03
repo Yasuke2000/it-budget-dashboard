@@ -3,6 +3,9 @@ import { cfoAllowed } from "@/lib/cfo-access";
 import { getCfoFinancials } from "@/lib/cfo";
 import { getReceivables } from "@/lib/receivables";
 import { getVat } from "@/lib/vat";
+import { getBank } from "@/lib/bank";
+import { getUnits } from "@/lib/units";
+import { getAssets } from "@/lib/assets";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -18,10 +21,13 @@ export async function GET(req: Request) {
   const exclude = (url.searchParams.get("exclude") || "").split(",").map((s) => s.trim()).filter(Boolean);
 
   try {
-    const [cfo, rcv, vat] = await Promise.all([
+    const [cfo, rcv, vat, bank, units, assets] = await Promise.all([
       getCfoFinancials("all", undefined, undefined, false, exclude).catch((e) => ({ error: String(e).slice(0, 200) })),
       getReceivables(false, exclude).catch((e) => ({ error: String(e).slice(0, 200) })),
       getVat(false, exclude).catch((e) => ({ error: String(e).slice(0, 200) })),
+      getBank(false, exclude).catch((e) => ({ error: String(e).slice(0, 200) })),
+      getUnits(false, exclude).catch((e) => ({ error: String(e).slice(0, 200) })),
+      getAssets(false, exclude).catch((e) => ({ error: String(e).slice(0, 200) })),
     ]);
 
     const bundle = {
@@ -42,6 +48,9 @@ export async function GET(req: Request) {
       cfo,
       klantenCash: rcv,
       btw: vat,
+      banken: bank,
+      businessUnits: units,
+      vasteActiva: assets,
     };
 
     const stamp = new Date().toISOString().slice(0, 16).replace("T", "_").replace(":", "");

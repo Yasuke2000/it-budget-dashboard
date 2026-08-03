@@ -750,6 +750,16 @@ export interface RcvCustomerRow {
   avgDaysVsDue: number | null;                // idem t.o.v. vervaldatum (positief = te laat)
   factoredSharePct: number;                   // aandeel betaald volume via factor-dagboek
   ic: boolean;
+  creditLimit?: number | null;                // som kredietlimieten van de klantkaarten (customersGT)
+  creditUsedPct?: number | null;              // openNow ÷ kredietlimiet
+}
+
+export interface RcvBuRow {
+  code: string;                               // AFDELING-dimensiewaarde ("(geen)" = niet toegewezen)
+  invoiced12m: number;
+  openNow: number;
+  avgDaysToPay: number | null;
+  invoiceCount12m: number;
 }
 
 export interface RcvWeekFlow {
@@ -785,6 +795,7 @@ export interface CfoReceivables {
   dsoInvoiceLevel: { avgDays: number | null; medianDays: number | null; onTimePct: number | null; note: string };
   speedBuckets: RcvSpeedBucket[];             // dagen-tot-betaling-verdeling (bedrag-gewogen)
   customers: RcvCustomerRow[];                // top-N op gefactureerd 12m
+  businessUnits: RcvBuRow[];                  // facturatie/DSO per AFDELING (dimensie op de factuur)
   weekFlow: RcvWeekFlow[];                    // facturatie per week (laatste 26w), excl. IC
   factors: RcvFactorRow[];
   factoringCost: { months: string[]; amounts: number[]; total12m: number };  // GL 613340

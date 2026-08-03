@@ -121,31 +121,49 @@ async function pageAll(url: string, token: string, cb: (row: Record<string, unkn
 // Per-vennootschap bundel (individueel gecachet, 12h)
 // ============================================================
 interface InvoiceRec {
-  entryNo: number; co: string; cust: string; rawCust: string; doc: string;
+  entryNo: number; co: string; cust: string; rawCust: string; custNo: string; doc: string;
   invDate: string; due: string; amt: number; open: boolean; rem: number; ic: boolean;
-  paidAt: string | null; via: string | null; applied: number;
+  paidAt: string | null; via: string | null; applied: number; bu: string;
 }
 interface CompanyRcvBundle {
   code: string;
   // compacte klantposten voor AR-saldo per maandeinde: [maandIdx(-1=vóór venster), bedrag, klantKey]
   arRows: [number, number, string][];
   apMonthly: { end: number[]; purch: number[] };   // AP-saldo per maandeinde + inkopen per maand (extern)
-  invoices: InvoiceRec[];                           // facturen binnen het venster
+  invoices: InvoiceRec[];                           // facturen binnen het venster + ALLE open facturen
   factorVolumeByCust: Record<string, Record<string, number>>; // klantKey → factorKey → betaald volume
   paidVolumeByCust: Record<string, number>;
   unapplied: { date: string; amt: number; entryNo: number }[];
   factoringCost: Record<string, number>;            // maand → kost (613340)
+  creditByCust: Record<string, number>;             // klantKey → som kredietlimieten (klantkaarten)
   earliestEntry: string;                            // vroegste klantpost (beginbalans-check)
 }
 
 async function buildCompanyRcvBundle(
   co: { id: string; code: string }, win: MonthWindow, today: Date
 ): Promise<CompanyRcvBundle> {
-  const key = `rcv-co1-${co.code}-${win.keys[win.keys.length - 1]}`;
+  const key = `rcv-co2-${co.code}-${win.keys[win.keys.length - 1]}`;
   const cached = getCache<CompanyRcvBundle>(key);
   if (cached) return cached;
 
   const token = await getBCToken();
+
+  // ---- 0a. Dimensiesets → AFDELING (business unit) per Dimension_Set_ID ----
+  const buBySet: Record<number, string> = {};
+  try {
+    await pageAll(`${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(co.code)}')/DimensionSetEntries?$filter=${encodeURIComponent("Dimension_Code eq 'AFDELING'")}&$select=Dimension_Set_ID,Dimension_Value_Code`, token, (e) => {
+      buBySet[Number(e.Dimension_Set_ID) || 0] = String(e.Dimension_Value_Code || "");
+    });
+  } catch { /* geen dimensiesets in deze firma */ }
+
+  // ---- 0b. Kredietlimieten van de klantkaarten (customersGT) ----
+  const creditByNo: Record<string, number> = {};
+  try {
+    await pageAll(`${ODATA_ROOT}/api/gmi/CustomersGMI/v2.0/companies(${co.id})/customersGT?$select=number,creditLimit,displayName`, token, (e) => {
+      const lim = (e.creditLimit as number) || 0;
+      if (lim > 0) creditByNo[String(e.number || "")] = lim;
+    });
+  } catch { /* gmi-API niet beschikbaar → geen limieten */ }
   const windowStart = `${win.keys[0]}-01`;
   const todayIso = iso(today);
   const monthIdx = (pd: string): number => {
@@ -160,7 +178,7 @@ async function buildCompanyRcvBundle(
   let earliestEntry = "9999-12-31";
 
   // ---- 1. Klantposten (volledige historie; GEEN $top) ----
-  const cleSel = "$select=Entry_No,Posting_Date,Document_Date,Due_Date,Document_Type,Amount_LCY,Remaining_Amt_LCY,IC_Partner_Code,Open,Customer_Name,Document_No";
+  const cleSel = "$select=Entry_No,Posting_Date,Document_Date,Due_Date,Document_Type,Amount_LCY,Remaining_Amt_LCY,IC_Partner_Code,Open,Customer_Name,Customer_No,Document_No,Dimension_Set_ID";
   const cleUrl = `${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(co.code)}')/Cust_LedgerEntries?${cleSel}`;
   const handleCle = (e: Record<string, unknown>) => {
     const pd = cleanDate(e.Posting_Date); if (!pd) return;
@@ -171,13 +189,17 @@ async function buildCompanyRcvBundle(
     const cust = normName(rawCust);
     const ic = isIcName(rawCust) || Boolean(String(e.IC_Partner_Code || "").trim());
     arRows.push([monthIdx(pd), amt, ic ? ` IC` : cust]); // IC krijgt een sentinel-key
-    if (e.Document_Type === "Invoice" && pd >= windowStart) {
+    // Binnen het venster ÉN altijd wanneer nog open — ook oeroude open posten
+    // horen in het open-postenbeeld (anders wijkt het totaal af van BC's aging).
+    if (e.Document_Type === "Invoice" && (pd >= windowStart || e.Open)) {
       const rec: InvoiceRec = {
         entryNo: Number(e.Entry_No) || 0, co: co.code, cust, rawCust,
+        custNo: String(e.Customer_No || ""),
         doc: String(e.Document_No || ""),
         invDate: cleanDate(e.Document_Date) || pd, due: cleanDate(e.Due_Date),
         amt: r2(amt), open: Boolean(e.Open), rem: r2((e.Remaining_Amt_LCY as number) ?? (e.Open ? amt : 0)),
         ic, paidAt: null, via: null, applied: 0,
+        bu: buBySet[Number(e.Dimension_Set_ID) || 0] || "",
       };
       invoices.push(rec); invByEntry.set(rec.entryNo, rec);
     }
@@ -189,6 +211,16 @@ async function buildCompanyRcvBundle(
     arRows.length = 0; invoices.length = 0; invByEntry.clear();
     const sel2 = "$select=Entry_No,Posting_Date,Document_Date,Due_Date,Document_Type,Amount_LCY,IC_Partner_Code,Open,Customer_Name,Document_No";
     await pageAll(`${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(co.code)}')/Cust_LedgerEntries?${sel2}`, token, handleCle);
+  }
+
+  // Kredietlimiet per genormaliseerde klantnaam (som over de klantnummers van deze firma).
+  const creditByCust: Record<string, number> = {};
+  const seenCustNo = new Set<string>();
+  for (const inv of invoices) {
+    if (inv.ic || !inv.custNo || seenCustNo.has(inv.custNo)) continue;
+    seenCustNo.add(inv.custNo);
+    const lim = creditByNo[inv.custNo];
+    if (lim) creditByCust[inv.cust] = (creditByCust[inv.cust] || 0) + lim;
   }
 
   // ---- 2. Betalings-applicaties (echte betaaldatum) ----
@@ -255,7 +287,7 @@ async function buildCompanyRcvBundle(
 
   const bundle: CompanyRcvBundle = {
     code: co.code, arRows, apMonthly: { end: apEnd.map(r2), purch: apPurch.map(r2) },
-    invoices, factorVolumeByCust, paidVolumeByCust, unapplied, factoringCost, earliestEntry,
+    invoices, factorVolumeByCust, paidVolumeByCust, unapplied, factoringCost, creditByCust, earliestEntry,
   };
   setCache(key, bundle, 720);
   return bundle;
@@ -406,19 +438,50 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     }
     custAgg.set(inv.cust, a);
   }
+  const creditMerged: Record<string, number> = {};
+  for (const b of bundles) for (const [c, v] of Object.entries(b.creditByCust)) creditMerged[c] = (creditMerged[c] || 0) + v;
   const customers: RcvCustomerRow[] = [...custAgg.entries()]
     .filter(([, a]) => a.invoiced12m > 0 || a.openNow > 500)
-    .map(([name, a]) => ({
-      name, companies: [...a.companies].sort(),
-      invoiced12m: r0(a.invoiced12m), openNow: r0(a.openNow), overdueNow: r0(a.overdueNow),
-      paidCount: a.paidCount,
-      avgDaysToPay: a.wAmt ? r0(a.wDays / a.wAmt) : null,
-      avgDaysVsDue: a.wDueAmt ? r0(a.wDueDays / a.wDueAmt) : null,
-      factoredSharePct: Math.round((custFactorShare[name] || 0) * 1000) / 10,
-      ic: a.ic,
-    }))
+    .map(([name, a]) => {
+      const lim = creditMerged[name] || 0;
+      return {
+        name, companies: [...a.companies].sort(),
+        invoiced12m: r0(a.invoiced12m), openNow: r0(a.openNow), overdueNow: r0(a.overdueNow),
+        paidCount: a.paidCount,
+        avgDaysToPay: a.wAmt ? r0(a.wDays / a.wAmt) : null,
+        avgDaysVsDue: a.wDueAmt ? r0(a.wDueDays / a.wDueAmt) : null,
+        factoredSharePct: Math.round((custFactorShare[name] || 0) * 1000) / 10,
+        ic: a.ic,
+        creditLimit: lim ? r0(lim) : null,
+        creditUsedPct: lim > 0 ? Math.round((a.openNow / lim) * 1000) / 10 : null,
+      };
+    })
     .sort((a, b) => b.invoiced12m - a.invoiced12m)
     .slice(0, 60);
+
+  // ---- business units (dimensie AFDELING op de factuur) ----
+  interface BuAgg { invoiced12m: number; openNow: number; wAmt: number; wDays: number; count: number }
+  const buAgg = new Map<string, BuAgg>();
+  for (const b of bundles) for (const inv of b.invoices) {
+    if (inv.ic) continue;
+    const code = inv.bu || "(geen)";
+    const a = buAgg.get(code) || { invoiced12m: 0, openNow: 0, wAmt: 0, wDays: 0, count: 0 };
+    if (inv.invDate >= floor12m) { a.invoiced12m += inv.amt; a.count++; }
+    if (inv.open) a.openNow += inv.rem || inv.amt - inv.applied;
+    if (!inv.open && inv.paidAt) {
+      const dtp = daysBetween(inv.invDate, inv.paidAt);
+      if (dtp >= -5 && dtp <= 500) { a.wAmt += inv.amt; a.wDays += dtp * inv.amt; }
+    }
+    buAgg.set(code, a);
+  }
+  const businessUnits = [...buAgg.entries()]
+    .map(([code, a]) => ({
+      code,
+      invoiced12m: r0(a.invoiced12m), openNow: r0(a.openNow),
+      avgDaysToPay: a.wAmt ? r0(a.wDays / a.wAmt) : null,
+      invoiceCount12m: a.count,
+    }))
+    .sort((a, b) => b.invoiced12m - a.invoiced12m);
 
   // ---- facturatie per week (26w, excl. IC) ----
   const weekStart0 = mondayOf(addDays(today, -25 * 7));
@@ -568,7 +631,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     asOf: new Date().toISOString(),
     periodNote: `betaalgedrag gemeten op betalingen sinds ${win.keys[0]}-01; facturatieflow laatste 26 weken`,
     isLive: true,
-    dso, dsoNow, dsoInvoiceLevel, speedBuckets, customers, weekFlow, factors, factoringCost,
+    dso, dsoNow, dsoInvoiceLevel, speedBuckets, customers, businessUnits, weekFlow, factors, factoringCost,
     bounceBacks, openInvoices: { total: r0(openTotal), overdue: r0(openOverdue), items: openItems.slice(0, 80) },
     cashExpectation, icShare, dataQuality, sources, notes,
   };
@@ -606,7 +669,7 @@ export async function getReceivables(
 ): Promise<CfoReceivables | (RcvState & { isLive: boolean })> {
   if (isDemoMode()) return demoReceivables();
   const excl = [...new Set(exclude.map((x) => x.trim().toUpperCase()).filter(Boolean))].sort();
-  const cacheKey = `rcv-v1-x:${excl.join(",")}`;
+  const cacheKey = `rcv-v2-x:${excl.join(",")}`;
   const cached = getCache<CfoReceivables>(cacheKey);
   if (cached && !force) return cached;
 
@@ -658,6 +721,8 @@ function demoReceivables(): CfoReceivables {
     paidCount: 240 - i * 18,
     avgDaysToPay: 28 + i * 4, avgDaysVsDue: i - 3,
     factoredSharePct: i % 2 === 0 ? 92.5 : 4.2, ic: false,
+    creditLimit: i % 3 === 0 ? r0(700_000 / (i + 1)) : null,
+    creditUsedPct: i % 3 === 0 ? Math.round((520_000 / (i + 1)) / (700_000 / (i + 1)) * 1000) / 10 : null,
   }));
   const w0 = mondayOf(addDays(today, -25 * 7));
   const weekFlow: RcvWeekFlow[] = Array.from({ length: 26 }, (_, i) => ({
@@ -679,7 +744,15 @@ function demoReceivables(): CfoReceivables {
       { label: "61–90d", amount: 700_000, count: 260 },
       { label: "> 90d te laat", amount: 450_000, count: 140 },
     ],
-    customers, weekFlow,
+    customers,
+    businessUnits: [
+      { code: "TRUC", invoiced12m: 24_800_000, openNow: 5_900_000, avgDaysToPay: 41, invoiceCount12m: 9100 },
+      { code: "DISTR", invoiced12m: 11_400_000, openNow: 2_700_000, avgDaysToPay: 37, invoiceCount12m: 6400 },
+      { code: "WARE", invoiced12m: 8_300_000, openNow: 1_950_000, avgDaysToPay: 33, invoiceCount12m: 3900 },
+      { code: "TANK", invoiced12m: 4_400_000, openNow: 610_000, avgDaysToPay: 21, invoiceCount12m: 2200 },
+      { code: "(geen)", invoiced12m: 2_100_000, openNow: 480_000, avgDaysToPay: 39, invoiceCount12m: 800 },
+    ],
+    weekFlow,
     factors: [
       { key: "KBC", label: "KBC Commercial Finance", companies: ["GTR", "WHS", "TDR"], settled12m: 24_500_000, medianDaysToSettle: 41, avgDaysToSettle: 46, openFactored: 4_100_000, openFactoredOver90: 310_000 },
       { key: "Belfius", label: "Belfius Commercial Finance", companies: ["GDI"], settled12m: 11_200_000, medianDaysToSettle: 37, avgDaysToSettle: 43, openFactored: 2_050_000, openFactoredOver90: 145_000 },

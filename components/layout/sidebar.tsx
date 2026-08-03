@@ -54,6 +54,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Overview", icon: LayoutDashboard, href: "/" },
       { label: "CFO Cockpit", icon: Landmark, href: "/cfo" },
       { label: "Klanten & Cash", icon: Coins, href: "/cfo/klanten" },
+      { label: "Business Units", icon: GitBranch, href: "/cfo/units" },
     ],
   },
   {

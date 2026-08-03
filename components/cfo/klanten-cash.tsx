@@ -6,118 +6,24 @@
 // data klaar is. Grafieken op ECharts met het gedeelde thema-palet, drill-downs
 // met BC-deeplinks — zelfde conventies als de CFO-cockpit.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import * as echarts from "echarts";
 import type { CfoReceivables, CfoVat, RcvCustomerRow, RcvInvoiceItem } from "@/lib/types";
+import type { CfoBank } from "@/lib/bank";
+import type { CfoAgingCheck } from "@/lib/aging-check";
 import { EChart } from "./echart";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
 import { useChartPalette } from "@/lib/chart-theme";
+import { usePolledData, Card, Kpi, eurAxis, fmtStamp, fmtMonth, fmtDate } from "./cfo-ui";
 import {
   Loader2, RefreshCcw, Info, ExternalLink,
-  AlertTriangle, Search, ArrowUpDown, Receipt, Undo2, X, ArrowLeft,
+  AlertTriangle, Search, ArrowUpDown, Receipt, Undo2, X, ArrowLeft, ShieldCheck,
 } from "lucide-react";
 
 type LP = echarts.DefaultLabelFormatterCallbackParams;
 
-function eurAxis(v: number): string {
-  const a = Math.abs(v);
-  if (a >= 1e6) return `€${(v / 1e6).toFixed(1)}M`;
-  if (a >= 1e3) return `€${Math.round(v / 1e3)}k`;
-  return `€${Math.round(v)}`;
-}
-function fmtStamp(isoStr: string): string {
-  const d = new Date(isoStr);
-  if (Number.isNaN(d.getTime()) || d.getTime() === 0) return "—";
-  return new Intl.DateTimeFormat("nl-BE", {
-    timeZone: "Europe/Brussels", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
-  }).format(d);
-}
-function fmtMonth(m: string): string {
-  const [y, mo] = m.split("-");
-  return `${mo}/${y.slice(2)}`;
-}
-function fmtDate(s: string): string {
-  return s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : "—";
-}
-
-// Poll-fetch: 202 = server bouwt nog → opnieuw proberen tot de data er is.
-function usePolledData<T>(url: string): { data: T | null; building: boolean; error: string | null; reload: (force?: boolean) => void } {
-  const [data, setData] = useState<T | null>(null);
-  const [building, setBuilding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
-  const [force, setForce] = useState(false);
-
-  const reload = useCallback((f = false) => { setForce(f); setTick((t) => t + 1); }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    async function run(withForce: boolean) {
-      try {
-        const res = await fetch(`${url}${url.includes("?") ? "&" : "?"}${withForce ? "refresh=1" : ""}`);
-        if (cancelled) return;
-        if (res.status === 202) {
-          setBuilding(true);
-          timer = setTimeout(() => run(false), 12_000); // door-pollen zonder refresh-vlag
-          return;
-        }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const d = await res.json();
-        if (cancelled) return;
-        setData(d); setBuilding(false); setError(null);
-        if (d.refreshing) timer = setTimeout(() => run(false), 20_000); // achtergrond-rebuild volgen
-      } catch (e) {
-        if (!cancelled) { setError(String(e).slice(0, 160)); setBuilding(false); }
-      }
-    }
-    run(force);
-    return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [url, tick, force]);
-
-  return { data, building, error, reload };
-}
-
-function Card({ title, hint, source, right, children }: {
-  title: string; hint?: string; source?: string; right?: React.ReactNode; children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-          {hint && <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{hint}</p>}
-        </div>
-        <div className="flex items-center gap-2">
-          {right}
-          {source && (
-            <span className="group relative inline-flex">
-              <Info className="h-3.5 w-3.5 text-muted-foreground/60" />
-              <span className="pointer-events-none absolute right-0 top-5 z-30 hidden w-72 rounded-lg border border-border bg-popover p-2.5 text-[11px] leading-snug text-popover-foreground shadow-xl group-hover:block">
-                {source}
-              </span>
-            </span>
-          )}
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "pos" | "neg" | "warn" | "neutral" }) {
-  const toneCls = tone === "pos" ? "text-positive" : tone === "neg" ? "text-negative" : tone === "warn" ? "text-warning" : "text-foreground";
-  return (
-    <div className="rounded-2xl border border-border bg-card p-3.5 shadow-sm">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-xl font-bold tabular-nums ${toneCls}`}>{value}</p>
-      {sub && <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{sub}</p>}
-    </div>
-  );
-}
-
 // ---- klantentabel: sorteerbaar + zoekbaar ----
-type SortKey = "invoiced12m" | "openNow" | "overdueNow" | "avgDaysToPay" | "avgDaysVsDue" | "factoredSharePct";
+type SortKey = "invoiced12m" | "openNow" | "overdueNow" | "avgDaysToPay" | "avgDaysVsDue" | "factoredSharePct" | "creditUsedPct";
 function CustomerTable({ customers, onPick }: { customers: RcvCustomerRow[]; onPick: (c: RcvCustomerRow) => void }) {
   const [q, setQ] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("invoiced12m");
@@ -164,6 +70,7 @@ function CustomerTable({ customers, onPick }: { customers: RcvCustomerRow[]; onP
               {sortableTh("avgDaysToPay", "Dgn tot betaling", "Bedrag-gewogen gemiddelde: factuurdatum → laatste betaling")}
               {sortableTh("avgDaysVsDue", "Vs vervaldag", "Positief = te laat betaald")}
               {sortableTh("factoredSharePct", "Factoring", "Aandeel betaald volume dat via een factor-dagboek liep")}
+              {sortableTh("creditUsedPct", "Krediet", "Open saldo t.o.v. de kredietlimiet op de klantkaart(en)")}
             </tr>
           </thead>
           <tbody>
@@ -186,6 +93,11 @@ function CustomerTable({ customers, onPick }: { customers: RcvCustomerRow[]; onP
                     : c.factoredSharePct > 0
                       ? <span className="text-[10px] text-muted-foreground">{Math.round(c.factoredSharePct)}%</span>
                       : <span className="text-[10px] text-muted-foreground">—</span>}
+                </td>
+                <td className="px-2 py-1.5 text-right" title={c.creditLimit ? `Limiet ${formatCurrencyCompact(c.creditLimit)}` : "Geen kredietlimiet op de klantkaart"}>
+                  {c.creditUsedPct != null
+                    ? <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${c.creditUsedPct > 100 ? "bg-negative/15 text-negative" : c.creditUsedPct > 80 ? "bg-warning/15 text-warning" : "bg-muted text-muted-foreground"}`}>{Math.round(c.creditUsedPct)}%</span>
+                    : <span className="text-[10px] text-muted-foreground">—</span>}
                 </td>
               </tr>
             ))}
@@ -253,6 +165,8 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
   const qs = exclude.length ? `?exclude=${exclude.join(",")}` : "";
   const rcv = usePolledData<CfoReceivables>(`/api/cfo/receivables${qs}`);
   const vat = usePolledData<CfoVat>(`/api/cfo/vat${qs}`);
+  const bank = usePolledData<CfoBank>(`/api/cfo/bank${qs}`);
+  const agingChk = usePolledData<CfoAgingCheck>(`/api/cfo/aging-check${qs}`);
   const p = useChartPalette();
   const [pickedCustomer, setPickedCustomer] = useState<RcvCustomerRow | null>(null);
   const [showOpenList, setShowOpenList] = useState(false);
@@ -402,6 +316,22 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       }],
     };
   }, [vat.data, p]);
+
+  const bankChart = useMemo<echarts.EChartsOption | null>(() => {
+    const b = bank.data; if (!b) return null;
+    const brands = Object.keys(b.byBrand).filter((br) => b.byBrand[br].inflow.some((x) => x) || b.byBrand[br].outflow.some((x) => x));
+    return {
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (v) => formatCurrency(Number(v)) },
+      legend: { data: brands, textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+      grid: { top: 32, left: 6, right: 8, bottom: 20, containLabel: true },
+      xAxis: { type: "category", data: b.months.map(fmtMonth), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
+      yAxis: { type: "value", axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
+      series: brands.flatMap((br, i) => ([
+        { name: br, type: "bar" as const, stack: "in", data: b.byBrand[br].inflow, itemStyle: { color: p.categorical[i % p.categorical.length] }, barMaxWidth: 16 },
+        { name: br, type: "bar" as const, stack: "uit", data: b.byBrand[br].outflow.map((x) => -x), itemStyle: { color: p.categorical[i % p.categorical.length], opacity: 0.55 }, barMaxWidth: 16, tooltip: { valueFormatter: (v: unknown) => formatCurrency(Math.abs(Number(v))) } },
+      ])),
+    };
+  }, [bank.data, p]);
 
   // ---------- laad-/fouttoestanden ----------
   if (!d) {
@@ -598,6 +528,45 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
         {cashExp && <EChart option={cashExp} height={260} ariaLabel="Verwachte inning 13 weken" />}
       </Card>
 
+      {/* ---- banken ---- */}
+      <Card
+        title="Banken — werkelijke geldstromen"
+        hint={bank.data ? `Saldo nu ${formatCurrencyCompact(bank.data.totals.cashNow)} · in 12m ${formatCurrencyCompact(bank.data.totals.in12m)} · uit 12m ${formatCurrencyCompact(bank.data.totals.out12m)}` : bank.building ? "Bankmutaties worden opgehaald uit BC…" : "Bankmutaties laden…"}
+        source="BankAccountLedgerEntries — de échte mutaties per bankrekening (geen heuristiek). Boven de as = inkomend, onder = uitgaand, gestapeld per bankgroep. Interne overboekingen tellen bruto aan beide kanten mee."
+      >
+        {bank.error && <p className="py-4 text-center text-xs text-warning">Bankdata kon niet geladen worden: {bank.error}</p>}
+        {bank.building && !bank.data && <p className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Alle bankmutaties van 11 vennootschappen worden opgehaald…</p>}
+        {bankChart && <EChart option={bankChart} height={280} ariaLabel="Geldstromen per bank per maand" />}
+        {bank.data && (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[560px] border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <th className="px-2 py-1 text-left">Rekening</th>
+                  <th className="px-2 py-1 text-left">Firma</th>
+                  <th className="px-2 py-1 text-left">Groep</th>
+                  <th className="px-2 py-1 text-right">Saldo</th>
+                  <th className="px-2 py-1 text-right">In 12m</th>
+                  <th className="px-2 py-1 text-right">Uit 12m</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bank.data.accounts.filter((a) => Math.abs(a.balance) > 100 || a.in12m > 1000).slice(0, 18).map((a) => (
+                  <tr key={`${a.company}-${a.code}`} className="border-b border-border/40">
+                    <td className="max-w-[240px] truncate px-2 py-1 text-foreground" title={a.name}>{a.name}</td>
+                    <td className="px-2 py-1 text-muted-foreground">{a.company}</td>
+                    <td className="px-2 py-1"><span className={`rounded px-1 py-0.5 text-[9px] font-semibold ${a.brand === "Factor" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>{a.brand}</span></td>
+                    <td className={`px-2 py-1 text-right font-semibold tabular-nums ${a.balance < 0 ? "text-negative" : "text-foreground"}`}>{formatCurrency(a.balance)}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{formatCurrencyCompact(a.in12m)}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{formatCurrencyCompact(a.out12m)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
       {/* ---- BTW ---- */}
       <Card
         title="BTW-positie per maand"
@@ -633,6 +602,47 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                     <td className="px-2 py-1 text-right tabular-nums">{formatCurrencyCompact(c.ytdSaleVat)}</td>
                     <td className="px-2 py-1 text-right tabular-nums">{formatCurrencyCompact(c.ytdPurchVat)}</td>
                     <td className={`px-2 py-1 text-right font-semibold tabular-nums ${c.ytdNet >= 0 ? "text-foreground" : "text-positive"}`}>{formatCurrencyCompact(c.ytdNet)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {/* ---- aging-verificatie ---- */}
+      <Card
+        title="Verificatie — BC's eigen aged-rapporten vs dit dashboard"
+        hint={agingChk.data ? (agingChk.data.allGreen ? "Alles groen: beide wegen geven exact hetzelfde open saldo." : "Er zijn verschillen — zie de rode cellen.") : agingChk.building ? "Verificatie draait…" : "Verificatie laden…"}
+        source={agingChk.data?.sources?.[0]?.detail || "agedAccountsReceivables/Payables (BC-rapport) vs som open klant-/leveranciersposten."}
+        right={agingChk.data?.allGreen ? <ShieldCheck className="h-4 w-4 text-positive" /> : undefined}
+      >
+        {agingChk.building && !agingChk.data && <p className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Beide wegen worden live herrekend…</p>}
+        {agingChk.error && <p className="py-4 text-center text-xs text-warning">Verificatie kon niet draaien: {agingChk.error}</p>}
+        {agingChk.data && (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <th className="px-2 py-1 text-left">Firma</th>
+                  <th className="px-2 py-1 text-right">AR (BC-rapport)</th>
+                  <th className="px-2 py-1 text-right">AR (dashboard)</th>
+                  <th className="px-2 py-1 text-right">Δ</th>
+                  <th className="px-2 py-1 text-right">AP (BC-rapport)</th>
+                  <th className="px-2 py-1 text-right">AP (dashboard)</th>
+                  <th className="px-2 py-1 text-right">Δ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {agingChk.data.rows.map((r) => (
+                  <tr key={r.company} className="border-b border-border/40">
+                    <td className="px-2 py-1 font-semibold text-foreground">{r.company}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{r.arBcAged != null ? formatCurrency(r.arBcAged) : "—"}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(r.arOwn)}</td>
+                    <td className={`px-2 py-1 text-right font-semibold tabular-nums ${r.arDelta != null && Math.abs(r.arDelta) > 1 ? "text-negative" : "text-positive"}`}>{r.arDelta != null ? formatCurrency(r.arDelta) : "—"}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{r.apBcAged != null ? formatCurrency(r.apBcAged) : "—"}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(r.apOwn)}</td>
+                    <td className={`px-2 py-1 text-right font-semibold tabular-nums ${r.apDelta != null && Math.abs(r.apDelta) > 1 ? "text-negative" : "text-positive"}`}>{r.apDelta != null ? formatCurrency(r.apDelta) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
