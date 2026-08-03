@@ -15,7 +15,7 @@ import type { CfoUnits } from "@/lib/units";
 import { EChart } from "./echart";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
 import { useChartPalette } from "@/lib/chart-theme";
-import { usePolledData, Card, Kpi, eurAxis, fmtStamp, fmtMonth, fmtDate } from "./cfo-ui";
+import { usePolledData, Card, Kpi, eurAxis, fmtStamp, fmtMonth, fmtDate, fmtDM, weekRange } from "./cfo-ui";
 import {
   Loader2, RefreshCcw, Info, ExternalLink,
   AlertTriangle, Search, ArrowUpDown, Receipt, Undo2, X, ArrowLeft, ShieldCheck,
@@ -255,12 +255,12 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           const arr = prs as { name: string; seriesName: string; value: number; dataIndex: number }[];
           const w = d.weekFlow[arr[0].dataIndex];
           const tot = (w?.factored || 0) + (w?.other || 0);
-          return `week van ${fmtDate(w?.weekStart || "")}<br/>${arr.map((x) => `${x.seriesName}: <b>${formatCurrency(x.value)}</b>`).join("<br/>")}<br/>totaal ${formatCurrency(tot)} · ${w?.count ?? 0} facturen`;
+          return `week ${weekRange(w?.weekStart || "")}<br/>${arr.map((x) => `${x.seriesName}: <b>${formatCurrency(x.value)}</b>`).join("<br/>")}<br/>totaal ${formatCurrency(tot)} · ${w?.count ?? 0} facturen`;
         },
       },
       legend: { data: ["Naar factoring-klanten", "Overige externe klanten"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
       grid: { top: 32, left: 6, right: 8, bottom: 20, containLabel: true },
-      xAxis: { type: "category", data: d.weekFlow.map((w) => w.weekStart.slice(5)), axisLabel: { color: p.text, fontSize: 8.5, interval: 2 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
+      xAxis: { type: "category", data: d.weekFlow.map((w) => fmtDM(w.weekStart)), axisLabel: { color: p.text, fontSize: 8.5, interval: 2 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
       yAxis: { type: "value", axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
       series: [
         { name: "Naar factoring-klanten", type: "bar", stack: "w", data: d.weekFlow.map((w) => w.factored), itemStyle: { color: p.income }, barMaxWidth: 18 },
@@ -272,10 +272,18 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
   const cashExp = useMemo<echarts.EChartsOption | null>(() => {
     if (!d) return null;
     return {
-      tooltip: { trigger: "axis", valueFormatter: (v) => formatCurrency(Number(v)) },
+      tooltip: {
+        trigger: "axis",
+        formatter: (prs: unknown) => {
+          const arr = prs as { seriesName: string; value: number; dataIndex: number; marker: string }[];
+          const w = d.cashExpectation[arr[0]?.dataIndex ?? 0];
+          return `${w?.label ?? ""} · ${weekRange(w?.weekStart || "")}<br/>${arr.map((x) => `${x.marker}${x.seriesName}: <b>${formatCurrency(Number(x.value))}</b>`).join("<br/>")}`;
+        },
+      },
       legend: { data: ["Verwacht (betaalgedrag)", "Op vervaldatum"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
       grid: { top: 32, left: 6, right: 8, bottom: 20, containLabel: true },
-      xAxis: { type: "category", data: d.cashExpectation.map((w) => w.label), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
+      // Exacte datums op de as (maandag van de week) — geen ambigu weeknummer.
+      xAxis: { type: "category", data: d.cashExpectation.map((w) => fmtDM(w.weekStart)), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
       yAxis: { type: "value", axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
       series: [
         { name: "Verwacht (betaalgedrag)", type: "bar", data: d.cashExpectation.map((w) => w.expected), itemStyle: { color: p.income, borderRadius: [3, 3, 0, 0] }, barMaxWidth: 22 },

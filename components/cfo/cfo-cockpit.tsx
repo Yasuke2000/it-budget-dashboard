@@ -37,6 +37,16 @@ function eurAxis(v: number): string {
   return `€${Math.round(v)}`;
 }
 
+// Week-labels: geen kale "wk 07" (ambigu) — altijd de maandag van de week erbij.
+function fmtDM(iso: string): string { return iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : ""; }
+function weekRange(weekStartIso: string): string {
+  if (!weekStartIso) return "";
+  const start = new Date(`${weekStartIso}T00:00:00Z`);
+  const end = new Date(start); end.setUTCDate(end.getUTCDate() + 6);
+  const e = end.toISOString().slice(0, 10);
+  return `ma ${fmtDM(weekStartIso)} t/m zo ${e.slice(8, 10)}/${e.slice(5, 7)}/${e.slice(0, 4)}`;
+}
+
 function fmtStamp(isoStr: string): string {
   const d = new Date(isoStr);
   if (Number.isNaN(d.getTime())) return "—";
@@ -599,10 +609,25 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
   const forecast = useMemo<echarts.EChartsOption | null>(() => {
     const f = data.cashForecast; if (!f) return null;
     return {
-      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (v) => formatCurrency(Number(v)) },
+      tooltip: {
+        trigger: "axis", axisPointer: { type: "shadow" },
+        // Tooltip-titel = de volledige weekrange (ma t/m zo), daarna de reeksen.
+        formatter: (prs: unknown) => {
+          const arr = prs as { seriesName: string; value: number; dataIndex: number; marker: string }[];
+          const w = f.weeks[arr[0]?.dataIndex ?? 0];
+          const head = w ? `${w.label} · ${weekRange(w.weekStart)}` : "";
+          return `${head}<br/>${arr.map((x) => `${x.marker}${x.seriesName}: <b>${formatCurrency(Math.abs(Number(x.value)))}</b>`).join("<br/>")}`;
+        },
+      },
       legend: { data: ["Inkomend", "Uitgaand", "Eindsaldo"], textStyle: { color: p.text }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
       grid: { top: 36, left: 6, right: 8, bottom: 20, containLabel: true },
-      xAxis: { type: "category", data: f.weeks.map((w) => w.label), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
+      xAxis: {
+        type: "category",
+        // Exacte datums, geen ambigu weeknummer: label = maandag van de week.
+        data: f.weeks.map((w) => fmtDM(w.weekStart)),
+        axisLabel: { color: p.text, fontSize: 9 },
+        axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false },
+      },
       yAxis: { type: "value", axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
       series: [
         { name: "Inkomend", type: "bar", stack: "cf", data: f.weeks.map((w) => w.inflow), itemStyle: { color: p.income } },
@@ -653,7 +678,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
   const onArAging = (p: EChartClick) => { const b = data.arAging?.find((x) => x.label === p.name); if (b) { resetGl(); setDrill({ title: `Klanten — ${b.label}`, subtitle: "Open verkoopfacturen (salesInvoices)", total: agingVal(b), rows: b.extern != null ? [{ label: "Extern", value: b.extern }, { label: "Intercompany", value: b.amount - b.extern }] : [], items: bucketItems(b), itemsCount: b.itemCount, note: "Grootste open facturen hieronder — ↗ opent de factuur in Business Central." }); } };
   const onForecastWeek = (p: EChartClick) => {
     const f = data.cashForecast; if (!f || typeof p.dataIndex !== "number") return; const w = f.weeks[p.dataIndex]; if (!w) return;
-    setDrill({ title: `Cashflow ${w.label}`, subtitle: `week van ${w.weekStart}`, total: w.closing, rows: [{ label: "Inkomend (klanten)", value: w.inflow }, { label: "Uitgaand (leveranciers + loon)", value: -w.outflow }, { label: "Netto", value: w.net }, { label: "Verwacht eindsaldo", value: w.closing }], note: "Projectie op basis van vervaldata." });
+    setDrill({ title: `Cashflow ${w.label} — ${fmtDM(w.weekStart)}`, subtitle: weekRange(w.weekStart), total: w.closing, rows: [{ label: "Inkomend (klanten)", value: w.inflow }, { label: "Uitgaand (leveranciers + loon)", value: -w.outflow }, { label: "Netto", value: w.net }, { label: "Verwacht eindsaldo", value: w.closing }], note: "Projectie op basis van vervaldata." });
   };
   const onHeatCell = (pr: EChartClick) => {
     const v = (pr.data as { value?: [number, number, number]; raw?: number }) || {};
@@ -890,7 +915,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
       {data.cashForecast && data.cashForecast.lowestClosing < 0 && (
         <div className="mt-4 flex items-center gap-2 rounded-xl border border-negative/30 bg-negative/10 px-4 py-2.5 text-sm text-negative">
           <AlertTriangle className="h-4 w-4 shrink-0" />
-          Verwacht negatief kassaldo in {data.cashForecast.lowestWeekLabel} ({formatCurrency(data.cashForecast.lowestClosing)}) — cashkrap.
+          Verwacht negatief kassaldo in {data.cashForecast.lowestWeekLabel}{(() => { const w = data.cashForecast!.weeks.find((x) => x.label === data.cashForecast!.lowestWeekLabel); return w ? ` (week van ma ${fmtDM(w.weekStart)})` : ""; })()} ({formatCurrency(data.cashForecast.lowestClosing)}) — cashkrap.
         </div>
       )}
 
@@ -919,11 +944,15 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
           </Card>
 
           {forecast && (
-            <Card title="13-weken cashflowprognose (directe methode)" hint="Klik een week" source="Openstaande AR/AP op vervaldatum + loon">
+            <Card
+              title="13-weken cashflowprognose (directe methode)"
+              hint={`Week van ma ${fmtDM(data.cashForecast!.weeks[0]?.weekStart || "")} t/m week van ma ${fmtDM(data.cashForecast!.weeks[12]?.weekStart || data.cashForecast!.weeks[data.cashForecast!.weeks.length - 1]?.weekStart || "")} · as-labels = maandag van de week · klik een week`}
+              source="Openstaande AR/AP op vervaldatum + loon"
+            >
               <EChart option={forecast} height={300} onSelect={onForecastWeek} ariaLabel="13-week cash forecast" />
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
                 <span>Openingssaldo: <span className="text-foreground">{formatCurrency(data.cashForecast!.openingCash)}</span></span>
-                <span>Laagste punt: <span className={data.cashForecast!.lowestClosing < 0 ? "text-negative" : "text-foreground"}>{formatCurrency(data.cashForecast!.lowestClosing)}</span> ({data.cashForecast!.lowestWeekLabel})</span>
+                <span>Laagste punt: <span className={data.cashForecast!.lowestClosing < 0 ? "text-negative" : "text-foreground"}>{formatCurrency(data.cashForecast!.lowestClosing)}</span>{(() => { const w = data.cashForecast!.weeks.find((x) => x.label === data.cashForecast!.lowestWeekLabel); return w ? ` (${data.cashForecast!.lowestWeekLabel} · week van ma ${fmtDM(w.weekStart)})` : ` (${data.cashForecast!.lowestWeekLabel})`; })()}</span>
               </div>
             </Card>
           )}

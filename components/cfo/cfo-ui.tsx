@@ -26,6 +26,16 @@ export function fmtMonth(m: string): string {
 export function fmtDate(s: string): string {
   return s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : "—";
 }
+/** Kort dag/maand-label (bv. "03/08") — voor as-labels met exacte datums i.p.v. weeknummers. */
+export function fmtDM(iso: string): string { return iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : ""; }
+/** Volledige weekrange "ma 03/08 t/m zo 09/08/2026" voor tooltips/drills. */
+export function weekRange(weekStartIso: string): string {
+  if (!weekStartIso) return "";
+  const start = new Date(`${weekStartIso}T00:00:00Z`);
+  const end = new Date(start); end.setUTCDate(end.getUTCDate() + 6);
+  const e = end.toISOString().slice(0, 10);
+  return `ma ${fmtDM(weekStartIso)} t/m zo ${e.slice(8, 10)}/${e.slice(5, 7)}/${e.slice(0, 4)}`;
+}
 
 // Poll-fetch: 202 = server bouwt nog → blijven pollen tot de data er is.
 export function usePolledData<T>(url: string): { data: T | null; building: boolean; error: string | null; reload: (force?: boolean) => void } {
