@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import * as echarts from "echarts";
 import type { CfoFinancials, CfoPnlLine, CfoEntityRow, CfoAgingBucket, CfoAgingItem } from "@/lib/types";
+import type { CfoUnits } from "@/lib/units";
 import { EChart, type EChartClick } from "./echart";
 import { FullBalanceCard } from "./full-balance-card";
 import { ConsolidatedCard } from "./consolidated-card";
+import { usePolledData } from "./cfo-ui";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
 import { useChartPalette, type ChartPalette } from "@/lib/chart-theme";
 import {
@@ -493,6 +495,11 @@ function ScopePicker({ scope }: { scope: NonNullable<CfoFinancials["scope"]> }) 
 export function CfoCockpit({ data }: { data: CfoFinancials }) {
   const [drill, setDrill] = useState<Drill | null>(null);
   const [eliminateIC, setEliminateIC] = useState(false);
+  // Geconsolideerde P&L (regel-gebaseerde IC-eliminatie via /api/cfo/units) — de
+  // IC-schakelaar zet hiermee óók de omzet/EBITDA/EBIT-tegels op geconsolideerd.
+  const consQs = data.scope?.excluded.length ? `?exclude=${data.scope.excluded.join(",")}` : "";
+  const consData = usePolledData<CfoUnits>(`/api/cfo/units${consQs}`);
+  const cons = consData.data?.consolidated;
   // P&L-weergave: "brug" = klassieke resultaatbrug (balken zweven op het lopende
   // totaal); "nul" = elke balk vanaf 0 (pure groottes, geen cumulatief verloop).
   const [pnlView, setPnlView] = useState<"brug" | "nul">("brug");
@@ -758,15 +765,25 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
     });
     scrollToDrill();
   };
+  // IC-schakelaar AAN → P&L-tegels tonen de geconsolideerde cijfers (regel-gebaseerde
+  // eliminatie). ΔPY verbergen we dan (vorig jaar is bruto — appels met peren).
+  const icOn = eliminateIC && Boolean(cons);
+  const net63 = cons?.byClass.find((r) => r.cls === "63")?.net ?? 0;
+  const ebitNet = cons ? cons.totals.ebitdaNet - net63 : 0;
+  const netResultNet = cons ? k.netResult - cons.icSymmetry.delta : 0; // netto − operationeel IC-effect
+  const icSub = (bruto: string) => (eliminateIC && !cons ? `${bruto} · IC-eliminatie laadt…` : bruto);
+  const icNote = eliminateIC
+    ? " LET OP: de drill-bedragen hieronder zijn bruto — de geconsolideerde opbouw per klasse staat op Business Units."
+    : "";
   const kpis: { label: string; value: string; sub: string; icon: typeof Wallet; accent: string; ring: string; glow: string; delta?: number | null; onClick?: () => void }[] = [
-    { label: "Bedrijfsopbrengsten", value: formatCurrencyCompact(k.revenue), sub: data.period.label, icon: ArrowUpCircle, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15", delta: pct(k.revenue, py?.revenue),
+    { label: "Bedrijfsopbrengsten", value: formatCurrencyCompact(icOn ? cons!.totals.revenueNet : k.revenue), sub: icOn ? `geconsolideerd · IC −${formatCurrencyCompact(cons!.totals.revenueIc)}` : icSub(data.period.label), icon: ArrowUpCircle, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15", delta: icOn ? null : pct(k.revenue, py?.revenue),
       onClick: () => { const l = data.pnl.find((x) => x.key === "revenue"); if (l) { drillLine(l); scrollToDrill(); } } },
-    { label: "EBITDA", value: formatCurrencyCompact(k.ebitda), sub: `${k.revenue ? Math.round((k.ebitda / k.revenue) * 1000) / 10 : 0}% van omzet`, icon: Activity, accent: "text-warning", ring: "ring-warning/20", glow: "from-warning/15", delta: pct(k.ebitda, py?.ebitda),
-      onClick: () => drillKpiPnl("EBITDA — opbouw", ["revenue", "c60", "c61", "c62", "c64"], "EBITDA = bedrijfsopbrengsten − klassen 60/61/62/64 (afschrijvingen 63 vallen erbuiten). Klik een regel voor de rekeningen erachter.") },
-    { label: "EBIT", value: formatCurrencyCompact(k.operatingResult), sub: `marge ${k.operatingMarginPct}%`, icon: TrendingUp, accent: "text-positive", ring: "ring-positive/20", glow: "from-positive/15", delta: pct(k.operatingResult, py?.ebit),
-      onClick: () => drillKpiPnl("EBIT — opbouw", ["revenue", "c60", "c61", "c62", "c64", "c63"], "EBIT = EBITDA − afschrijvingen (klasse 63). Klik een regel voor de rekeningen erachter.") },
-    { label: "Nettoresultaat", value: formatCurrencyCompact(k.netResult), sub: "na financieel & belastingen", icon: Landmark, accent: "text-positive", ring: "ring-positive/20", glow: "from-positive/15", delta: pct(k.netResult, py?.netResult),
-      onClick: () => drillKpiPnl("Nettoresultaat — opbouw", ["revenue", "c60", "c61", "c62", "c64", "c63", "fin", "exc", "tax"], "Alle P&L-regels t/m nettoresultaat. Klik een regel voor de rekeningen, dan een rekening voor de boekingen met BC-link.") },
+    { label: "EBITDA", value: formatCurrencyCompact(icOn ? cons!.totals.ebitdaNet : k.ebitda), sub: icOn ? "geconsolideerd (operationeel)" : icSub(`${k.revenue ? Math.round((k.ebitda / k.revenue) * 1000) / 10 : 0}% van omzet`), icon: Activity, accent: "text-warning", ring: "ring-warning/20", glow: "from-warning/15", delta: icOn ? null : pct(k.ebitda, py?.ebitda),
+      onClick: () => drillKpiPnl("EBITDA — opbouw", ["revenue", "c60", "c61", "c62", "c64"], "EBITDA = bedrijfsopbrengsten − klassen 60/61/62/64 (afschrijvingen 63 vallen erbuiten). Klik een regel voor de rekeningen erachter." + icNote) },
+    { label: "EBIT", value: formatCurrencyCompact(icOn ? ebitNet : k.operatingResult), sub: icOn ? "geconsolideerd (operationeel)" : icSub(`marge ${k.operatingMarginPct}%`), icon: TrendingUp, accent: "text-positive", ring: "ring-positive/20", glow: "from-positive/15", delta: icOn ? null : pct(k.operatingResult, py?.ebit),
+      onClick: () => drillKpiPnl("EBIT — opbouw", ["revenue", "c60", "c61", "c62", "c64", "c63"], "EBIT = EBITDA − afschrijvingen (klasse 63). Klik een regel voor de rekeningen erachter." + icNote) },
+    { label: "Nettoresultaat", value: formatCurrencyCompact(icOn ? netResultNet : k.netResult), sub: icOn ? "geconsolideerd operationeel · financieel/belastingen bruto" : icSub("na financieel & belastingen"), icon: Landmark, accent: "text-positive", ring: "ring-positive/20", glow: "from-positive/15", delta: icOn ? null : pct(k.netResult, py?.netResult),
+      onClick: () => drillKpiPnl("Nettoresultaat — opbouw", ["revenue", "c60", "c61", "c62", "c64", "c63", "fin", "exc", "tax"], "Alle P&L-regels t/m nettoresultaat. Klik een regel voor de rekeningen, dan een rekening voor de boekingen met BC-link." + icNote) },
     { label: "Cashpositie", value: formatCurrencyCompact(k.cash), sub: "banksaldo (klasse 55)", icon: Wallet, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15",
       onClick: () => { resetGl(); setDrill({
         title: "Cashpositie", subtitle: "nettosaldo grootboekklasse 55 (banken), alle vennootschappen",
@@ -814,8 +831,8 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
             <p className="text-sm text-muted-foreground">
               {data.company === "all"
                 ? data.scope?.excluded.length
-                  ? `${data.scope.all.length - data.scope.excluded.length} van ${data.scope.all.length} vennootschappen · geconsolideerd (bruto) · excl. ${data.scope.excluded.join(", ")}`
-                  : "Alle vennootschappen · geconsolideerd (bruto)"
+                  ? `${data.scope.all.length - data.scope.excluded.length} van ${data.scope.all.length} vennootschappen · ${eliminateIC ? "geconsolideerd (IC geëlimineerd)" : "bruto (som firma's, incl. IC)"} · excl. ${data.scope.excluded.join(", ")}`
+                  : `Alle vennootschappen · ${eliminateIC ? "geconsolideerd (IC geëlimineerd)" : "bruto (som firma's, incl. IC)"}`
                 : `Vennootschap ${data.company}`} · {data.period.label}
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -835,7 +852,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
           <button
             onClick={() => setEliminateIC((v) => !v)}
             className={`rounded-full px-3 py-1 text-[11px] font-semibold ring-1 transition ${eliminateIC ? "bg-primary/15 text-primary ring-primary/40" : "bg-muted text-muted-foreground ring-border hover:text-foreground"}`}
-            title="Intercompany-posten uit AP/AR verwijderen"
+            title="Elimineert intercompany overal: omzet/EBITDA/EBIT-tegels (regel-gebaseerd, via de tegenpartij op elke boeking) én AP/AR/aging (naam-gebaseerd)"
           >
             {eliminateIC ? "✓ Intercompany geëlimineerd" : "Intercompany elimineren"}
           </button>

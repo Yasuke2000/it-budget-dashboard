@@ -47,18 +47,25 @@ interface NavGroup {
 
 // Grouped information architecture — turns a flat 15-item list into scannable
 // sections. Order within a group runs most-used → least.
+// Twee werelden, duidelijk gescheiden: FINANCE (de CFO-suite, toegangs-gated) en
+// IT (het oorspronkelijke IT-budget-dashboard). Overview blijft bovenaan als landing.
 const NAV_GROUPS: NavGroup[] = [
   {
     title: null,
     items: [
       { label: "Overview", icon: LayoutDashboard, href: "/" },
+    ],
+  },
+  {
+    title: "Finance",
+    items: [
       { label: "CFO Cockpit", icon: Landmark, href: "/cfo" },
       { label: "Klanten & Cash", icon: Coins, href: "/cfo/klanten" },
       { label: "Business Units", icon: GitBranch, href: "/cfo/units" },
     ],
   },
   {
-    title: "Spend",
+    title: "IT — Spend",
     items: [
       { label: "Invoices", icon: FileText, href: "/invoices" },
       { label: "Vendors", icon: Building2, href: "/vendors" },
@@ -68,7 +75,7 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    title: "Assets & Team",
+    title: "IT — Assets & Team",
     items: [
       { label: "Licenses", icon: Key, href: "/licenses" },
       { label: "Devices", icon: Monitor, href: "/devices" },
