@@ -574,10 +574,20 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
 
   // Maand × kostenklasse heatmap. Kleur = aandeel binnen de eigen klasse-rij
   // (elke rij zijn eigen schaal — 61 is 20× groter dan 64), label = echt bedrag.
+  // Redesign 04/08: korte klasse-namen (geen afgekapte y-labels), Nederlandse
+  // maandnamen, lege cellen zonder "€0"-ruis, lopende maand gemarkeerd.
   const heat = useMemo<echarts.EChartsOption | null>(() => {
+    const HEAT_SHORT: Record<string, string> = {
+      "60": "Aankopen", "61": "Diensten & div.", "62": "Bezoldigingen", "63": "Afschrijvingen", "64": "Andere",
+    };
+    const MND = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+    const curMonth = new Date().toISOString().slice(0, 7);
     const months = data.monthly.filter((m) => m.byClass && Object.keys(m.byClass).length);
     if (months.length < 2) return null;
-    const xLabels = months.map((m) => m.month.slice(5));
+    const xLabels = months.map((m) => {
+      const nm = MND[Number(m.month.slice(5, 7)) - 1] || m.month.slice(5);
+      return m.month === curMonth ? `${nm}*` : nm;
+    });
     const rows = HEAT_CLASSES.filter((c) => months.some((m) => (m.byClass?.[c] || 0) !== 0));
     const cells: { value: [number, number, number]; raw: number }[] = [];
     for (let yi = 0; yi < rows.length; yi++) {
@@ -594,16 +604,28 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
           const cls = rows[v.value[1]];
           const mo = months[v.value[0]];
           const share = mo.costs ? Math.round((v.raw / mo.costs) * 1000) / 10 : 0;
-          return `${CLASS_LABEL[cls] || cls} · ${mo.month}<br/><b>${formatCurrency(v.raw)}</b> · ${share}% van de maandkosten`;
+          return `${cls} · ${CLASS_LABEL[cls] || cls} · ${MND[Number(mo.month.slice(5, 7)) - 1]} ${mo.month.slice(0, 4)}${mo.month === curMonth ? " (lopend)" : ""}<br/><b>${formatCurrency(v.raw)}</b> · ${share}% van de maandkosten`;
         },
       },
-      grid: { top: 8, left: 6, right: 8, bottom: 20, containLabel: true },
-      xAxis: { type: "category", data: xLabels, axisLabel: { color: p.text, fontSize: 10 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false }, splitArea: { show: false } },
-      yAxis: { type: "category", data: rows.map((c) => `${c} · ${CLASS_LABEL[c] || c}`), axisLabel: { color: p.text, fontSize: 10 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
+      grid: { top: 8, left: 6, right: 8, bottom: 34, containLabel: true },
+      xAxis: {
+        type: "category", data: xLabels,
+        axisLabel: { color: p.text, fontSize: 10 },
+        axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false }, splitArea: { show: false },
+        name: `* = lopende maand (onvolledig) · ${months[0]?.month.slice(0, 4)}`, nameLocation: "middle", nameGap: 24,
+        nameTextStyle: { color: p.textMuted, fontSize: 9 },
+      },
+      yAxis: {
+        type: "category",
+        data: rows.map((c) => `${c} ${HEAT_SHORT[c] || CLASS_LABEL[c] || c}`),
+        axisLabel: { color: p.text, fontSize: 10 },
+        axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false },
+      },
       visualMap: { show: false, min: 0, max: 1, inRange: { color: [p.surface, p.income] } },
       series: [{
         type: "heatmap", data: cells,
-        label: { show: true, fontSize: 9, formatter: (pr: LP) => eurAxis((pr.data as { raw: number }).raw), color: p.text },
+        // Geen "€0"-ruis in lege cellen; compacte bedragen die in de cel passen.
+        label: { show: true, fontSize: 8.5, formatter: (pr: LP) => { const raw = (pr.data as { raw: number }).raw; return Math.abs(raw) >= 500 ? eurAxis(raw) : ""; }, color: p.text },
         itemStyle: { borderColor: p.surface, borderWidth: 2, borderRadius: 3 },
         emphasis: { itemStyle: { shadowBlur: 8, shadowColor: "rgba(0,0,0,0.35)" } },
       }],

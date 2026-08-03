@@ -83,10 +83,10 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
     );
   }
 
-  const totRev = u.units.reduce((s, x) => s + x.revenue, 0);
-  const totRes = u.units.reduce((s, x) => s + x.result, 0);
-  const best = u.units.length ? [...u.units].sort((a, b) => b.result - a.result)[0] : null;
-  const worst = u.units.length ? [...u.units].sort((a, b) => a.result - b.result)[0] : null;
+  const totRev = u.perCompany.reduce((s, x) => s + x.revenue, 0);
+  const totRes = u.perCompany.reduce((s, x) => s + x.result, 0);
+  const best = u.perCompany.length ? [...u.perCompany].sort((a, b) => b.result - a.result)[0] : null;
+  const worst = u.perCompany.length ? [...u.perCompany].sort((a, b) => a.result - b.result)[0] : null;
   const buRows = (rcv.data?.businessUnits || []).slice(0, 10);
 
   return (
@@ -111,20 +111,60 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <Kpi label="Omzet units YTD" value={formatCurrencyCompact(totRev)} sub="klassen 70–74, excl. btw" />
-        <Kpi label="Resultaat units YTD" value={formatCurrencyCompact(totRes)} sub="omzet − operationele kosten" tone={totRes >= 0 ? "pos" : "neg"} />
-        <Kpi label="Beste unit" value={best ? best.label : "—"} sub={best ? `${formatCurrencyCompact(best.result)} · ${best.marginPct}%` : undefined} tone="pos" />
-        <Kpi label="Zwakste unit" value={worst ? worst.label : "—"} sub={worst ? `${formatCurrencyCompact(worst.result)} · ${worst.marginPct}%` : undefined} tone={worst && worst.result < 0 ? "neg" : "neutral"} />
-        <Kpi label="Niet toegewezen" value={`${u.undimensioned.sharePct}%`} sub={`omzet ${formatCurrencyCompact(u.undimensioned.revenue)} · kosten ${formatCurrencyCompact(u.undimensioned.costs)} zonder AFDELING`} tone={u.undimensioned.sharePct > 10 ? "warn" : "neutral"} />
+        <Kpi label="Omzet YTD (bruto)" value={formatCurrencyCompact(totRev)} sub="klassen 70–74, excl. btw, incl. IC" />
+        <Kpi label="Operationeel resultaat" value={formatCurrencyCompact(totRes)} sub="omzet − operationele kosten" tone={totRes >= 0 ? "pos" : "neg"} />
+        <Kpi label="Sterkste activiteit" value={best ? `${best.code} · ${best.activity}` : "—"} sub={best ? `${formatCurrencyCompact(best.result)} · ${best.marginPct}%` : undefined} tone="pos" />
+        <Kpi label="Zwakste activiteit" value={worst ? `${worst.code} · ${worst.activity}` : "—"} sub={worst ? `${formatCurrencyCompact(worst.result)} · ${worst.marginPct}%` : undefined} tone={worst && worst.result < 0 ? "neg" : "neutral"} />
+        <Kpi label="AFDELING-dekking" value={`${Math.round(100 - u.undimensioned.sharePct)}%`} sub={`${u.undimensioned.sharePct}% van het P&L-volume mist de dimensie (vooral GDI/overnames)`} tone={u.undimensioned.sharePct > 10 ? "warn" : "pos"} />
         <Kpi label="CAPEX YTD" value={assets.data ? formatCurrencyCompact(assets.data.totals.acquisitionYtd) : "…"} sub={assets.data ? `boekwaarde ${formatCurrencyCompact(assets.data.totals.bookValue)}` : "vaste activa laden…"} />
       </div>
 
+      <Card
+        title="Per vennootschap — de betrouwbare activiteiten-laag"
+        hint="De firma's zíjn de activiteiten van de groep. Volledig beeld, geen dimensies nodig; IC-omzet% = intra-groep."
+        source={u.sources.find((s) => s.label.startsWith("Per vennootschap"))?.detail}
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
+                <th className="px-2 py-1.5 text-left">Vennootschap · activiteit</th>
+                <th className="px-2 py-1.5 text-right">Omzet YTD</th>
+                <th className="px-2 py-1.5 text-right">Kosten</th>
+                <th className="px-2 py-1.5 text-right">Resultaat</th>
+                <th className="px-2 py-1.5 text-right">Marge</th>
+                <th className="px-2 py-1.5 text-right">IC-omzet</th>
+                <th className="px-2 py-1.5 text-right" title="Aandeel van het P&L-volume met AFDELING-dimensie — bepaalt of de dimensie-laag hieronder bruikbaar is voor deze firma">AFDELING-dekking</th>
+              </tr>
+            </thead>
+            <tbody>
+              {u.perCompany.map((c) => (
+                <tr key={c.code} className="border-b border-border/40">
+                  <td className="px-2 py-1.5 font-semibold text-foreground">{c.code} <span className="font-normal text-muted-foreground">· {c.activity}</span></td>
+                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{formatCurrency(c.revenue)}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(c.costs)}</td>
+                  <td className={`px-2 py-1.5 text-right font-semibold tabular-nums ${c.result >= 0 ? "text-positive" : "text-negative"}`}>{formatCurrency(c.result)}</td>
+                  <td className={`px-2 py-1.5 text-right tabular-nums ${c.marginPct >= 0 ? "text-foreground" : "text-negative"}`}>{c.marginPct}%</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{c.icRevenuePct}%</td>
+                  <td className="px-2 py-1.5 text-right">
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${c.dimCoveragePct >= 80 ? "bg-positive/15 text-positive" : c.dimCoveragePct >= 30 ? "bg-warning/15 text-warning" : "bg-muted text-muted-foreground"}`}>{Math.round(c.dimCoveragePct)}%</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-2 rounded-lg bg-muted/60 p-2.5 text-[11px] leading-snug text-muted-foreground">
+          Bedragen bruto (incl. intra-groep-omzet — zie kolom IC). Voor het geconsolideerde groepsbeeld: de eliminatie-kaart hieronder. Jaareinde-caveat: afschrijvingen/belastingen grotendeels op 31/12 geboekt.
+        </p>
+      </Card>
+
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card title="Omzet per unit per maand" hint="Gestapeld, YTD — klassen 70–74 per AFDELING." source={u.sources[0]?.detail}>
-          {revStack && <EChart option={revStack} height={300} ariaLabel="Omzet per business unit per maand" />}
+        <Card title="AFDELING-dimensie: omzet per maand" hint="⚠ Alleen boekingen mét AFDELING-tag (vooral GTR) — GDI's distributie-omzet zit hier NIET in, zie de firma-tabel." source={u.sources.find((s) => s.label.startsWith("AFDELING"))?.detail}>
+          {revStack && <EChart option={revStack} height={300} ariaLabel="Omzet per AFDELING per maand" />}
         </Card>
-        <Card title="Resultaat per unit (YTD)" hint="Omzet − operationele kosten (60–64); label = marge." source="Zelfde bron; financieel resultaat/belastingen niet toegerekend aan units.">
-          {marginBars && <EChart option={marginBars} height={300} ariaLabel="Resultaat per business unit" />}
+        <Card title="AFDELING-dimensie: resultaat (YTD)" hint="⚠ Zelfde beperking — marges zijn vertekend waar kosten wél en omzet níet getagd is (of omgekeerd)." source={u.sources.find((s) => s.label.startsWith("AFDELING"))?.detail}>
+          {marginBars && <EChart option={marginBars} height={300} ariaLabel="Resultaat per AFDELING" />}
         </Card>
       </div>
 
@@ -178,7 +218,7 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
         </p>
       </Card>
 
-      <Card title="Units in cijfers" hint="Klik-sorteren kan in een volgende iteratie; gesorteerd op omzet." source={u.sources[0]?.detail}>
+      <Card title="AFDELING in cijfers (waar getagd)" hint="⚠ Onvolledig beeld zolang de dimensie niet groepsbreed ingevuld wordt — de firma-tabel bovenaan is de betrouwbare laag." source={u.sources.find((s) => s.label.startsWith("AFDELING"))?.detail}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[620px] border-collapse text-xs">
             <thead>

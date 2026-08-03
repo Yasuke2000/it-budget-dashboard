@@ -26,6 +26,20 @@ export interface UnitRow {
   revenue: number; costs: number; result: number; marginPct: number;
   monthlyRevenue: number[]; monthlyCosts: number[];
 }
+// De échte "business units" van de groep zijn grotendeels de vennootschappen zelf —
+// de AFDELING-dimensie wordt maar door een deel van de firma's ingevuld (GTR ~99%,
+// GDI ~0%; live-check 03/08). Daarom is de per-vennootschap-view de primaire laag.
+export const COMPANY_ACTIVITY: Record<string, string> = {
+  GTR: "Trucking", GDI: "Distributie", WHS: "Warehousing", TDR: "Transport (De Rudder)",
+  GRE: "Verhuur trekkers/trailers", GTG: "Garage", GSS: "Shared services", GPR: "Vastgoed",
+  GEX: "Express", LMB: "Transport (Lamberts)", TFO: "Trans-Form",
+};
+export interface CompanyUnitRow {
+  code: string; activity: string;
+  revenue: number; costs: number; result: number; marginPct: number;
+  icRevenuePct: number;         // aandeel IC in de omzet van deze firma
+  dimCoveragePct: number;       // % P&L-volume mét AFDELING-dimensie (datakwaliteit)
+}
 export interface ConsClassRow {
   cls: string; label: string;
   gross: number; ic: number; net: number;  // bruto / intercompany-deel / geconsolideerd
@@ -35,7 +49,8 @@ export interface CustRevRow { name: string; amount: number; ic: boolean; sharePc
 export interface CfoUnits {
   asOf: string; isLive: boolean; year: number;
   months: string[];                       // YTD-maanden
-  units: UnitRow[];                       // gesorteerd op omzet
+  perCompany: CompanyUnitRow[];           // primaire BU-laag: vennootschap = activiteit
+  units: UnitRow[];                       // AFDELING-dimensie (waar ingevuld), gesorteerd op omzet
   undimensioned: { revenue: number; costs: number; sharePct: number };
   // Echte IC-eliminatie: elke GL-regel classificeert op tegenpartij (Source-naam + IC-code).
   consolidated: {
@@ -62,16 +77,18 @@ interface CoUnits {
   icByClass: Record<string, { gross: number; ic: number }>; // per 2-cijferklasse, teken-genormaliseerd
   custRev: Record<string, { amt: number; ic: boolean }>;    // genormaliseerde klantnaam → omzet excl. btw
   sourcedAbs: number; totalAbs: number;                     // dekking tegenpartij-herkenning
+  totals: { rev: number; cost: number; icRev: number; dimmedAbs: number }; // firma-totalen + dim-dekking
 }
 
 async function buildCompanyUnits(co: { id: string; code: string }, months: string[], todayIso: string): Promise<CoUnits> {
-  const key = `units-co2-${co.code}-${todayIso.slice(0, 7)}`;
+  const key = `units-co3-${co.code}-${todayIso.slice(0, 7)}`;
   const cached = getCache<CoUnits>(key);
   if (cached) return cached;
   const token = await getBCToken();
   const agg: CoUnits["agg"] = {};
   const icByClass: CoUnits["icByClass"] = {};
   const custRev: CoUnits["custRev"] = {};
+  const totals = { rev: 0, cost: 0, icRev: 0, dimmedAbs: 0 };
   let sourcedAbs = 0, totalAbs = 0;
   const filter = encodeURIComponent(
     `Posting_Date ge ${months[0]}-01 and Posting_Date le ${todayIso} and G_L_Account_No ge '600000' and G_L_Account_No le '799999'`
@@ -97,6 +114,8 @@ async function buildCompanyUnits(co: { id: string; code: string }, months: strin
       const cls = (icByClass[c2] = icByClass[c2] || { gross: 0, ic: 0 });
       cls.gross += signed; if (ic) cls.ic += signed;
       totalAbs += Math.abs(signed); if (hasSrc) sourcedAbs += Math.abs(signed);
+      if (isRev) { totals.rev += signed; if (ic) totals.icRev += signed; } else totals.cost += signed;
+      if (unit !== "(geen)") totals.dimmedAbs += Math.abs(signed);
       // omzet per klant (excl. btw)
       if (isRev && e.Source_Type === "Customer" && srcName) {
         const cKey = normName(srcName);
@@ -106,7 +125,7 @@ async function buildCompanyUnits(co: { id: string; code: string }, months: strin
     },
     token
   );
-  const bundle: CoUnits = { agg, icByClass, custRev, sourcedAbs, totalAbs };
+  const bundle: CoUnits = { agg, icByClass, custRev, sourcedAbs, totalAbs, totals };
   setCache(key, bundle, 720);
   return bundle;
 }
@@ -123,10 +142,11 @@ async function buildUnits(exclude: string[]): Promise<CfoUnits> {
   const agg: Record<string, { rev: number[]; cost: number[] }> = {};
   const icByClass: Record<string, { gross: number; ic: number }> = {};
   const custRev: Record<string, { amt: number; ic: boolean }> = {};
+  const perCompany: CompanyUnitRow[] = [];
   let sourcedAbs = 0, totalAbs = 0;
   for (let i = 0; i < companies.length; i += 2) {
-    const part = await Promise.all(companies.slice(i, i + 2).map((c) => buildCompanyUnits(c, months, todayIso)));
-    for (const p of part) {
+    const part = await Promise.all(companies.slice(i, i + 2).map(async (c) => ({ code: c.code, b: await buildCompanyUnits(c, months, todayIso) })));
+    for (const { code, b: p } of part) {
       for (const [u, v] of Object.entries(p.agg)) {
         const dst = (agg[u] = agg[u] || { rev: months.map(() => 0), cost: months.map(() => 0) });
         for (let m = 0; m < months.length; m++) { dst.rev[m] += v.rev[m]; dst.cost[m] += v.cost[m]; }
@@ -140,8 +160,17 @@ async function buildUnits(exclude: string[]): Promise<CfoUnits> {
         dst.amt += v.amt; if (v.ic) dst.ic = true;
       }
       sourcedAbs += p.sourcedAbs; totalAbs += p.totalAbs;
+      const t = p.totals;
+      perCompany.push({
+        code, activity: COMPANY_ACTIVITY[code] || code,
+        revenue: r0(t.rev), costs: r0(t.cost), result: r0(t.rev - t.cost),
+        marginPct: t.rev ? Math.round(((t.rev - t.cost) / t.rev) * 1000) / 10 : 0,
+        icRevenuePct: t.rev ? Math.round((t.icRev / t.rev) * 1000) / 10 : 0,
+        dimCoveragePct: p.totalAbs ? Math.round((t.dimmedAbs / p.totalAbs) * 1000) / 10 : 0,
+      });
     }
   }
+  perCompany.sort((a, b) => b.revenue - a.revenue);
   const undim = agg["(geen)"] || { rev: months.map(() => 0), cost: months.map(() => 0) };
   delete agg["(geen)"];
   const units: UnitRow[] = Object.entries(agg)
@@ -198,20 +227,21 @@ async function buildUnits(exclude: string[]): Promise<CfoUnits> {
     .slice(0, 50);
 
   return {
-    asOf: new Date().toISOString(), isLive: true, year, months, units,
+    asOf: new Date().toISOString(), isLive: true, year, months, perCompany, units,
     undimensioned: {
       revenue: r0(undimRev), costs: r0(undimCost),
       sharePct: buAbs ? Math.round(((Math.abs(undimRev) + Math.abs(undimCost)) / buAbs) * 1000) / 10 : 0,
     },
     consolidated, revenuePerCustomer,
     sources: [
-      { label: "Business units", detail: "Grootboekposten_Excel (grootboek mét dimensies inline), operationele klassen 60–64 en 70–74, YTD, alle vennootschappen. Unit = dimensie AFDELING (Global Dimension 1). Financieel resultaat (65/75), niet-recurrent (66/76) en belastingen blijven buiten deze view. Bedragen excl. btw." },
+      { label: "Per vennootschap (primair)", detail: "Grootboekposten_Excel, operationele klassen 60–64/70–74 per vennootschap, YTD, excl. btw. De vennootschappen ZIJN grotendeels de activiteiten van de groep (GDI=distributie, GTR=trucking, WHS=warehousing, …) — deze laag is volledig en betrouwbaar, óók zonder dimensies." },
+      { label: "AFDELING-dimensie (secundair)", detail: "Zelfde bron, gesplitst op de AFDELING-dimensie — maar die wordt niet overal ingevuld (GTR ~99%, GDI ~0%; groepsbreed ontbreekt ±57%). Gebruik deze laag alleen voor firma's met hoge dekking (kolom 'AFDELING-dekking'); de rest staat in 'niet toegewezen'. Financieel resultaat/belastingen blijven buiten beide lagen." },
       { label: "IC-eliminatie (geconsolideerd)", detail: "Elke grootboekregel classificeert op zijn tegenpartij: Source-naam (99% gevuld op omzetregels, probe 03/08/2026) + IC-partnercode, met dezelfde naam-matching als de gevalideerde exports. Geconsolideerd = bruto − IC. De symmetrie-check (IC-omzet ↔ IC-kost) toont hoe sluitend de eliminatie is." },
       { label: "Omzet per klant", detail: "70x-omzetregels gegroepeerd op de klant achter de boeking (Source_Type=Customer), excl. btw — dus het P&L-perspectief, niet het te-innen-bedrag (dat staat op Klanten & Cash, incl. btw)." },
     ],
     notes: [
-      "Boekingen zonder AFDELING-dimensie staan apart als 'niet toegewezen' — hoe kleiner dat blok, hoe betrouwbaarder de BU-marges (actiepunt finance als het groot is).",
-      "De BU-tabel is bruto; de geconsolideerde kaart eronder elimineert IC per regel (tegenpartij-herkenning).",
+      "LET OP bij de AFDELING-laag: 'Distributie' oogt daar klein omdat GDI (dé distributiefirma, grootste omzet) de dimensie niet invult — GDI's volume zit in 'niet toegewezen'. De per-vennootschap-tabel bovenaan geeft het echte beeld. Actiepunt finance: AFDELING overal laten overerven.",
+      "Beide lagen zijn bruto; de geconsolideerde kaart elimineert IC per regel (tegenpartij-herkenning). De kolom 'IC-omzet' per firma toont hoeveel van de omzet intra-groep is.",
       "Marge per klant vergt de kóstenkant per klant (welke onderaannemersrit hoort bij welke klant) — die koppeling zit niet in BC (Job_No leeg); dat is TMS/job-costing-terrein. Tot dan tonen we omzet per klant zonder schijnmarge.",
     ],
   };
@@ -229,6 +259,13 @@ function demoUnits(): CfoUnits {
   };
   return {
     asOf: new Date(0).toISOString(), isLive: false, year, months,
+    perCompany: [
+      { code: "GDI", activity: "Distributie", revenue: 16_900_000, costs: 16_400_000, result: 500_000, marginPct: 3.0, icRevenuePct: 8.1, dimCoveragePct: 1.2 },
+      { code: "GTR", activity: "Trucking", revenue: 12_400_000, costs: 12_100_000, result: 300_000, marginPct: 2.4, icRevenuePct: 6.0, dimCoveragePct: 98.7 },
+      { code: "WHS", activity: "Warehousing", revenue: 10_900_000, costs: 10_100_000, result: 800_000, marginPct: 7.3, icRevenuePct: 17.9, dimCoveragePct: 2.4 },
+      { code: "GRE", activity: "Verhuur trekkers/trailers", revenue: 5_200_000, costs: 4_100_000, result: 1_100_000, marginPct: 21.2, icRevenuePct: 64.0, dimCoveragePct: 11.0 },
+      { code: "GTG", activity: "Garage", revenue: 3_900_000, costs: 3_600_000, result: 300_000, marginPct: 7.7, icRevenuePct: 55.3, dimCoveragePct: 84.2 },
+    ],
     units: [
       mkUnit("TRUC", 21_400_000, 3.1), mkUnit("DISTR", 9_800_000, 4.6), mkUnit("WARE", 7_100_000, 8.2),
       mkUnit("TANK", 3_900_000, 2.2), mkUnit("GARA", 2_400_000, 6.8), mkUnit("TRUCCL", 900_000, 11.4),
@@ -265,4 +302,4 @@ function demoUnits(): CfoUnits {
   };
 }
 
-export const getUnits = makePolledGetter<CfoUnits>("units-v2", buildUnits, demoUnits);
+export const getUnits = makePolledGetter<CfoUnits>("units-v3", buildUnits, demoUnits);
