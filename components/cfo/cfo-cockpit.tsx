@@ -5,6 +5,7 @@ import * as echarts from "echarts";
 import type { CfoFinancials, CfoPnlLine, CfoEntityRow, CfoAgingBucket, CfoAgingItem } from "@/lib/types";
 import { EChart, type EChartClick } from "./echart";
 import { FullBalanceCard } from "./full-balance-card";
+import { ConsolidatedCard } from "./consolidated-card";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
 import { useChartPalette, type ChartPalette } from "@/lib/chart-theme";
 import {
@@ -931,6 +932,8 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
           )}
 
           <FullBalanceCard excluded={data.scope?.excluded || []} />
+
+          <ConsolidatedCard excluded={data.scope?.excluded || []} />
 
           <Card title="Per vennootschap" hint="Klik een rij" source="Operationeel resultaat per entiteit">
             <div className="max-h-[300px] overflow-auto">

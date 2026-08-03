@@ -64,9 +64,10 @@ const factorKeyOf = (company: string, docNo: string): string | null => {
 };
 
 // Naamnormalisatie voor klant-merge over firma's heen (zelfde als aging-export).
+// Geëxporteerd: ook de geconsolideerde P&L (lib/units.ts) groepeert er tegenpartijen mee.
 const PREFIX_RX = /^(GTR|GTG|GSS|GPR|TFO|GDI|GRE|WHS|TDR|LMB|GEX)\s*-\s*/i;
 const LEGAL_RX = /\b(NV\/SA|NV|SA|BVBA|BV|VOF|GMBH|LTD|INC|SPRL|SCRL|CVBA|COMM\.?\s*V|SRL|SARL|GCV)\b\.?/gi;
-function normName(name: string): string {
+export function normName(name: string): string {
   let n = (name || "").toUpperCase();
   n = n.replace(PREFIX_RX, "").replace(LEGAL_RX, " ").replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
   return n || (name || "").toUpperCase().trim();

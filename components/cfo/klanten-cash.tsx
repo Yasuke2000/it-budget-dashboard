@@ -11,6 +11,7 @@ import * as echarts from "echarts";
 import type { CfoReceivables, CfoVat, RcvCustomerRow, RcvInvoiceItem } from "@/lib/types";
 import type { CfoBank } from "@/lib/bank";
 import type { CfoAgingCheck } from "@/lib/aging-check";
+import type { CfoUnits } from "@/lib/units";
 import { EChart } from "./echart";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
 import { useChartPalette } from "@/lib/chart-theme";
@@ -167,6 +168,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
   const vat = usePolledData<CfoVat>(`/api/cfo/vat${qs}`);
   const bank = usePolledData<CfoBank>(`/api/cfo/bank${qs}`);
   const agingChk = usePolledData<CfoAgingCheck>(`/api/cfo/aging-check${qs}`);
+  const unitsData = usePolledData<CfoUnits>(`/api/cfo/units${qs}`); // omzet per klant (excl. btw) uit het grootboek
   const p = useChartPalette();
   const [pickedCustomer, setPickedCustomer] = useState<RcvCustomerRow | null>(null);
   const [showOpenList, setShowOpenList] = useState(false);
@@ -533,6 +535,37 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           </div>
         )}
         <CustomerTable customers={d.customers} onPick={setPickedCustomer} />
+      </Card>
+
+      {/* ---- omzet per klant (excl. btw) ---- */}
+      <Card
+        title="Omzet per klant — excl. btw (grootboek)"
+        hint={unitsData.data ? `YTD ${unitsData.data.year} · P&L-perspectief; het te-innen-perspectief (incl. btw) staat in de klantentabel hierboven.` : unitsData.building ? "Grootboek met tegenpartijen wordt opgehaald…" : "Laden…"}
+        source="70x-omzetregels uit Grootboekposten_Excel, gegroepeerd op de klant achter de boeking (Source_Type=Customer, 99% dekking). IC-klanten gemarkeerd. Marge per klant vergt de kostenkant per klant — die koppeling zit niet in BC (TMS/job-costing nodig); daarom hier bewust alleen omzet."
+      >
+        {unitsData.building && !unitsData.data && <p className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Wordt opgebouwd (deelt de pull met Business Units)…</p>}
+        {unitsData.error && <p className="py-4 text-center text-xs text-warning">{unitsData.error}</p>}
+        {unitsData.data && (
+          <div className="grid gap-x-6 md:grid-cols-2">
+            {[unitsData.data.revenuePerCustomer.slice(0, 10), unitsData.data.revenuePerCustomer.slice(10, 20)].map((half, hi) => (
+              <table key={hi} className="w-full border-collapse text-xs">
+                <tbody>
+                  {half.map((c, i) => (
+                    <tr key={c.name} className="border-b border-border/40">
+                      <td className="w-6 px-1 py-1.5 text-right text-[10px] text-muted-foreground">{hi * 10 + i + 1}.</td>
+                      <td className="max-w-[220px] truncate px-2 py-1.5 font-medium text-foreground" title={c.name}>
+                        {c.name}
+                        {c.ic && <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[9px] font-semibold text-muted-foreground">IC</span>}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{formatCurrencyCompact(c.amount)}</td>
+                      <td className="w-14 px-2 py-1.5 text-right text-[10px] tabular-nums text-muted-foreground">{c.sharePct}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ))}
+          </div>
+        )}
       </Card>
 
       {/* ---- inningsverwachting ---- */}

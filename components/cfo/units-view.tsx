@@ -128,6 +128,56 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
         </Card>
       </div>
 
+      <Card
+        title="Geconsolideerde P&L — echte IC-eliminatie"
+        hint={`Bruto − intercompany (per grootboekregel herkend op tegenpartij) = geconsolideerd. Tegenpartij-dekking: ${u.consolidated.coveragePct}% van het P&L-volume.`}
+        source={u.sources.find((s) => s.label.startsWith("IC-eliminatie"))?.detail}
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[620px] border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
+                <th className="px-2 py-1.5 text-left">Klasse</th>
+                <th className="px-2 py-1.5 text-right">Bruto</th>
+                <th className="px-2 py-1.5 text-right">Intercompany</th>
+                <th className="px-2 py-1.5 text-right">Geconsolideerd</th>
+              </tr>
+            </thead>
+            <tbody>
+              {u.consolidated.byClass.map((r) => (
+                <tr key={r.cls} className="border-b border-border/40">
+                  <td className="px-2 py-1.5 font-semibold text-foreground">{r.cls} · {r.label}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(r.gross)}</td>
+                  <td className={`px-2 py-1.5 text-right tabular-nums ${r.ic ? "text-primary" : "text-muted-foreground"}`}>{r.ic ? `− ${formatCurrency(r.ic)}` : "—"}</td>
+                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{formatCurrency(r.net)}</td>
+                </tr>
+              ))}
+              <tr className="border-t-2 border-border">
+                <td className="px-2 py-2 font-bold text-foreground">Bedrijfsopbrengsten</td>
+                <td className="px-2 py-2 text-right font-bold tabular-nums">{formatCurrency(u.consolidated.totals.revenueGross)}</td>
+                <td className="px-2 py-2 text-right font-bold tabular-nums text-primary">− {formatCurrency(u.consolidated.totals.revenueIc)}</td>
+                <td className="px-2 py-2 text-right font-bold tabular-nums">{formatCurrency(u.consolidated.totals.revenueNet)}</td>
+              </tr>
+              <tr>
+                <td className="px-2 py-1 font-bold text-foreground">Operationele kosten</td>
+                <td className="px-2 py-1 text-right font-bold tabular-nums">{formatCurrency(u.consolidated.totals.costsGross)}</td>
+                <td className="px-2 py-1 text-right font-bold tabular-nums text-primary">− {formatCurrency(u.consolidated.totals.costsIc)}</td>
+                <td className="px-2 py-1 text-right font-bold tabular-nums">{formatCurrency(u.consolidated.totals.costsNet)}</td>
+              </tr>
+              <tr className="border-t border-border">
+                <td className="px-2 py-2 font-bold text-foreground">EBITDA-benadering</td>
+                <td className="px-2 py-2 text-right font-bold tabular-nums">{formatCurrency(u.consolidated.totals.ebitdaGross)}</td>
+                <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">Δ {formatCurrency(u.consolidated.totals.ebitdaNet - u.consolidated.totals.ebitdaGross)}</td>
+                <td className={`px-2 py-2 text-right font-bold tabular-nums ${u.consolidated.totals.ebitdaNet >= 0 ? "text-positive" : "text-negative"}`}>{formatCurrency(u.consolidated.totals.ebitdaNet)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-2 rounded-lg bg-muted/60 p-2.5 text-[11px] leading-snug text-muted-foreground">
+          <b className="text-foreground">Symmetrie-check:</b> IC-omzet {formatCurrencyCompact(u.consolidated.icSymmetry.icRevenue)} vs IC-kosten {formatCurrencyCompact(u.consolidated.icSymmetry.icCosts)} → Δ <b className={Math.abs(u.consolidated.icSymmetry.delta) > 500_000 ? "text-warning" : "text-foreground"}>{formatCurrencyCompact(u.consolidated.icSymmetry.delta)}</b>. {u.consolidated.icSymmetry.note}
+        </p>
+      </Card>
+
       <Card title="Units in cijfers" hint="Klik-sorteren kan in een volgende iteratie; gesorteerd op omzet." source={u.sources[0]?.detail}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[620px] border-collapse text-xs">
