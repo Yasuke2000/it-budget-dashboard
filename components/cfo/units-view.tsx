@@ -23,9 +23,18 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
   const p = useChartPalette();
   const u = units.data;
 
+  // AFDELING-hygiëne: mini-fragmenten (< €100k volume) zijn tagging-ruis; en een marge
+  // is alleen betekenisvol als omzet én kosten substantieel getagd zijn (geen -11.776%-
+  // artefacten van eenzijdige tagging, geen marges op pure kostenplaatsen).
+  const TAGGED_MIN = 100_000;
+  const taggedUnits = useMemo(() => (u ? u.units.filter((x) => x.revenue + x.costs >= TAGGED_MIN) : []), [u]);
+  const hiddenUnits = u ? u.units.length - taggedUnits.length : 0;
+  const marginReliable = (x: { revenue: number; costs: number }) =>
+    Math.min(x.revenue, x.costs) / Math.max(x.revenue, x.costs, 1) >= 0.2;
+
   const revStack = useMemo<echarts.EChartsOption | null>(() => {
     if (!u) return null;
-    const top = u.units.slice(0, 8);
+    const top = taggedUnits.slice(0, 8);
     return {
       tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (v) => formatCurrency(Number(v)) },
       legend: { data: top.map((x) => x.label), textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
@@ -37,30 +46,34 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
         itemStyle: { color: p.categorical[i % p.categorical.length] }, barMaxWidth: 26,
       })),
     };
-  }, [u, p]);
+  }, [u, taggedUnits, p]);
 
-  const marginBars = useMemo<echarts.EChartsOption | null>(() => {
+  // Omzet vs kosten per AFDELING als aparte balken — GEEN marge-claim: bij eenzijdige
+  // tagging of kostenplaatsen (Overhead) is een marge betekenisloos; de tooltip toont
+  // de marge alleen wanneer beide kanten substantieel getagd zijn.
+  const revCostBars = useMemo<echarts.EChartsOption | null>(() => {
     if (!u) return null;
-    const rows = [...u.units].sort((a, b) => b.result - a.result);
+    const rows = [...taggedUnits].sort((a, b) => (b.revenue + b.costs) - (a.revenue + a.costs));
     return {
       tooltip: {
         trigger: "axis", axisPointer: { type: "shadow" },
         formatter: (prs: unknown) => {
           const pr = (prs as { dataIndex: number }[])[0];
           const r = rows[pr.dataIndex]; if (!r) return "";
-          return `${r.label}<br/>Omzet <b>${formatCurrency(r.revenue)}</b> · Kosten ${formatCurrency(r.costs)}<br/>Resultaat <b>${formatCurrency(r.result)}</b> (${r.marginPct}%)`;
+          const marge = marginReliable(r) ? `Resultaat <b>${formatCurrency(r.result)}</b> (${r.marginPct}%)` : "Marge n.b. — eenzijdig getagd of kostenplaats";
+          return `${r.label} <span style="opacity:.6">${r.code}</span><br/>Getagde omzet: <b>${formatCurrency(r.revenue)}</b><br/>Getagde kosten: <b>${formatCurrency(r.costs)}</b><br/>${marge}`;
         },
       },
-      grid: { top: 10, left: 6, right: 40, bottom: 20, containLabel: true },
+      legend: { data: ["Getagde omzet", "Getagde kosten"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+      grid: { top: 28, left: 6, right: 14, bottom: 20, containLabel: true },
       xAxis: { type: "value", axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
-      yAxis: { type: "category", data: rows.map((r) => r.label), axisLabel: { color: p.text, fontSize: 10 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
-      series: [{
-        type: "bar", barMaxWidth: 18,
-        data: rows.map((r) => ({ value: r.result, itemStyle: { color: r.result >= 0 ? p.positive : p.negative, borderRadius: 3 } })),
-        label: { show: true, position: "right", color: p.text, fontSize: 9, formatter: (pl: { dataIndex: number }) => `${rows[pl.dataIndex]?.marginPct ?? 0}%` },
-      }],
+      yAxis: { type: "category", inverse: true, data: rows.map((r) => r.label), axisLabel: { color: p.text, fontSize: 10, interval: 0 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
+      series: [
+        { name: "Getagde omzet", type: "bar", data: rows.map((r) => r.revenue), itemStyle: { color: p.income, borderRadius: [0, 3, 3, 0] }, barMaxWidth: 12 },
+        { name: "Getagde kosten", type: "bar", data: rows.map((r) => r.costs), itemStyle: { color: p.expense, borderRadius: [0, 3, 3, 0] }, barMaxWidth: 12 },
+      ],
     };
-  }, [u, p]);
+  }, [u, taggedUnits, p]);
 
   if (!u) {
     return (
@@ -163,8 +176,12 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
         <Card title="AFDELING-dimensie: omzet per maand" hint="⚠ Alleen boekingen mét AFDELING-tag (vooral GTR) — GDI's distributie-omzet zit hier NIET in, zie de firma-tabel." source={u.sources.find((s) => s.label.startsWith("AFDELING"))?.detail}>
           {revStack && <EChart option={revStack} height={300} ariaLabel="Omzet per AFDELING per maand" />}
         </Card>
-        <Card title="AFDELING-dimensie: resultaat (YTD)" hint="⚠ Zelfde beperking — marges zijn vertekend waar kosten wél en omzet níet getagd is (of omgekeerd)." source={u.sources.find((s) => s.label.startsWith("AFDELING"))?.detail}>
-          {marginBars && <EChart option={marginBars} height={300} ariaLabel="Resultaat per AFDELING" />}
+        <Card
+          title="AFDELING-dimensie: getagde omzet vs kosten"
+          hint={`Bewust GEEN marges als balklabel — bij eenzijdige tagging of kostenplaatsen is een marge betekenisloos.${hiddenUnits > 0 ? ` ${hiddenUnits} mini-fragmenten (< €100k) verborgen.` : ""}`}
+          source={u.sources.find((s) => s.label.startsWith("AFDELING"))?.detail}
+        >
+          {revCostBars && <EChart option={revCostBars} height={Math.max(260, taggedUnits.length * 32 + 70)} ariaLabel="Getagde omzet en kosten per AFDELING" />}
         </Card>
       </div>
 
@@ -231,18 +248,24 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
               </tr>
             </thead>
             <tbody>
-              {u.units.map((x) => (
-                <tr key={x.code} className="border-b border-border/40">
-                  <td className="px-2 py-1.5 font-semibold text-foreground">{x.label} <span className="ml-1 font-mono text-[9px] text-muted-foreground">{x.code}</span></td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(x.revenue)}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(x.costs)}</td>
-                  <td className={`px-2 py-1.5 text-right font-semibold tabular-nums ${x.result >= 0 ? "text-positive" : "text-negative"}`}>{formatCurrency(x.result)}</td>
-                  <td className={`px-2 py-1.5 text-right tabular-nums ${x.marginPct >= 0 ? "text-foreground" : "text-negative"}`}>{x.marginPct}%</td>
-                </tr>
-              ))}
+              {taggedUnits.map((x) => {
+                const reliable = marginReliable(x);
+                return (
+                  <tr key={x.code} className="border-b border-border/40">
+                    <td className="px-2 py-1.5 font-semibold text-foreground">{x.label} <span className="ml-1 font-mono text-[9px] text-muted-foreground">{x.code}</span></td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(x.revenue)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(x.costs)}</td>
+                    <td className={`px-2 py-1.5 text-right font-semibold tabular-nums ${!reliable ? "text-muted-foreground" : x.result >= 0 ? "text-positive" : "text-negative"}`}>{reliable ? formatCurrency(x.result) : "—"}</td>
+                    <td className={`px-2 py-1.5 text-right tabular-nums ${!reliable ? "text-muted-foreground" : x.marginPct >= 0 ? "text-foreground" : "text-negative"}`} title={reliable ? undefined : "Niet bepaalbaar: omzet en kosten zijn niet allebei substantieel getagd (of dit is een kostenplaats) — resultaat/marge zouden tagging-artefacten zijn"}>
+                      {reliable ? `${x.marginPct}%` : "n.b."}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
+        {hiddenUnits > 0 && <p className="mt-2 text-[10px] text-muted-foreground">{hiddenUnits} dimensiewaarden met minder dan €100k getagd volume verborgen (tagging-ruis).</p>}
       </Card>
 
       <div className="grid gap-4 xl:grid-cols-2">
