@@ -14,6 +14,7 @@ const BC_ENV = process.env.BC_ENVIRONMENT || "Production";
 
 // BC-paginanummers (zelfde tabel als bclink.py)
 const PAGE_GL_ENTRIES = 20;
+const PAGE_CUSTOMER_CARD = 21;
 const PAGE_CUST_LEDGER_ENTRIES = 25;
 const PAGE_VENDOR_LEDGER_ENTRIES = 29;
 const PAGE_POSTED_SALES_INVOICE = 132;
@@ -47,4 +48,14 @@ export function salesInvoiceLink(company: string, invoiceNumber: string): string
 /** Klantposten (CLE) gefilterd op documentnummer — werkt voor factuur én betaling. */
 export function custLedgerDocLink(company: string, documentNumber: string): string {
   return link(company, PAGE_CUST_LEDGER_ENTRIES, "Document No.", documentNumber);
+}
+
+/** Álle klantposten van één klant — de kruisverwijzing "van klant naar zijn facturen". */
+export function custLedgerByCustomerLink(company: string, customerNo: string): string {
+  return link(company, PAGE_CUST_LEDGER_ENTRIES, "Customer No.", customerNo);
+}
+
+/** Klantenkaart (stamgegevens, betaalcondities, kredietlimiet, contactgegevens). */
+export function customerCardLink(company: string, customerNo: string): string {
+  return link(company, PAGE_CUSTOMER_CARD, "No.", customerNo);
 }

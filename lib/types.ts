@@ -867,6 +867,8 @@ export interface RcvAgeCustomer {
   name: string; companies: string[]; amount: number; invoices: number;
   maxDays: number; avgDays: number; phone: string; email: string;
   factored: boolean; overdue: number;
+  // Kruisverwijzing naar BC: alle posten van deze klant en zijn klantenkaart.
+  custNo: string; company: string; ledgerUrl: string; cardUrl: string;
 }
 export interface RcvAgeBucket {
   label: string; minDays: number; maxDays: number | null;

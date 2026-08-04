@@ -715,8 +715,8 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       {d.behaviour?.ageing?.length ? (
         <Card
           title="Bellijst — welk geld zweeft er hoe lang, en bij wie"
-          hint={`Openstaand extern per ouderdomsblok, stand vandaag. Totaal ${formatCurrency(d.behaviour.ageingTotal)}. Norm ${d.behaviour.norm} dagen — klik een balk voor de klanten in dat blok. Bel de blokken 30–90 dagen: daar haal je het snelst cash binnen. Boven 180 dagen is het dossierwerk (dispuut, aanmaning, jurist), geen belwerk.`}
-          source="Open klantfacturen (Cust_LedgerEntries, Open = true), gebucket op ouderdom = dagen sinds factuurdatum. Bedragen incl. btw, intercompany uitgesloten. Telefoon en e-mail komen van de klantenkaart in BC; waar ze leeg zijn, staan ze niet in BC ingevuld."
+          hint={`Openstaand extern per ouderdomsblok (dagen sinds factuurdatum), stand vandaag. Totaal ${formatCurrency(d.behaviour.ageingTotal)} · incl. btw · norm ${d.behaviour.norm} dagen.`}
+          source="Open klantfacturen (Cust_LedgerEntries, Open = true), gebucket op ouderdom = dagen sinds factuurdatum. Bedragen incl. btw, intercompany uitgesloten. Telefoon en e-mail komen van de klantenkaart in BC; waar ze leeg zijn, staan ze niet in BC ingevuld. De twee iconen achteraan openen alle posten van die klant respectievelijk zijn klantenkaart in Business Central."
           right={
             <a
               href={`/api/cfo/export/klantencash${qs}`}
@@ -756,7 +756,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                 <span className="ml-1 font-normal text-muted-foreground">(grootste eerst — dit is de belvolgorde)</span>
               </p>
               <div className="max-h-[300px] overflow-y-auto overflow-x-auto">
-                <table className="w-full min-w-[640px] border-collapse text-xs">
+                <table className="w-full min-w-[720px] border-collapse text-xs">
                   <thead className="sticky top-0 bg-card">
                     <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
                       <th className="px-2 py-1 text-left">Klant</th>
@@ -766,6 +766,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                       <th className="px-2 py-1 text-right">Oudste</th>
                       <th className="px-2 py-1 text-left">Telefoon</th>
                       <th className="px-2 py-1 text-left">E-mail</th>
+                      <th className="px-2 py-1 text-center" title="Alle posten van deze klant / zijn klantenkaart in Business Central">In BC</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -781,6 +782,18 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                         <td className="px-2 py-1 text-right font-semibold tabular-nums">{c.maxDays}d</td>
                         <td className="px-2 py-1">{c.phone ? <a href={`tel:${c.phone.replace(/\s/g, "")}`} className="text-primary hover:underline">{c.phone}</a> : <span className="text-muted-foreground">—</span>}</td>
                         <td className="max-w-[170px] truncate px-2 py-1">{c.email ? <a href={`mailto:${c.email}`} className="text-primary hover:underline">{c.email}</a> : <span className="text-muted-foreground">—</span>}</td>
+                        <td className="whitespace-nowrap px-2 py-1 text-center">
+                          {c.ledgerUrl ? (
+                            <>
+                              <a href={c.ledgerUrl} target="_blank" rel="noreferrer" title={`Alle openstaande en afgesloten posten van ${c.name} in BC (${c.company})`} className="mr-1.5 inline-flex text-primary hover:opacity-80">
+                                <Receipt className="h-3.5 w-3.5" />
+                              </a>
+                              <a href={c.cardUrl} target="_blank" rel="noreferrer" title="Klantenkaart: betaalcondities, kredietlimiet, contactgegevens" className="inline-flex text-primary hover:opacity-80">
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            </>
+                          ) : <span className="text-[10px] text-muted-foreground">—</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

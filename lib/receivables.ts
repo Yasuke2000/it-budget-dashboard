@@ -28,7 +28,7 @@ import { getBCToken, fetchBCCompanies } from "./bc-client";
 import { fetchWithRetry } from "./http";
 import { getCache, setCache } from "./sync-cache";
 import { isIcName } from "./cfo";
-import { custLedgerDocLink } from "./bc-links";
+import { custLedgerDocLink, custLedgerByCustomerLink, customerCardLink } from "./bc-links";
 
 const ODATA_ROOT = `https://api.businesscentral.dynamics.com/v2.0/${process.env.BC_TENANT_ID}/${process.env.BC_ENVIRONMENT || "production"}`;
 
@@ -878,7 +878,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   const openByCust = new Map<string, { amount: number; inv: number; maxD: number; wD: number; ic: boolean; cos: Set<string>; overdue: number }>();
   const ageing = AGE.map(([label, minD, maxD]) => {
     let amount = 0, invoiceCount = 0;
-    const perCust = new Map<string, { amount: number; inv: number; maxD: number; wD: number; cos: Set<string>; overdue: number }>();
+    const perCust = new Map<string, { amount: number; inv: number; maxD: number; wD: number; cos: Set<string>; overdue: number; custNo: string; co: string; top: number }>();
     for (const b of bundles) for (const inv of b.invoices) {
       if (inv.ic || !inv.open) continue;
       const openAmt = inv.rem || inv.amt - inv.applied;
@@ -887,8 +887,10 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       if (age < minD || (maxD != null && age >= maxD)) continue;
       amount += openAmt; invoiceCount++;
       const k = inv.cust;
-      const a = perCust.get(k) || { amount: 0, inv: 0, maxD: 0, wD: 0, cos: new Set<string>(), overdue: 0 };
+      const a = perCust.get(k) || { amount: 0, inv: 0, maxD: 0, wD: 0, cos: new Set<string>(), overdue: 0, custNo: "", co: "", top: 0 };
       a.amount += openAmt; a.inv++; a.maxD = Math.max(a.maxD, age); a.wD += age * openAmt; a.cos.add(inv.co);
+      // BC-link op de vennootschap met het grootste openstaande bedrag voor deze klant.
+      if (inv.custNo && openAmt > a.top) { a.top = openAmt; a.custNo = inv.custNo; a.co = inv.co; }
       if (inv.due && inv.due < todayIso) a.overdue += openAmt;
       perCust.set(k, a);
       const g = openByCust.get(k) || { amount: 0, inv: 0, maxD: 0, wD: 0, ic: false, cos: new Set<string>(), overdue: 0 };
@@ -903,6 +905,9 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
         maxDays: a.maxD, avgDays: a.amount ? r0(a.wD / a.amount) : 0,
         phone: contactMerged[name]?.phone || "", email: contactMerged[name]?.email || "",
         factored: isFactored(name), overdue: r0(a.overdue),
+        custNo: a.custNo, company: a.co,
+        ledgerUrl: a.custNo && a.co ? custLedgerByCustomerLink(a.co, a.custNo) : "",
+        cardUrl: a.custNo && a.co ? customerCardLink(a.co, a.custNo) : "",
       })),
     };
   });
