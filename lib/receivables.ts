@@ -66,6 +66,12 @@ const FACTORING_COST_RX = /factoring|comm\.?\s*fin\b|commercial\s*finance|\bfact
 // terechtkomen zonder de naam van de factor (GTR: BNP-contract 0003946/001).
 const FACTORING_COST_REFS: Record<string, RegExp> = { GTR: /0003946/ };
 
+// Eenmalige, niet-operationele verkopen die de DSO-noemer zouden vertekenen.
+// GPR/ES Finance = de sale-and-leaseback van de gebouwen (maart 2026, €10,6M).
+const DSO_SALES_EXCLUDE: { co: string; custRx: RegExp; minAmt: number }[] = [
+  { co: "GPR", custRx: /\bES[\s-]?FINANCE\b/i, minAmt: 1_000_000 },
+];
+
 const factorKeyOf = (company: string, docNo: string): string | null => {
   const map = FACTOR_JOURNALS[company];
   if (!map) return null;
@@ -381,11 +387,20 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       for (let i = Math.max(mi, 0); i < n; i++) if (mi <= i) arEndByCat[cat][i] += amt;
     }
   }
+  // Niet-recurrente verkopen horen NIET in de DSO-noemer: de vastgoedverkoop van GPR
+  // aan ES Finance (€10,6M, maart 2026) drukte de maart-DSO naar 20 dagen terwijl er
+  // operationeel niets veranderde. Het gevalideerde DSO-Excel van juli haalde die post
+  // om precies dezelfde reden uit de noemer; hier doen we dat expliciet en zichtbaar.
   const salesByCat: Record<RcvCategory, number[]> = { extFactoring: zero(), extOther: zero(), ic: zero() };
+  const oneOffSales: { month: string; cust: string; amount: number }[] = [];
   for (const b of bundles) {
     for (const inv of b.invoices) {
       const mi = win.keys.indexOf(inv.invDate.slice(0, 7));
       if (mi < 0) continue;
+      if (DSO_SALES_EXCLUDE.some((x) => x.co === b.code && x.custRx.test(inv.rawCust) && inv.amt >= x.minAmt)) {
+        oneOffSales.push({ month: inv.invDate.slice(0, 7), cust: inv.rawCust, amount: r0(inv.amt) });
+        continue;
+      }
       salesByCat[inv.ic ? "ic" : isFactored(inv.cust) ? "extFactoring" : "extOther"][mi] += inv.amt;
     }
   }
@@ -396,13 +411,18 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   // €10M openstaand leverde 127.000 dagen op en blies de grafiekschaal op, waardoor de
   // hele historiek visueel verdween. Een maand telt daarom alleen mee als haar omzet
   // minstens 25% van de mediane maandomzet bedraagt; anders `null` (geen punt).
+  // Een maand is pas "rijp" als (a) we minstens 25 dagen ná haar einde zijn — facturen
+  // van maand M worden tot ver in M+1 geboekt — én (b) haar omzet niet wegvalt tegen de
+  // mediaan (dekt firma's met een onvolledige historie). Zonder (a) gaf juli nog 112
+  // dagen omdat pas een derde van de julifacturatie geboekt was.
+  const matureIdx = today.getUTCDate() >= 25 ? n - 2 : n - 3;
   const medianOf = (xs: number[]): number => {
     const s = xs.filter((x) => x > 0).sort((a, b) => a - b);
     return s.length ? s[Math.floor(s.length / 2)] : 0;
   };
   const dsoOf = (ar: number[], sales: number[]): (number | null)[] => {
-    const floor = Math.max(1000, medianOf(sales.slice(-13)) * 0.25);
-    return win.keys.map((_, i) => (sales[i] >= floor ? r0((ar[i] / sales[i]) * win.daysIn[i]) : null));
+    const floor = Math.max(1000, medianOf(sales.slice(0, matureIdx + 1)) * 0.25);
+    return win.keys.map((_, i) => (i <= matureIdx && sales[i] >= floor ? r0((ar[i] / sales[i]) * win.daysIn[i]) : null));
   };
   const arExt = win.keys.map((_, i) => arEndByCat.extFactoring[i] + arEndByCat.extOther[i]);
   const salesExt = win.keys.map((_, i) => salesByCat.extFactoring[i] + salesByCat.extOther[i]);
@@ -437,10 +457,11 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       extFactoring: salesByCat.extFactoring.map(r0), extOther: salesByCat.extOther.map(r0), ic: salesByCat.ic.map(r0),
     },
   };
-  // "Nu" = laatste RIJPE maand: facturen van maand M worden tot ver in M+1 geboekt,
-  // dus M is pas bruikbaar als noemer zodra we ±25 dagen voorbij het maandeinde zijn.
-  // (Live-check 03/08: juli als noemer gaf DSO 133d — artefact van ontbrekende juli-facturatie.)
-  const nowIdx = today.getUTCDate() >= 25 ? n - 2 : n - 3;
+  // "Nu" = laatste RIJPE maand (zie matureIdx hierboven): facturen van maand M worden
+  // tot ver in M+1 geboekt, dus M is pas bruikbaar zodra we ±25 dagen voorbij het
+  // maandeinde zijn. Live-check 04/08: juli gaf 112d met slechts een derde van de
+  // julifacturatie geboekt — vandaar dezelfde drempel voor KPI én grafiek.
+  const nowIdx = matureIdx;
   const dsoNow = {
     total: dso.dsoTotal[nowIdx], extFactoring: dso.dsoExtFactoring[nowIdx],
     extOther: dso.dsoExtOther[nowIdx], countback: dso.dsoCountback[nowIdx],
@@ -780,7 +801,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     { label: "Klantposten (AR)", detail: "BC ODataV4 Cust_LedgerEntries, volledige historie, alle vennootschappen. AR-saldo per maandeinde = som van alle posten t/m die datum. Bedragen incl. btw." },
     { label: "Echte betaaldata", detail: "Gedetailleerde_klantenposten_Excel, Entry_Type='Application' — de boekingsdatum van de toewijzing betaling↔factuur. Dit is de dag dat het geld binnenkwam (of de factor afrekende)." },
     { label: "Factoring-herkenning", detail: "Afwikkelings-dagboeken per vennootschap: GTR KBCF→KBC CF + BNPF→BNP Fortis Factor; GDI BELF→Belfius CF; WHS KBCC→KBC CF; TDR KBC→KBC CF (afgeleid: enige bankrekening in de KBC-CF-reeks + GL 499200 — bevestigen met finance). Klant = factoring-klant zodra ≥40% van zijn betaald volume via zo'n dagboek liep." },
-    { label: "DSO (balansmethode)", detail: "AR-eindsaldo maand ÷ gefactureerd die maand × dagen in de maand — per categorie. Teller én noemer incl. btw (dag-ratio is btw-neutraal). Zelfde methode als het gevalideerde DSO-Excel (jul 2026)." },
+    { label: "DSO (balansmethode)", detail: `AR-eindsaldo maand ÷ gefactureerd die maand × dagen in de maand — per categorie. Teller én noemer incl. btw (dag-ratio is btw-neutraal). Zelfde methode als het gevalideerde DSO-Excel (jul 2026). Een maand verschijnt pas als ze rijp is: minstens 25 dagen ná het maandeinde (facturen van maand M lopen tot in M+1) én met een omzet die niet wegvalt tegen de mediaan. Eenmalige, niet-operationele verkopen zijn uit de noemer gehouden${oneOffSales.length ? ` (${oneOffSales.map((o) => `${o.cust} ${new Intl.NumberFormat("nl-BE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(o.amount)} in ${o.month}`).join("; ")})` : ""}.` },
     { label: "DPO", detail: "VendorLedgerEntries (extern): AP-eindsaldo ÷ inkoopfacturen van de maand × dagen. Factuur-niveau DPO kan pas als finance/IT 'Detailed Vendor Ledger Entries' als webservice publiceert." },
     { label: "Factoringkosten", detail: "Gesplitst per CBN-advies 2011/23: factorcommissie op 613340 (klasse 61) + rente/disconto op 653x 'Discontokosten op vorderingen' (klasse 65), per maand, alle vennootschappen. LET OP: 653x kan ook niet-factoring-disconto bevatten." },
     { label: "Collectie-KPI's (CRF)", detail: `Credit Research Foundation-standaard, PER MAAND (N=1) berekend op de maand ${win.keys[nowIdx]} — dezelfde maand als de DSO, zodat teller en noemer één periode meten. CEI = (AR begin maand + omzet maand − AR eind maand) ÷ (idem − niet-vervallen AR eind maand) × 100; Best Possible DSO = niet-vervallen AR eind maand ÷ omzet maand × dagen; ADD = DSO − BPDSO. Externe posten, incl. btw. De YTD-variant met "kredietverkopen/N" is bewust NIET gebruikt: bij een groeiende N (1→12) versterkt die elke AR-drift met factor N en daalt de KPI structureel doorheen het jaar (auditbevinding 04/08/2026).` },
