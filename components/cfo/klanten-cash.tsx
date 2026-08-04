@@ -1579,14 +1579,16 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-base font-bold text-foreground">{pickedCustomer.name}</h3>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">Actief in {pickedCustomer.companies.join(", ")} · {pickedCustomer.paidCount} betaalde facturen in de meetperiode</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Actief in {pickedCustomer.companies.join(", ")} · {pickedCustomer.paidCount} betaalde facturen in de meetperiode {per12m}
+                </p>
               </div>
               <button onClick={() => setPickedCustomer(null)} className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><X className="h-4 w-4" /></button>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <Kpi label="Gefactureerd 12m" value={formatCurrencyCompact(pickedCustomer.invoiced12m)} sub="incl. btw" />
-              <Kpi label="Open nu" value={formatCurrencyCompact(pickedCustomer.openNow)} sub={`waarvan vervallen ${formatCurrencyCompact(pickedCustomer.overdueNow)}`} tone={pickedCustomer.overdueNow > 0 ? "warn" : "neutral"} />
-              <Kpi label="Betaaltermijn" value={pickedCustomer.avgDaysToPay != null ? `${pickedCustomer.avgDaysToPay}d` : "—"} sub={pickedCustomer.avgDaysVsDue != null ? `${pickedCustomer.avgDaysVsDue > 0 ? "+" : ""}${pickedCustomer.avgDaysVsDue}d vs vervaldag` : undefined} tone={pickedCustomer.avgDaysVsDue != null && pickedCustomer.avgDaysVsDue > 15 ? "neg" : "neutral"} />
+              <Kpi label="Gefactureerd" value={formatCurrencyCompact(pickedCustomer.invoiced12m)} sub={`${per12m} · incl. btw`} />
+              <Kpi label="Open" value={formatCurrencyCompact(pickedCustomer.openNow)} sub={`${perNu} · waarvan vervallen ${formatCurrencyCompact(pickedCustomer.overdueNow)}`} tone={pickedCustomer.overdueNow > 0 ? "warn" : "neutral"} />
+              <Kpi label="Betaaltermijn" value={pickedCustomer.avgDaysToPay != null ? `${pickedCustomer.avgDaysToPay}d` : "—"} sub={`${per12m}${pickedCustomer.avgDaysVsDue != null ? ` · ${pickedCustomer.avgDaysVsDue > 0 ? "+" : ""}${pickedCustomer.avgDaysVsDue}d vs vervaldag` : ""}`} tone={pickedCustomer.avgDaysVsDue != null && pickedCustomer.avgDaysVsDue > 15 ? "neg" : "neutral"} />
             </div>
             <div className="mt-3 rounded-xl bg-muted/60 p-3 text-[11px] leading-snug text-muted-foreground">
               {pickedCustomer.factoredSharePct >= 40
