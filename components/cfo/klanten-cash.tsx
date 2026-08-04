@@ -16,6 +16,7 @@ import { EChart } from "./echart";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
 import { useChartPalette } from "@/lib/chart-theme";
 import { usePolledData, Card, Kpi, KpiSourceModal, type KpiSource, eurAxis, fmtStamp, fmtMonth, fmtDate, fmtDM, weekRange } from "./cfo-ui";
+import { glAccountLink } from "@/lib/bc-links";
 import {
   Loader2, RefreshCcw, Info, ExternalLink,
   AlertTriangle, Search, ArrowUpDown, Receipt, Undo2, X, ArrowLeft, ShieldCheck,
@@ -517,6 +518,14 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
   const perMaand = `${mStart(selMonth)} t/m ${mEnd(selMonth)}`;
   // Laatste btw-aangifteperiode waarvoor er effectief posten zijn — zo staat er nooit
   // een einddatum in het label van een maand die nog niet aangegeven is.
+  // Vennootschappen in scope — voor de vindplaats-links in de maand-drill. We leiden
+  // ze af uit data die al op de pagina staat (verificatie → units → klantposten),
+  // zodat er geen tweede lijst is die uit sync kan lopen met de scope-selectie.
+  const companiesInScope: string[] = (
+    agingChk.data?.rows.map((r) => r.company)
+    ?? unitsData.data?.perCompany.map((c) => c.code)
+    ?? Array.from(new Set(d.customers.flatMap((c) => c.companies)))
+  ).slice().sort();
   const vatMonths = vat.data?.months ?? [];
   const vatLastMonth =
     [...vatMonths].reverse().find((m) => m.saleVat !== 0 || m.purchVat !== 0)?.month
@@ -861,7 +870,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
             "DSO-verloop per categorie", `${d.dso.dsoTotal[mi] ?? "—"}d in ${fmtMonth(selMonth)}`,
             `elke maand apart, venster ${mStart(months[Math.max(0, months.length - chartRange)])} t/m ${mEnd(months[months.length - 1])}`,
             "Elk punt is één kalendermaand op zich (geen rollend gemiddelde): het openstaande bedrag op de laatste dag van die maand, gedeeld door wat er in díe maand gefactureerd is, maal het aantal dagen van die maand. Het antwoord: 'hoeveel dagen omzet staat er open?'",
-            `Cust_LedgerEntries (volledige historie, alle 11 vennootschappen) voor zowel de openstaande stand per maandeinde als de facturatie per maand. Factoring-klanten worden herkend op het dagboek waarmee hun facturen afgewikkeld worden (KBCF/BELF/BNPF/KBCC/KBC). Klik een maandpunt in de grafiek voor de onderliggende bedragen van die maand, met doorklik naar de posten in BC.`,
+            `Cust_LedgerEntries (volledige historie, alle 11 vennootschappen) voor zowel de openstaande stand per maandeinde als de facturatie per maand. Factoring-klanten worden herkend op het dagboek waarmee hun facturen afgewikkeld worden (KBCF/BELF/BNPF/KBCC/KBC). Klik een maandpunt in de grafiek voor de opbouw van die maand per categorie, met daaronder een vindplaats-link per vennootschap naar de klantencontrolerekening 400000 in Business Central; de factuurregels één per één staan in het Excel-blad "Open posten".`,
             [
               { naam: `Openstaand extern op ${mEnd(selMonth)}`, waarde: formatCurrency(arExtSel) },
               { naam: `Gefactureerd extern in ${fmtMonth(selMonth)}`, waarde: formatCurrency(salesExtSel) },
@@ -1529,6 +1538,36 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
             {pickedMonth === d.dso.months.length - 1 && (
               <p className="mt-2 rounded-lg bg-warning/10 p-2 text-[10px] leading-snug text-warning">Lopende maand — facturatie is nog niet compleet (facturen worden tot in de volgende maand geboekt), het DSO-punt zakt nog.</p>
             )}
+            {/* Laatste stap van de cascade: van deze maandcijfers naar de bron zelf.
+                De maandtotalen zijn groepsbreed, dus per vennootschap één vindplaats
+                op de AR-controlerekening; de factuurregels staan in de Excel. */}
+            <div className="mt-3 border-t border-border pt-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Naar de bron in Business Central</p>
+              <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
+                Het AR-eindsaldo hierboven sluit aan op de klantencontrolerekeningen 400000/400001 (verificatiepaneel onderaan de pagina: Δ €0).
+                Klik een vennootschap voor haar grootboekposten op die rekening; de facturen één per één, met een link per boeking, staan in het Excel-blad <b className="text-foreground">Open posten</b>.
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {companiesInScope.map((c) => (
+                  <a
+                    key={c}
+                    href={glAccountLink(c, "400000")}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={`Grootboekposten van ${c} op rekening 400000 (handelsdebiteuren) in Business Central`}
+                    className="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-primary ring-1 ring-border transition hover:bg-primary/10 hover:ring-primary/40"
+                  >
+                    {c}<ExternalLink className="h-2.5 w-2.5" />
+                  </a>
+                ))}
+              </div>
+              <a
+                href={`/api/cfo/export/klantencash${qs}`}
+                className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[10px] font-semibold text-primary-foreground hover:opacity-90"
+              >
+                <FileSpreadsheet className="h-3 w-3" />Excel met de factuurregels
+              </a>
+            </div>
           </div>
         </div>
       )}
