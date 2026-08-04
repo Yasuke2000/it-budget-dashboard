@@ -502,6 +502,37 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
   const monthWindowLabel = `${fmtMonth(selMonth)}: openstaand op ${fmtDate(monthEnd)} ÷ omzet van die maand × ${monthEnd.slice(8, 10)} dagen`;
   const arExtSel = d.dso.arEndByCat.extFactoring[mi] + d.dso.arEndByCat.extOther[mi];
   const salesExtSel = d.dso.salesByCat.extFactoring[mi] + d.dso.salesByCat.extOther[mi];
+  // ---- PERIODES: elk cijfer draagt zichtbaar zijn eigen periode, met exacte datums.
+  // "Ze moeten nooit moeten twijfelen over welke periode een cijfer gaat."
+  const mStart = (m: string) => `01/${m.slice(5, 7)}/${m.slice(0, 4)}`;
+  const mEnd = (m: string) => {
+    const [y, mo] = m.split("-").map(Number);
+    return `${new Date(Date.UTC(y, mo, 0)).getUTCDate()}/${m.slice(5, 7)}/${m.slice(0, 4)}`;
+  };
+  const vandaag = fmtDate(new Date().toISOString().slice(0, 10));
+  const months = d.dso.months;
+  const perVenster = `${mStart(months[0])} t/m ${mEnd(months[months.length - 1])}`;
+  const per12m = `${mStart(months[Math.max(0, months.length - 12)])} t/m ${mEnd(months[months.length - 1])}`;
+  const perNu = `momentopname ${vandaag}`;
+  const perMaand = `${mStart(selMonth)} t/m ${mEnd(selMonth)}`;
+  // Laatste btw-aangifteperiode waarvoor er effectief posten zijn — zo staat er nooit
+  // een einddatum in het label van een maand die nog niet aangegeven is.
+  const vatMonths = vat.data?.months ?? [];
+  const vatLastMonth =
+    [...vatMonths].reverse().find((m) => m.saleVat !== 0 || m.purchVat !== 0)?.month
+    ?? vatMonths[vatMonths.length - 1]?.month ?? selMonth;
+  // Bouwt een bronpaneel dat altijd dezelfde vier vragen beantwoordt:
+  // welke periode · wat staat er precies · hoe rekenen we het · waar in BC/Excel.
+  const src = (
+    label: string, value: string, periode: string, watStaatEr: string, hoeKomenWeEraan: string,
+    delen?: { naam: string; waarde: string }[], excel?: string, caveat?: string,
+  ): KpiSource => ({
+    label: `${label} — ${periode}`,
+    value,
+    formule: { tekst: watStaatEr, delen: [{ naam: "PERIODE", waarde: periode }, ...(delen ?? [])] },
+    bron: hoeKomenWeEraan,
+    excel, caveat,
+  });
   const nf = dsoSel.extOther != null && dsoSel.extFactoring != null ? dsoSel.extOther - dsoSel.extFactoring : null;
 
   return (
@@ -715,8 +746,19 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       {d.behaviour?.ageing?.length ? (
         <Card
           title="Bellijst — welk geld zweeft er hoe lang, en bij wie"
-          hint={`Openstaand extern per ouderdomsblok (dagen sinds factuurdatum), stand vandaag. Totaal ${formatCurrency(d.behaviour.ageingTotal)} · incl. btw · norm ${d.behaviour.norm} dagen.`}
-          source="Open klantfacturen (Cust_LedgerEntries, Open = true), gebucket op ouderdom = dagen sinds factuurdatum. Bedragen incl. btw, intercompany uitgesloten. Telefoon en e-mail komen van de klantenkaart in BC; waar ze leeg zijn, staan ze niet in BC ingevuld. De twee iconen achteraan openen alle posten van die klant respectievelijk zijn klantenkaart in Business Central."
+          period={perNu}
+          hint={`Openstaand extern per ouderdomsblok (dagen sinds factuurdatum), momentopname ${vandaag}. Totaal ${formatCurrency(d.behaviour.ageingTotal)} · incl. btw · norm ${d.behaviour.norm} dagen.`}
+          onSource={() => setKpiSrc(src(
+            "Bellijst — openstaand per ouderdomsblok", formatCurrency(d.behaviour!.ageingTotal), perNu,
+            "Dit is GEEN periodecijfer maar een momentopname: alle externe klantfacturen die op dit moment nog open staan, gesorteerd op hoe oud ze zijn.",
+            "Cust_LedgerEntries (ODataV4) met Open = true en Document_Type = Invoice, alle 11 vennootschappen. Ouderdom = aantal dagen tussen de factuurdatum en vandaag. Bedragen zijn Remaining_Amt_LCY, dus inclusief btw — dit is wat de klant nog moet overschrijven. Intercompany-klanten zijn uitgesloten. Telefoon en e-mail komen van de klantenkaart (Customer). De twee iconen achteraan de rij openen respectievelijk álle posten van die klant en zijn klantenkaart in Business Central.",
+            [
+              { naam: "Totaal openstaand extern (incl. btw)", waarde: formatCurrency(d.behaviour!.ageingTotal) },
+              ...d.behaviour!.ageing.map((b) => ({ naam: b.label, waarde: `${formatCurrency(b.amount)} · ${b.customerCount} klanten` })),
+            ],
+            "Open posten",
+            `De blokken meten dagen sinds FACTUURDATUM, niet sinds vervaldag. Een klant met 60 dagen betaaltermijn zit dus terecht in het blok 45–60 zonder te laat te zijn; de kolom "waarvan vervallen" toont wél het deel dat de vervaldag voorbij is.`,
+          ))}
           right={
             <a
               href={`/api/cfo/export/klantencash${qs}`}
@@ -813,8 +855,22 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       <div className="grid gap-4 xl:grid-cols-2">
         <Card
           title="DSO-verloop per categorie"
-          hint="Balansmethode per maand: AR-eindsaldo ÷ gefactureerd × dagen. Categorieën: via factoring vs niet-factoring (extern); IC uitgesloten."
-          source="Cust_LedgerEntries (alle historie) + factor-dagboekherkenning. De lijn 'via factoring' meet time-to-cash van de factor-afwikkeling, niet het gedrag van de eindklant. Maanden waarvan de facturatie nog niet volledig geboekt is tonen géén punt (anders zou één onvolledige maand de schaal opblazen). Zweef over een categorie in de legenda voor uitleg; klik een maand voor de onderliggende bedragen."
+          period={`${chartRange} maanden t/m ${mEnd(months[months.length - 1])}`}
+          hint={`Balansmethode per maand: AR-eindsaldo ÷ gefactureerd × dagen in die maand. Getoond venster: ${mStart(months[Math.max(0, months.length - chartRange)])} t/m ${mEnd(months[months.length - 1])}. Categorieën: via factoring vs niet-factoring (extern); IC uitgesloten.`}
+          onSource={() => setKpiSrc(src(
+            "DSO-verloop per categorie", `${d.dso.dsoTotal[mi] ?? "—"}d in ${fmtMonth(selMonth)}`,
+            `elke maand apart, venster ${mStart(months[Math.max(0, months.length - chartRange)])} t/m ${mEnd(months[months.length - 1])}`,
+            "Elk punt is één kalendermaand op zich (geen rollend gemiddelde): het openstaande bedrag op de laatste dag van die maand, gedeeld door wat er in díe maand gefactureerd is, maal het aantal dagen van die maand. Het antwoord: 'hoeveel dagen omzet staat er open?'",
+            `Cust_LedgerEntries (volledige historie, alle 11 vennootschappen) voor zowel de openstaande stand per maandeinde als de facturatie per maand. Factoring-klanten worden herkend op het dagboek waarmee hun facturen afgewikkeld worden (KBCF/BELF/BNPF/KBCC/KBC). Klik een maandpunt in de grafiek voor de onderliggende bedragen van die maand, met doorklik naar de posten in BC.`,
+            [
+              { naam: `Openstaand extern op ${mEnd(selMonth)}`, waarde: formatCurrency(arExtSel) },
+              { naam: `Gefactureerd extern in ${fmtMonth(selMonth)}`, waarde: formatCurrency(salesExtSel) },
+              { naam: "Dagen in die maand", waarde: `${new Date(Date.UTC(Number(selMonth.slice(0, 4)), Number(selMonth.slice(5, 7)), 0)).getUTCDate()}` },
+              { naam: "= DSO totaal", waarde: d.dso.dsoTotal[mi] != null ? `${d.dso.dsoTotal[mi]} dagen` : "n.b." },
+            ],
+            "DSO per maand",
+            `De laatste 2 à 3 maanden hebben BEWUST geen punt: facturen van maand M worden bij Gheeraert nog tot diep in M+1 geboekt, dus die maanden zijn nog niet volledig en zouden een veel te hoge DSO tonen. De lijn "via factoring" meet de snelheid waarmee de factor afrekent, niet het betaalgedrag van de eindklant.`,
+          ))}
           right={
             <div className="flex items-center gap-1">
               {([12, 19] as const).map((r) => (
@@ -844,8 +900,15 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
         </Card>
         <Card
           title="DSO year-over-year"
-          hint="Zelfde kalendermaand vergeleken met vorig jaar (externe DSO, balansmethode)."
-          source="Zelfde reeks als links, geknipt per kalenderjaar. Stippellijn = vorig jaar."
+          period={`kalenderjaren, venster ${mStart(months[0])} t/m ${mEnd(months[months.length - 1])}`}
+          hint="Elke kalendermaand vergeleken met exact dezelfde kalendermaand vorig jaar (externe DSO, balansmethode). Volle lijn = dit jaar, stippellijn = vorig jaar."
+          onSource={() => setKpiSrc(src(
+            "DSO year-over-year", `${d.dso.dsoTotal[mi] ?? "—"}d in ${fmtMonth(selMonth)}`, perVenster,
+            "Exact dezelfde cijfers als de grafiek links, maar per kalenderjaar over elkaar gelegd zodat januari met januari vergeleken wordt en niet met december. Zo zie je of we structureel beter of slechter innen, los van seizoenseffecten.",
+            "Cust_LedgerEntries, dezelfde reeks als 'DSO-verloop per categorie', enkel anders geknipt. Er verschijnt alleen een vergelijking waar wij van beide jaargangen een volledige maand hebben; ontbrekende maanden blijven leeg in plaats van geraden te worden.",
+            undefined, "DSO per maand",
+            "Vergelijk alleen maanden waar béide lijnen een punt hebben. Een maand die dit jaar nog niet volledig geboekt is heeft geen punt, dus dan is er ook geen YoY-uitspraak.",
+          ))}
         >
           {dsoYoY ? <EChart option={dsoYoY} height={300} ariaLabel="DSO year-over-year" /> : <p className="py-10 text-center text-xs text-muted-foreground">Nog geen twee jaargangen beschikbaar.</p>}
         </Card>
@@ -855,26 +918,98 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       <div className="grid gap-4 xl:grid-cols-2">
         <Card
           title="Hoe laat betalen klanten? (vs vervaldag)"
-          hint={`Bedrag-gewogen verdeling van betaald volume. Gemiddeld ${d.dsoInvoiceLevel.avgDays ?? "—"}d van factuur tot geld. Context BE: werkelijke B2B-termijn ±61d, wettelijk max 60d; transport = slechtst betalende sector 2024.`}
-          source={d.dsoInvoiceLevel.note}
+          period={per12m}
+          hint={`Bedrag-gewogen verdeling van álle facturen die in de periode ${per12m} volledig betaald zijn. Gemiddeld ${d.dsoInvoiceLevel.avgDays ?? "—"}d van factuur tot geld. Context BE: werkelijke B2B-termijn ±61d, wettelijk max 60d; transport = slechtst betalende sector 2024.`}
+          onSource={() => setKpiSrc(src(
+            "Betaalsnelheid vs vervaldag", `gemiddeld ${d.dsoInvoiceLevel.avgDays ?? "—"} dagen factuur → geld`, per12m,
+            "Anders dan de DSO-grafiek kijkt dit naar de WERKELIJK betaalde facturen, één per één: hoeveel dagen na de factuurdatum kwam het geld, en hoeveel dagen vóór of ná de vervaldag was dat. De balken zijn gewogen op bedrag, niet op aantal facturen — één factuur van €100k weegt dus zwaarder dan tien van €1k.",
+            `Gedetailleerde_klantenposten_Excel met Entry_Type = 'Application': dat is de enige plek in BC waar de échte betaaldatum per factuur staat (de toewijzing van betaling aan factuur). Enkel facturen die in de meetperiode volledig afgewikkeld zijn, tellen mee — half betaalde facturen zouden het gemiddelde vervalsen. ${d.dsoInvoiceLevel.note}`,
+            [
+              { naam: "Gemiddeld factuur → geld", waarde: d.dsoInvoiceLevel.avgDays != null ? `${d.dsoInvoiceLevel.avgDays} dagen` : "n.b." },
+              { naam: "Mediaan factuur → geld", waarde: d.dsoInvoiceLevel.medianDays != null ? `${d.dsoInvoiceLevel.medianDays} dagen` : "n.b." },
+              { naam: "Op tijd betaald (van betaald volume)", waarde: d.dsoInvoiceLevel.onTimePct != null ? `${d.dsoInvoiceLevel.onTimePct}%` : "n.b." },
+            ],
+            "Klantbetaalgedrag",
+            "Facturen die vandaag nog open staan zitten hier NIET in — die kant staat in de bellijst. Deze grafiek beschrijft dus het gedrag op afgeronde facturen; een klant die al 200 dagen niet betaalt, verschijnt hier pas als hij ooit betaalt.",
+          ))}
         >
           {speedHist && <EChart option={speedHist} height={244} ariaLabel="Betaalsnelheid vs vervaldag" />}
           <div className="mt-3 grid grid-cols-3 gap-3">
             <Kpi
               label="CEI (inningseffectiviteit)"
               value={crfSel.cei != null ? `${crfSel.cei}%` : "—"}
-              sub={`${fmtMonth(selMonth)}${d.crfKpis.cei12mAvg != null ? ` · 12m-gem. ${d.crfKpis.cei12mAvg}%` : ""} · 100% = alles geïnd wat inbaar was`}
+              sub={`${perMaand}${d.crfKpis.cei12mAvg != null ? ` · 12m-gem. ${d.crfKpis.cei12mAvg}%` : ""} · 100% = alles geïnd wat inbaar was`}
               tone={crfSel.cei == null ? "neutral" : crfSel.cei >= 90 ? "pos" : crfSel.cei >= 75 ? "neutral" : "warn"}
+              onClick={() => setKpiSrc(src(
+                "CEI — Collection Effectiveness Index", crfSel.cei != null ? `${crfSel.cei}%` : "n.b.", perMaand,
+                "Van al het geld dat we in deze maand hádden kunnen innen (openstaand bij het begin + wat we die maand factureerden, min wat nog niet vervallen was), welk deel hebben we effectief geïnd? 100% = we hebben alles binnengehaald wat inbaar was. Dit is de standaard van de Credit Research Foundation en is eerlijker dan de DSO, omdat het niet gestraft wordt door een groeiende omzet.",
+                "Cust_LedgerEntries: openstaand extern op de laatste dag van de vorige maand, de externe facturatie van deze maand, het openstaand extern op de laatste dag van deze maand, en het deel daarvan dat op die dag nog niet vervallen was (op basis van de vervaldatum per post). Deze KPI wordt per maand apart berekend, niet rollend.",
+                [
+                  { naam: "Formule (CRF-standaard)", waarde: "(begin-AR + omzet − eind-AR) ÷ (begin-AR + omzet − niet-vervallen eind-AR) × 100" },
+                  { naam: `Openstaand extern op ${mEnd(selMonth)}`, waarde: formatCurrency(arExtSel) },
+                  { naam: `Gefactureerd extern in ${fmtMonth(selMonth)}`, waarde: formatCurrency(salesExtSel) },
+                  { naam: "12-maands gemiddelde CEI", waarde: d.crfKpis.cei12mAvg != null ? `${d.crfKpis.cei12mAvg}%` : "n.b." },
+                ],
+                "Methodiek & bronnen",
+                "Wij berekenen de CEI per maand (N=1). De CRF laat ook een kwartaal- of jaarvariant toe; die geeft een ander (meestal hoger) getal. Vergelijk dus nooit onze maand-CEI met een jaar-CEI van een andere bron. Maanden waarvan de facturatie nog niet volledig geboekt is, geven geen CEI.",
+              ))}
             />
-            <Kpi label="Best Possible DSO" value={crfSel.bpdso != null ? `${crfSel.bpdso}d` : "—"} sub={`de DSO als élke klant exact op de vervaldag betaalde · ${fmtMonth(selMonth)}`} />
-            <Kpi label="Achterstalligheid (ADD)" value={crfSel.add != null ? `${crfSel.add}d` : "—"} sub={`DSO − BPDSO = dagen puur te laat · ${fmtMonth(selMonth)}`} tone={crfSel.add != null && crfSel.add > 20 ? "warn" : "neutral"} />
+            <Kpi
+              label="Best Possible DSO"
+              value={crfSel.bpdso != null ? `${crfSel.bpdso}d` : "—"}
+              sub={`de DSO als élke klant exact op de vervaldag betaalde · ${perMaand}`}
+              onClick={() => setKpiSrc(src(
+                "Best Possible DSO (BPDSO)", crfSel.bpdso != null ? `${crfSel.bpdso} dagen` : "n.b.", perMaand,
+                "De DSO die we zouden hebben als geen enkele klant te laat was: enkel de facturen die op de laatste dag van de maand nog niet vervallen waren, gedeeld door de omzet van die maand. Dit is de ondergrens die met onze huidige betaalcondities haalbaar is — het verschil met de echte DSO is puur achterstalligheid.",
+                "Cust_LedgerEntries: per open post wordt de vervaldatum (Due_Date) vergeleken met de laatste dag van de gekozen maand. Alleen posten die op dat moment nog niet vervallen waren, zitten in de teller. Noemer = dezelfde externe facturatie als bij de DSO, over dezelfde maand.",
+                [
+                  { naam: "Formule", waarde: "niet-vervallen openstaand op maandeinde ÷ omzet van die maand × dagen in die maand" },
+                  { naam: "Echte DSO in deze maand", waarde: d.dso.dsoTotal[mi] != null ? `${d.dso.dsoTotal[mi]} dagen` : "n.b." },
+                  { naam: "BPDSO (haalbare ondergrens)", waarde: crfSel.bpdso != null ? `${crfSel.bpdso} dagen` : "n.b." },
+                  { naam: "= verschil (achterstalligheid)", waarde: crfSel.add != null ? `${crfSel.add} dagen` : "n.b." },
+                ],
+                "Methodiek & bronnen",
+                "De BPDSO daalt niet door beter te innen maar door kórtere betaalcondities af te spreken. Wil je de DSO verlagen zonder de contracten te wijzigen, dan is de ADD hiernaast het cijfer om op te sturen.",
+              ))}
+            />
+            <Kpi
+              label="Achterstalligheid (ADD)"
+              value={crfSel.add != null ? `${crfSel.add}d` : "—"}
+              sub={`DSO − BPDSO = dagen puur te laat · ${perMaand}`}
+              tone={crfSel.add != null && crfSel.add > 20 ? "warn" : "neutral"}
+              onClick={() => setKpiSrc(src(
+                "ADD — Average Days Delinquent", crfSel.add != null ? `${crfSel.add} dagen` : "n.b.", perMaand,
+                "Het aantal dagen dat onze klanten gemiddeld TE LAAT zijn, los van de afgesproken betaaltermijn. Dit is het deel van de DSO dat we met bellen en aanmanen kunnen wegwerken: de rest van de DSO zit in de contractuele betaalcondities zelf.",
+                "Rechtstreeks afgeleid uit de twee cijfers hiernaast, beide over exact dezelfde maand en dezelfde noemer (dat is belangrijk — vergelijk nooit een DSO en een BPDSO van verschillende periodes). Onderliggende bron: Cust_LedgerEntries met de vervaldatum per post.",
+                [
+                  { naam: "Formule (CRF-standaard)", waarde: "DSO − Best Possible DSO" },
+                  { naam: `DSO ${fmtMonth(selMonth)}`, waarde: d.dso.dsoTotal[mi] != null ? `${d.dso.dsoTotal[mi]} dagen` : "n.b." },
+                  { naam: `BPDSO ${fmtMonth(selMonth)}`, waarde: crfSel.bpdso != null ? `${crfSel.bpdso} dagen` : "n.b." },
+                  { naam: "= ADD", waarde: crfSel.add != null ? `${crfSel.add} dagen` : "n.b." },
+                ],
+                "Methodiek & bronnen",
+                "Elke dag ADD is werkkapitaal dat onnodig vastzit: ruwweg de dagomzet × het aantal dagen ADD. Bij factoring-klanten meet dit de snelheid van de factor, niet van de eindklant.",
+              ))}
+            />
           </div>
           <p className="mt-2 text-[10px] leading-snug text-muted-foreground">{d.crfKpis.note}</p>
         </Card>
         <Card
           title="Facturatie per week (excl. IC)"
-          hint="Wat er wekelijks gefactureerd wordt en welk deel meteen richting factoring gaat — incl. btw."
-          source="Facturen (Cust_LedgerEntries, Document_Type=Invoice) per week van factuurdatum, laatste 26 weken. Groen = klanten die via factoring afwikkelen (≥40% van betaald volume via factor-dagboek). LET OP: facturen van de vorige maand worden vaak doorheen de maand geboekt — de laatste 1–2 weken zijn dus nog niet compleet."
+          period={d.weekFlow.length ? `${weekRange(d.weekFlow[0].weekStart).replace(/^ma /, "").split(" t/m ")[0]} t/m ${weekRange(d.weekFlow[d.weekFlow.length - 1].weekStart).split(" t/m ")[1]}` : "laatste 26 weken"}
+          hint={`Wat er per kalenderweek gefactureerd wordt en welk deel meteen richting factoring gaat — incl. btw. Elke balk draagt zijn exacte datumbereik in de tooltip.${d.weekFlow.length ? ` Getoond: ${weekRange(d.weekFlow[0].weekStart)} tot ${weekRange(d.weekFlow[d.weekFlow.length - 1].weekStart)}.` : ""}`}
+          onSource={() => setKpiSrc(src(
+            "Facturatie per week", `${d.weekFlow.length} weken getoond`,
+            d.weekFlow.length ? `${weekRange(d.weekFlow[0].weekStart)} tot en met ${weekRange(d.weekFlow[d.weekFlow.length - 1].weekStart)}` : "laatste 26 weken",
+            "Per kalenderweek (maandag t/m zondag) het totaal gefactureerde bedrag, opgesplitst in klanten die via factoring afwikkelen (groen) en de rest. Dit toont het facturatieritme: hoeveel omzet er per week de deur uit gaat en hoeveel daarvan direct financierbaar is.",
+            "Cust_LedgerEntries met Document_Type = Invoice, gegroepeerd op de kalenderweek van de FACTUURDATUM (niet de boekingsdatum). Bedragen incl. btw. Intercompany uitgesloten. Een klant geldt als factoring-klant wanneer minstens 40% van zijn betaalde volume via een factor-dagboek afgewikkeld is.",
+            d.weekFlow.slice(-4).map((w) => ({
+              naam: weekRange(w.weekStart),
+              waarde: `${formatCurrency(w.factored + w.other)} (${w.count} facturen, waarvan ${formatCurrency(w.factored)} via factoring)`,
+            })),
+            "Facturatie per week",
+            "De laatste 1 à 2 weken zijn NOG NIET COMPLEET: facturen van de vorige maand worden bij Gheeraert doorheen de hele volgende maand geboekt. Een dalende laatste balk betekent dus niet dat er minder gefactureerd is.",
+          ))}
         >
           {weekFlow && <EChart option={weekFlow} height={280} ariaLabel="Facturatie per week" />}
         </Card>
@@ -885,8 +1020,20 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
         <div className="xl:col-span-2">
           <Card
             title="Factoring per bank"
-            hint="Afgewikkeld volume, snelheid factuur→geld en open posities per factor (laatste 12m)."
-            source="Herkenning op afwikkelings-dagboek (KBCF = KBC Commercial Finance; BELF = Belfius; BNPF = BNP). 'Open >90d' = vervallen posten bij factoring-klanten — kandidaten voor terugname (recourse) of niet-financierbaarheid."
+            period={`afgewikkeld ${per12m} · open = ${perNu}`}
+            hint={`Twee verschillende periodes in één tabel, elk in de kolomtitel benoemd: het afgewikkelde volume en de snelheid gaan over ${per12m}, de open posities zijn een momentopname van ${vandaag}.`}
+            onSource={() => setKpiSrc(src(
+              "Factoring per bank", formatCurrency(d.factors.reduce((s, f) => s + f.settled12m, 0)),
+              `afgewikkeld volume en snelheid: ${per12m} · open posities: momentopname ${vandaag}`,
+              "Per factormaatschappij: hoeveel facturatie er in de afgelopen twaalf maanden via die factor is afgewikkeld, hoe snel dat ging (factuurdatum → geld), en hoeveel er op dit moment nog open staat bij klanten die via die factor lopen. LET OP dat de eerste drie kolommen over een periode gaan en de laatste twee over vandaag.",
+              "Cust_LedgerEntries + Gedetailleerde_klantenposten_Excel: de factor wordt herkend aan het DAGBOEK waarmee de factuur afgewikkeld is — KBCF en KBCC = KBC Commercial Finance, BELF = Belfius Commercial Finance, BNPF = BNP Paribas Fortis Factor, KBC bij De Rudder. Er is geen veld 'factoring' in BC; deze dagboekherkenning is de enige betrouwbare route en is nagerekend op de toewijzingen van januari tot juli 2026.",
+              d.factors.map((f) => ({
+                naam: `${f.label} (${f.companies.join(", ")})`,
+                waarde: `${formatCurrency(f.settled12m)} afgewikkeld · mediaan ${f.medianDaysToSettle ?? "n.b."}d · ${formatCurrency(f.openFactored)} open`,
+              })),
+              "Factoring",
+              "De 15%-retentie (het deel dat de factor niet voorschiet) staat NIET in BC — in BC wordt elke factuur in één keer voor 100% afgewikkeld, en grootboekrekening 499200 vertoont geen beweging. Dat cijfer moet uit de maandrapporten van de factor-portalen komen. 'Open >90d' zijn kandidaten voor terugname (recourse).",
+            ))}
           >
             <div className="overflow-x-auto">
               <table className="w-full min-w-[560px] border-collapse text-xs">
@@ -894,11 +1041,11 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                   <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
                     <th className="px-2 py-1.5 text-left">Factor</th>
                     <th className="px-2 py-1.5 text-left">Firma&apos;s</th>
-                    <th className="px-2 py-1.5 text-right">Afgewikkeld 12m</th>
-                    <th className="px-2 py-1.5 text-right">Mediaan dgn tot geld</th>
-                    <th className="px-2 py-1.5 text-right">Gem.</th>
-                    <th className="px-2 py-1.5 text-right">Open (factoring-klanten)</th>
-                    <th className="px-2 py-1.5 text-right">Open &gt;90d</th>
+                    <th className="px-2 py-1.5 text-right" title={`Periode ${per12m}`}>Afgewikkeld<br /><span className="font-normal normal-case">{per12m}</span></th>
+                    <th className="px-2 py-1.5 text-right" title={`Facturen afgewikkeld in ${per12m}`}>Mediaan dgn tot geld</th>
+                    <th className="px-2 py-1.5 text-right" title={`Facturen afgewikkeld in ${per12m}`}>Gem.</th>
+                    <th className="px-2 py-1.5 text-right" title={`Momentopname ${vandaag}`}>Open<br /><span className="font-normal normal-case">stand {vandaag}</span></th>
+                    <th className="px-2 py-1.5 text-right" title={`Momentopname ${vandaag} — meer dan 90 dagen vervallen`}>Open &gt;90d<br /><span className="font-normal normal-case">stand {vandaag}</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -924,25 +1071,71 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           </Card>
         </div>
         <div className="space-y-4">
-          <Card title="Factoringkost per maand" hint={`Commissie + rente · ${formatCurrencyCompact(d.factoringCost.total12m)} laatste 12m`} source="Split per CBN-advies 2011/23: factorcommissie op 613340 (klasse 61) + rente/disconto op 653x 'Discontokosten op vorderingen' (klasse 65). Alle vennootschappen, excl. btw. 653x kan ook niet-factoring-disconto bevatten.">
+          <Card
+            title="Factoringkost per maand"
+            period={d.factoringCost.months.length ? `${mStart(d.factoringCost.months[0])} t/m ${mEnd(d.factoringCost.months[d.factoringCost.months.length - 1])}` : per12m}
+            hint={`Commissie + rente per kalendermaand, excl. btw. ${formatCurrency(d.factoringCost.total12m)} over ${per12m}${d.factoringCost.ytdThrough ? ` · YTD t/m ${mEnd(d.factoringCost.ytdThrough)}: ${formatCurrency(d.factoringCost.totalYtd ?? 0)}` : ""}.`}
+            onSource={() => setKpiSrc(src(
+              "Factoringkost per maand", formatCurrency(d.factoringCost.total12m),
+              d.factoringCost.months.length ? `elke kalendermaand apart, ${mStart(d.factoringCost.months[0])} t/m ${mEnd(d.factoringCost.months[d.factoringCost.months.length - 1])}` : per12m,
+              "Wat factoring ons per maand werkelijk kost, gesplitst in twee soorten kost: de commissie die de factor aanrekent voor de dienst, en de rente/disconto voor het voorschieten van het geld. Beide zijn bedragen excl. btw, over alle vennootschappen samen.",
+              "Grootboekposten_Excel op rekening 613340 (commissie, klasse 61) en 650000 (rente, klasse 65). Op 650000 staat óók gewone financieringsrente — bijvoorbeeld ±€123k straight-loan-rente bij GPR — dus daar nemen we uitsluitend de posten waarvan de tegenpartij of de omschrijving de factormaatschappij aanwijst: BNP Paribas Fortis Factor bij GTR (inclusief de reclass op contract 0003946), Belfius Commercial Finance bij GDI en KBC Comm.Fin.Factoring bij WHS.",
+              [
+                { naam: `Commissie 613340 (YTD t/m ${d.factoringCost.ytdThrough ? mEnd(d.factoringCost.ytdThrough) : "—"})`, waarde: formatCurrency(d.factoringCost.feeYtd ?? 0) },
+                { naam: "Rente 650000, enkel factorposten (zelfde YTD)", waarde: formatCurrency(d.factoringCost.interestYtd ?? 0) },
+                { naam: "= Totaal YTD", waarde: formatCurrency(d.factoringCost.totalYtd ?? 0) },
+                { naam: `Totaal over ${per12m}`, waarde: formatCurrency(d.factoringCost.total12m) },
+              ],
+              "Factoring",
+              "Conform CBN-advies 2011/23 hoort de commissie in klasse 61 en de rente/disconto in klasse 65; bij Gheeraert staat die rente op 650000 en niet op de door de CBN genoemde rekening 653. Laat de accountant bevestigen dat er op 650000 geen andere factoringkosten staan die wij nu missen.",
+            ))}
+          >
             {factoringCost && <EChart option={factoringCost} height={170} ariaLabel="Factoringkost per maand (commissie + rente)" />}
           </Card>
-          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <Card
+            title="Teruggeboekte inningen"
+            period={per12m}
+            hint="Facturen die al afgewikkeld waren en daarna opnieuw open kwamen te staan — het recourse-signaal (voorbeeld: Painting & Decorating Services)."
+            onSource={() => setKpiSrc(src(
+              "Teruggeboekte inningen", `${d.bounceBacks.count} facturen · ${formatCurrency(d.bounceBacks.amount)}`, per12m,
+              "Facturen waarvan de inning is teruggedraaid: ze waren afgewikkeld (door de klant of door de factor voorgeschoten) en zijn daarna opnieuw als openstaand geboekt. Bij factoring is dat het recourse-signaal: de factor neemt de vordering terug omdat de eindklant niet betaalde.",
+              `Gedetailleerde_klantenposten_Excel: toewijzingsregels (Entry_Type = 'Application') die naderhand teruggedraaid zijn (Unapplied), geteld over ${per12m}. ${d.bounceBacks.note}`,
+              [
+                { naam: "Aantal teruggeboekte facturen", waarde: `${d.bounceBacks.count}` },
+                { naam: "Totaalbedrag (incl. btw)", waarde: formatCurrency(d.bounceBacks.amount) },
+                ...d.bounceBacks.examples.slice(0, 4).map((e) => ({ naam: `bv. ${e.customer}`, waarde: formatCurrency(e.amount) })),
+              ],
+              "Open posten",
+              "Een terugboeking kan ook een gewone correctie van de boekhouding zijn (verkeerd toegewezen betaling). Elk geval hier hoort dus individueel bekeken te worden vóór je het als recourse rapporteert.",
+            ))}
+          >
             <div className="flex items-center gap-2">
               <Undo2 className="h-4 w-4 text-warning" />
-              <h2 className="text-sm font-semibold text-foreground">Teruggeboekte inningen (12m)</h2>
+              <p className="text-xl font-bold tabular-nums text-foreground">{d.bounceBacks.count} <span className="text-sm font-semibold text-muted-foreground">· {formatCurrency(d.bounceBacks.amount)}</span></p>
             </div>
-            <p className="mt-2 text-xl font-bold tabular-nums text-foreground">{d.bounceBacks.count} <span className="text-sm font-semibold text-muted-foreground">· {formatCurrencyCompact(d.bounceBacks.amount)}</span></p>
             <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">{d.bounceBacks.note}</p>
-          </div>
+          </Card>
         </div>
       </div>
 
       {/* ---- klantentabel ---- */}
       <Card
         title="Klantbetaalgedrag"
-        hint="Top-klanten op gefactureerd volume (12m). Positief 'vs vervaldag' = betaalt te laat."
-        source="Per klant (naam-genormaliseerd over alle firma's): bedrag-gewogen dagen factuur→betaling en t.o.v. vervaldag, op volledig betaalde facturen in de meetperiode. Open/vervallen = stand van vandaag, incl. btw."
+        period={`gefactureerd + betaalgedrag: ${per12m} · open: ${perNu}`}
+        hint={`Grootste klanten op gefactureerd volume over ${per12m}. Positief 'vs vervaldag' = betaalt te laat. De kolommen open/vervallen zijn een momentopname van ${vandaag}, de rest gaat over de volledige twaalf maanden.`}
+        onSource={() => setKpiSrc(src(
+          "Klantbetaalgedrag per klant", `${d.customers.length} klanten getoond`,
+          `gefactureerd volume en betaalgedrag: ${per12m} · openstaand en vervallen: momentopname ${vandaag}`,
+          "Per klant: hoeveel we hem in twaalf maanden gefactureerd hebben, hoeveel dagen hij er gemiddeld over doet om te betalen, hoeveel dagen dat vóór of ná zijn vervaldag is, en wat er vandaag nog van hem open staat. Klik een klantrij voor zijn facturen één per één, met doorklik naar de post in Business Central.",
+          "Cust_LedgerEntries (facturatie en openstaand) + Gedetailleerde_klantenposten_Excel met Entry_Type = 'Application' (de echte betaaldatum). Klanten worden op genormaliseerde NAAM samengevoegd over alle 11 vennootschappen, want dezelfde klant heeft in elke firma een ander klantnummer. De gemiddelden zijn bedrag-gewogen en berekend op facturen die in de periode VOLLEDIG betaald zijn.",
+          [
+            { naam: `Gefactureerd extern over ${per12m}`, waarde: formatCurrency(d.customers.reduce((s, c) => s + c.invoiced12m, 0)) },
+            { naam: `Waarvan vandaag nog open`, waarde: formatCurrency(d.customers.reduce((s, c) => s + c.openNow, 0)) },
+            { naam: `Waarvan vandaag vervallen`, waarde: formatCurrency(d.customers.reduce((s, c) => s + c.overdueNow, 0)) },
+          ],
+          "Klantbetaalgedrag",
+          "Bij klanten die via factoring lopen meet 'dagen tot betaling' het moment waarop de FACTOR afrekent, niet wanneer de eindklant betaalde. Die klanten lijken daardoor sneller dan ze zijn; de kolom met de factor-markering laat zien om welke het gaat.",
+        ))}
         right={
           <button onClick={() => setShowOpenList((v) => !v)} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold text-muted-foreground ring-1 ring-border hover:text-foreground">
             <Receipt className="h-3 w-3" />{showOpenList ? "Verberg open posten" : `Open posten (${formatCurrencyCompact(d.openInvoices.total)})`}
@@ -966,8 +1159,17 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       {/* ---- omzet per klant (excl. btw) ---- */}
       <Card
         title="Omzet per klant — excl. btw (grootboek)"
-        hint={unitsData.data ? `YTD ${unitsData.data.year} · P&L-perspectief; het te-innen-perspectief (incl. btw) staat in de klantentabel hierboven.` : unitsData.building ? "Grootboek met tegenpartijen wordt opgehaald…" : "Laden…"}
-        source="70x-omzetregels uit Grootboekposten_Excel, gegroepeerd op de klant achter de boeking (Source_Type=Customer, 99% dekking). IC-klanten gemarkeerd. Marge per klant vergt de kostenkant per klant — die koppeling zit niet in BC (TMS/job-costing nodig); daarom hier bewust alleen omzet."
+        period={unitsData.data ? `01/01/${unitsData.data.year} t/m ${vandaag} (YTD)` : "YTD"}
+        hint={unitsData.data ? `Boekjaar ${unitsData.data.year} van 01/01/${unitsData.data.year} tot en met vandaag. Dit is het P&L-perspectief (excl. btw); het te-innen-perspectief (incl. btw) staat in de klantentabel hierboven — dezelfde klant heeft daar dus een hoger bedrag.` : unitsData.building ? "Grootboek met tegenpartijen wordt opgehaald…" : "Laden…"}
+        onSource={() => setKpiSrc(src(
+          "Omzet per klant (grootboek, excl. btw)",
+          unitsData.data ? formatCurrency(unitsData.data.revenuePerCustomer.reduce((s, c) => s + c.amount, 0)) : "—",
+          unitsData.data ? `01/01/${unitsData.data.year} tot en met vandaag (${vandaag}), year-to-date` : "year-to-date",
+          "De omzet zoals ze in de resultatenrekening staat (dus excl. btw), toegewezen aan de klant achter elke boeking. Dit is een ánder cijfer dan de klantentabel hierboven: daar staat wat een klant moet overschrijven (incl. btw, alle openstaande facturen), hier staat wat hij dit boekjaar aan omzet heeft opgeleverd.",
+          "Grootboekposten_Excel: alle boekingen op de 70x-omzetrekeningen, gegroepeerd op de tegenpartij van de boeking (Source_Type = Customer, ±99% dekking). Intercompany-klanten zijn gemarkeerd met een IC-label zodat je ziet welk deel groepsintern is. Deze pull wordt gedeeld met de pagina Business Units, waar dezelfde cijfers per vennootschap staan.",
+          undefined, "Methodiek & bronnen",
+          "Marge per klant kán hier niet bij: dat vergt de kostenkant per klant (welke rit, welke onderaannemer, welke chauffeur) en die koppeling bestaat niet in Business Central — dat vraagt gegevens uit het TMS of job-costing. We tonen daarom bewust alleen de omzetkant en verzinnen geen marge.",
+        ))}
       >
         {unitsData.building && !unitsData.data && <p className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Wordt opgebouwd (deelt de pull met Business Units)…</p>}
         {unitsData.error && <p className="py-4 text-center text-xs text-warning">{unitsData.error}</p>}
@@ -997,8 +1199,18 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       {/* ---- inningsverwachting ---- */}
       <Card
         title="Verwachte inning — komende 13 weken"
-        hint="Open externe posten, ingepland op het historische betaalgedrag per klant (balken) vs de theoretische vervaldatum (stippellijn)."
-        source="Per open factuur: verwachte betaaldag = factuurdatum + de gewogen gemiddelde betaaltermijn van díe klant (fallback: groepsmediaan). Vervallen verwachtingen schuiven naar week 1. Bedragen incl. btw; IC uitgesloten."
+        period={d.cashExpectation.length ? `${weekRange(d.cashExpectation[0].weekStart)} t/m ${weekRange(d.cashExpectation[d.cashExpectation.length - 1].weekStart).split(" t/m ")[1]}` : "komende 13 weken"}
+        hint={`VOORUITBLIK (geen historiek): de facturen die vandaag ${vandaag} open staan, ingepland op het historische betaalgedrag per klant (balken) versus hun theoretische vervaldatum (stippellijn). Elke balk toont zijn exacte weekbereik in de tooltip.`}
+        onSource={() => setKpiSrc(src(
+          "Verwachte inning komende 13 weken",
+          formatCurrency(d.cashExpectation.reduce((s, w) => s + w.expected, 0)),
+          d.cashExpectation.length ? `vooruitblik ${weekRange(d.cashExpectation[0].weekStart)} tot en met ${weekRange(d.cashExpectation[d.cashExpectation.length - 1].weekStart)}, op basis van de openstaande posten van ${vandaag}` : "komende 13 weken",
+          "Dit is het enige cijfer op deze pagina dat naar de TOEKOMST kijkt. We nemen elke factuur die vandaag nog open staat en schatten wanneer het geld komt: niet op de vervaldatum (die halen veel klanten niet), maar op het gemiddelde dat díe klant historisch nodig heeft. De stippellijn toont wat het zou zijn als iedereen wél op de vervaldag betaalde — het verschil tussen balk en lijn is het verwachte uitstel.",
+          "Cust_LedgerEntries met Open = true voor de openstaande posten, plus het per-klant gewogen gemiddelde betaalgedrag uit Gedetailleerde_klantenposten_Excel. Verwachte betaaldag = factuurdatum + de gemiddelde betaaltermijn van die klant; voor klanten zonder betaalhistoriek gebruiken we de groepsmediaan. Facturen waarvan de verwachte betaaldag al voorbij is, worden in week 1 gezet (we doen niet alsof dat geld al binnen is). Bedragen incl. btw, intercompany uitgesloten.",
+          d.cashExpectation.slice(0, 4).map((w) => ({ naam: weekRange(w.weekStart), waarde: `${formatCurrency(w.expected)} verwacht (op vervaldag zou het ${formatCurrency(w.onDueDate)} zijn)` })),
+          "Open posten",
+          "Dit is een PROGNOSE op basis van gedrag uit het verleden, geen toezegging van klanten. Nieuwe facturatie van de komende weken zit er niet in — de reeks loopt dus naar rechts af, en dat is normaal, niet een verwachte cash-daling.",
+        ))}
       >
         {cashExp && <EChart option={cashExp} height={260} ariaLabel="Verwachte inning 13 weken" />}
       </Card>
@@ -1006,8 +1218,23 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       {/* ---- banken ---- */}
       <Card
         title="Banken — werkelijke geldstromen"
-        hint={bank.data ? `Saldo nu ${formatCurrencyCompact(bank.data.totals.cashNow)} · in 12m ${formatCurrencyCompact(bank.data.totals.in12m)} · uit 12m ${formatCurrencyCompact(bank.data.totals.out12m)}` : bank.building ? "Bankmutaties worden opgehaald uit BC…" : "Bankmutaties laden…"}
-        source="BankAccountLedgerEntries — de échte mutaties per bankrekening (geen heuristiek). Boven de as = inkomend, onder = uitgaand, gestapeld per bankgroep. Interne overboekingen tellen bruto aan beide kanten mee."
+        period={`saldo: ${perNu} · stromen: ${per12m}`}
+        hint={bank.data ? `Saldo op ${vandaag}: ${formatCurrency(bank.data.totals.cashNow)}. Geldstromen over ${per12m}: ${formatCurrency(bank.data.totals.in12m)} in, ${formatCurrency(bank.data.totals.out12m)} uit. Twee verschillende periodes — de saldokolom is een momentopname, de in/uit-kolommen zijn twaalf maanden.` : bank.building ? "Bankmutaties worden opgehaald uit BC…" : "Bankmutaties laden…"}
+        onSource={() => setKpiSrc(src(
+          "Banken — werkelijke geldstromen",
+          bank.data ? formatCurrency(bank.data.totals.cashNow) : "—",
+          `saldo per rekening: momentopname ${vandaag} · inkomend en uitgaand: ${per12m}`,
+          "De échte bewegingen op onze bankrekeningen, niet een schatting uit de resultatenrekening. Boven de as staat wat er binnenkwam, onder de as wat eruit ging, gestapeld per bankgroep zodat je ziet welke bank welk deel van het verkeer draagt. De tabel eronder geeft per individuele rekening het saldo van vandaag naast de stromen van twaalf maanden.",
+          "BankAccountLedgerEntries (ODataV4) van alle 11 vennootschappen, met Amount_LCY zodat vreemde valuta correct in euro staat. Elke bankrekening wordt aan zijn bankgroep toegewezen op basis van de IBAN/rekeningnaam; factor-rekeningen krijgen bewust de eigen groep 'Factor' zodat het factoringverkeer niet als gewoon bankverkeer meetelt.",
+          bank.data ? [
+            { naam: `Totaal saldo op ${vandaag}`, waarde: formatCurrency(bank.data.totals.cashNow) },
+            { naam: `Inkomend over ${per12m}`, waarde: formatCurrency(bank.data.totals.in12m) },
+            { naam: `Uitgaand over ${per12m}`, waarde: formatCurrency(bank.data.totals.out12m) },
+            { naam: "Aantal rekeningen in scope", waarde: `${bank.data.accounts.length}` },
+          ] : undefined,
+          "Methodiek & bronnen",
+          "Interne overboekingen tussen onze eigen rekeningen tellen BRUTO mee aan beide kanten: ze verhogen dus zowel 'in' als 'uit' zonder dat er groepsgeld bijkomt of weggaat. Gebruik deze cijfers om het verkeer per bank te wegen, niet als netto-cashflow — die staat in de cashflow-export.",
+        ))}
       >
         {bank.error && <p className="py-4 text-center text-xs text-warning">Bankdata kon niet geladen worden: {bank.error}</p>}
         {bank.building && !bank.data && <p className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Alle bankmutaties van 11 vennootschappen worden opgehaald…</p>}
@@ -1020,9 +1247,9 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                   <th className="px-2 py-1 text-left">Rekening</th>
                   <th className="px-2 py-1 text-left">Firma</th>
                   <th className="px-2 py-1 text-left">Groep</th>
-                  <th className="px-2 py-1 text-right">Saldo</th>
-                  <th className="px-2 py-1 text-right">In 12m</th>
-                  <th className="px-2 py-1 text-right">Uit 12m</th>
+                  <th className="px-2 py-1 text-right" title={`Momentopname ${vandaag}`}>Saldo<br /><span className="font-normal normal-case">stand {vandaag}</span></th>
+                  <th className="px-2 py-1 text-right" title={`Periode ${per12m}`}>In<br /><span className="font-normal normal-case">{per12m}</span></th>
+                  <th className="px-2 py-1 text-right" title={`Periode ${per12m}`}>Uit<br /><span className="font-normal normal-case">{per12m}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -1045,18 +1272,89 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       {/* ---- BTW ---- */}
       <Card
         title="BTW-positie per maand"
-        hint={vat.data ? `YTD ${vat.data.ytd.year}: saldo ${formatCurrencyCompact(Math.abs(vat.data.ytd.net))} ${vat.data.ytd.net >= 0 ? "te betalen" : "te vorderen"} · zelfde periode ${vat.data.prevYtd.year}: ${formatCurrencyCompact(Math.abs(vat.data.prevYtd.net))} ${vat.data.prevYtd.net >= 0 ? "te betalen" : "te vorderen"}` : "BTW-posten worden geladen…"}
-        source="Btw_posten_Excel per btw-aangifteperiode (VAT_Reporting_Date): verschuldigde btw op verkopen − aftrekbare btw op aankopen = maandsaldo. Positief = te betalen aan de overheid, negatief = te vorderen. De groep werkt met een btw-eenheid — het saldo wordt op eenheidsniveau afgerekend."
+        period={vat.data ? `YTD 01/01/${vat.data.ytd.year} t/m ${mEnd(vatLastMonth)} · YoY vs ${vat.data.prevYtd.year}` : "YTD"}
+        hint={vat.data ? `Volledig afgesloten btw-aangifteperiodes van 01/01/${vat.data.ytd.year} tot en met ${mEnd(vatLastMonth)}: saldo ${formatCurrency(Math.abs(vat.data.ytd.net))} ${vat.data.ytd.net >= 0 ? "te betalen" : "te vorderen"}. Vergeleken met exact dezelfde maanden van ${vat.data.prevYtd.year}${vat.data.prevYtd.monthsCompared ? ` (${vat.data.prevYtd.monthsCompared})` : ""}: ${formatCurrency(Math.abs(vat.data.prevYtd.net))} ${vat.data.prevYtd.net >= 0 ? "te betalen" : "te vorderen"}.` : "BTW-posten worden geladen…"}
+        onSource={() => setKpiSrc(src(
+          "BTW-positie", vat.data ? formatCurrency(vat.data.ytd.net) : "—",
+          vat.data ? `01/01/${vat.data.ytd.year} tot en met ${mEnd(vatLastMonth)} — enkel VOLLEDIG afgesloten aangifteperiodes` : "year-to-date",
+          "Per btw-aangifteperiode: de btw die we op onze verkopen verschuldigd zijn, min de btw die we op onze aankopen mogen aftrekken. Positief saldo = te betalen aan de Staat, negatief = terug te vorderen. De maand die nu loopt zit er BEWUST niet in, want die aangifte is nog niet afgesloten en zou een vals beeld geven.",
+          "Btw_posten_Excel (VAT Entries), gegroepeerd op VAT_Reporting_Date — dat is de aangifteperiode, niet de boekingsdatum, dus dit sluit aan op wat er effectief aangegeven is. Tekenafspraak: verkoop-btw komt in BC negatief binnen en wordt omgedraaid, aankoop-btw is positief. De groep werkt met een btw-eenheid, dus het werkelijke betaalsaldo wordt op eenheidsniveau afgerekend en niet per vennootschap.",
+          vat.data ? [
+            { naam: `Verschuldigd op verkopen YTD ${vat.data.ytd.year}`, waarde: formatCurrency(vat.data.perCompany.reduce((s, c) => s + c.ytdSaleVat, 0)) },
+            { naam: "Aftrekbaar op aankopen YTD", waarde: formatCurrency(vat.data.perCompany.reduce((s, c) => s + c.ytdPurchVat, 0)) },
+            { naam: "= Saldo YTD (te betalen aan de Staat)", waarde: formatCurrency(vat.data.ytd.net) },
+            { naam: "Waarvan al betaald YTD", waarde: formatCurrency(vat.data.ytd.paid) },
+            { naam: `Zelfde maanden van ${vat.data.prevYtd.year}${vat.data.prevYtd.monthsCompared ? ` (${vat.data.prevYtd.monthsCompared})` : ""}`, waarde: formatCurrency(vat.data.prevYtd.net) },
+          ] : undefined,
+          "Methodiek & bronnen",
+          `De YoY-vergelijking gebruikt uitsluitend de kalendermaanden die in BEIDE jaren volledig zijn${vat.data?.prevYtd.monthsCompared ? ` (${vat.data.prevYtd.monthsCompared})` : ""} — anders zou je een half jaar tegen een vol jaar afzetten. Het saldo per vennootschap in de tabel is informatief: door de btw-eenheid wordt er op groepsniveau afgerekend, niet per firma.`,
+        ))}
       >
         {vat.building && <p className="flex items-center gap-2 py-8 text-center text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />BTW-posten worden opgehaald uit BC…</p>}
         {vat.error && <p className="py-6 text-center text-xs text-warning">BTW-data kon niet geladen worden: {vat.error}</p>}
         {vatChart && <EChart option={vatChart} height={260} ariaLabel="BTW-positie per maand" />}
         {vat.data && (
           <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi label={`BTW-saldo YTD ${vat.data.ytd.year}`} value={formatCurrencyCompact(vat.data.ytd.net)} sub="verschuldigd − aftrekbaar" />
-            <Kpi label="Terug te vorderen" value={formatCurrencyCompact(vat.data.ytd.recoverable)} sub="som van negatieve maandsaldi YTD" tone="pos" />
-            <Kpi label="Gem. voorfinanciering/mnd" value={formatCurrencyCompact(vat.data.prefinance.avgMonthlyNet)} sub={vat.data.prefinance.note} tone="warn" />
-            <Kpi label="IC-aandeel btw-basis" value={`${vat.data.icVat.basePct}%`} sub={vat.data.icVat.note} />
+            <Kpi
+              label={`BTW-saldo YTD ${vat.data.ytd.year}`}
+              value={formatCurrencyCompact(vat.data.ytd.net)}
+              sub={`01/01/${vat.data.ytd.year} t/m ${mEnd(vatLastMonth)} · verschuldigd − aftrekbaar`}
+              onClick={() => setKpiSrc(src(
+                "BTW-saldo year-to-date", formatCurrency(vat.data!.ytd.net),
+                `01/01/${vat.data!.ytd.year} tot en met ${mEnd(vatLastMonth)} — enkel volledig afgesloten aangifteperiodes`,
+                "Alle btw die we dit jaar verschuldigd zijn op onze verkopen, min alle btw die we mogen aftrekken op onze aankopen. Positief betekent dat we netto aan de Staat moeten betalen.",
+                "Btw_posten_Excel (VAT Entries) van alle 11 vennootschappen, gegroepeerd op VAT_Reporting_Date (de aangifteperiode). De lopende maand zit er niet in.",
+                [
+                  { naam: "Verschuldigd op verkopen", waarde: formatCurrency(vat.data!.perCompany.reduce((s, c) => s + c.ytdSaleVat, 0)) },
+                  { naam: "Aftrekbaar op aankopen", waarde: formatCurrency(vat.data!.perCompany.reduce((s, c) => s + c.ytdPurchVat, 0)) },
+                  { naam: "= Saldo", waarde: formatCurrency(vat.data!.ytd.net) },
+                  { naam: "Waarvan al effectief betaald", waarde: formatCurrency(vat.data!.ytd.paid) },
+                ],
+                "Methodiek & bronnen",
+                "Door de btw-eenheid wordt dit saldo op groepsniveau afgerekend; de bedragen per vennootschap in de tabel eronder zijn dus informatief en niet wat elke firma apart overschrijft.",
+              ))}
+            />
+            <Kpi
+              label="Terug te vorderen"
+              value={formatCurrencyCompact(vat.data.ytd.recoverable)}
+              sub={`01/01/${vat.data.ytd.year} t/m ${mEnd(vatLastMonth)} · som van de negatieve maandsaldi`}
+              tone="pos"
+              onClick={() => setKpiSrc(src(
+                "Terug te vorderen btw", formatCurrency(vat.data!.ytd.recoverable),
+                `01/01/${vat.data!.ytd.year} tot en met ${mEnd(vatLastMonth)}`,
+                "De som van alle maanden waarin we méér aftrekbare btw hadden dan verschuldigde btw. In die maanden hebben we een vordering op de Staat in plaats van een schuld. Dit is geen saldo op één moment maar een optelling over het jaar.",
+                "Btw_posten_Excel: we nemen per aangifteperiode het nettosaldo en tellen enkel de negatieve maanden op. Positieve maanden worden hier niet mee gesaldeerd — dat cijfer staat in de tegel links.",
+                undefined, "Methodiek & bronnen",
+                "Of dit bedrag effectief teruggevraagd of overgedragen is naar de volgende periode, staat niet in deze data; dat volgt uit de aangiftes zelf.",
+              ))}
+            />
+            <Kpi
+              label="Gem. voorfinanciering/mnd"
+              value={formatCurrencyCompact(vat.data.prefinance.avgMonthlyNet)}
+              sub={`gemiddeld per maand over 01/01/${vat.data.ytd.year} t/m ${mEnd(vatLastMonth)}`}
+              tone="warn"
+              onClick={() => setKpiSrc(src(
+                "Gemiddelde btw-voorfinanciering per maand", formatCurrency(vat.data!.prefinance.avgMonthlyNet),
+                `gemiddelde per maand over 01/01/${vat.data!.ytd.year} tot en met ${mEnd(vatLastMonth)}`,
+                "Hoeveel geld we gemiddeld elke maand aan de Staat voorschieten. We moeten de btw op een verkoopfactuur afdragen zodra ze aangegeven is, ook al heeft de klant ons nog niet betaald — bij een DSO van 60 dagen financieren we die btw dus twee maanden lang zelf.",
+                `Btw_posten_Excel: het gemiddelde van de maandelijkse nettosaldi over de afgesloten aangifteperiodes van dit jaar. ${vat.data!.prefinance.note}`,
+                undefined, "Methodiek & bronnen",
+                "Dit is een gemiddelde: individuele maanden kunnen fors afwijken (denk aan een maand met een grote investering, waar de aftrekbare btw plots hoog is). Kijk voor de piekbelasting naar de maandgrafiek hierboven, niet naar dit gemiddelde.",
+              ))}
+            />
+            <Kpi
+              label="IC-aandeel btw-basis"
+              value={`${vat.data.icVat.basePct}%`}
+              sub={`01/01/${vat.data.ytd.year} t/m ${mEnd(vatLastMonth)} · aandeel met groeps-tegenpartij`}
+              onClick={() => setKpiSrc(src(
+                "IC-aandeel in de btw-basis", `${vat.data!.icVat.basePct}%`,
+                `01/01/${vat.data!.ytd.year} tot en met ${mEnd(vatLastMonth)}`,
+                "Welk deel van onze btw-maatstaf tussen groepsvennootschappen onderling loopt. Dat is relevant omdat die btw binnen de btw-eenheid grotendeels neutraal is: de ene firma draagt af, de andere trekt af.",
+                `Btw_posten_Excel gematcht op btw-nummer van de tegenpartij tegen de btw-nummers van de eigen groepsvennootschappen. ${vat.data!.icVat.note}`,
+                undefined, "Methodiek & bronnen",
+                `${vat.data!.vatUnit.note} Waar het btw-nummer van de tegenpartij niet ingevuld staat, kan een IC-transactie gemist worden — dit is dus een ondergrens.`,
+              ))}
+            />
           </div>
         )}
         {vat.data && (
@@ -1065,9 +1363,9 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
               <thead>
                 <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
                   <th className="px-2 py-1 text-left">Vennootschap</th>
-                  <th className="px-2 py-1 text-right">Verschuldigd YTD</th>
-                  <th className="px-2 py-1 text-right">Aftrekbaar YTD</th>
-                  <th className="px-2 py-1 text-right">Saldo YTD</th>
+                  <th className="px-2 py-1 text-right" title={`01/01/${vat.data.ytd.year} t/m ${mEnd(vatLastMonth)}`}>Verschuldigd<br /><span className="font-normal normal-case">01/01 t/m {mEnd(vatLastMonth)}</span></th>
+                  <th className="px-2 py-1 text-right" title={`01/01/${vat.data.ytd.year} t/m ${mEnd(vatLastMonth)}`}>Aftrekbaar<br /><span className="font-normal normal-case">01/01 t/m {mEnd(vatLastMonth)}</span></th>
+                  <th className="px-2 py-1 text-right" title={`01/01/${vat.data.ytd.year} t/m ${mEnd(vatLastMonth)}`}>Saldo<br /><span className="font-normal normal-case">01/01 t/m {mEnd(vatLastMonth)}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -1097,7 +1395,22 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                 : "Er zijn verschillen — zie de rode cellen."
             : agingChk.building ? "Verificatie draait…" : "Verificatie laden…"
         }
-        source={agingChk.data?.sources?.[0]?.detail || "agedAccountsReceivables/Payables (BC-rapport) vs som open klant-/leveranciersposten."}
+        period={perNu}
+        onSource={() => setKpiSrc(src(
+          "Verificatie — BC's aged-rapporten vs dit dashboard",
+          agingChk.data ? (agingChk.data.allGreen ? "Δ €0 — alles sluit" : "zie de Δ-kolommen") : "—",
+          `momentopname ${vandaag}, beide wegen op exact hetzelfde moment herrekend`,
+          "Een controle die wij niet zelf kunnen 'winnen': we vragen Business Central om zijn EIGEN ouderdomsanalyse van klanten en leveranciers, en vergelijken dat met wat dit dashboard uit de onderliggende posten optelt. Als de Δ nul is, kan het dashboard onmogelijk posten dubbel of te weinig geteld hebben. Deze test draait live bij elke pagina-opbouw, het is geen eenmalige controle uit het verleden.",
+          `Weg 1: het BC-rapport agedAccountsReceivables en agedAccountsPayables per vennootschap. Weg 2: onze eigen som van open Cust_LedgerEntries en VendorLedgerEntries. ${agingChk.data?.sources?.[0]?.detail || ""}`,
+          agingChk.data ? [
+            { naam: "Vennootschappen vergeleken", waarde: `${agingChk.data.comparisons ?? agingChk.data.rows.length} van ${agingChk.data.rows.length}` },
+            { naam: "AR volgens dit dashboard", waarde: formatCurrency(agingChk.data.rows.reduce((s, r) => s + r.arOwn, 0)) },
+            { naam: "AP volgens dit dashboard", waarde: formatCurrency(agingChk.data.rows.reduce((s, r) => s + r.apOwn, 0)) },
+            { naam: "Resultaat", waarde: agingChk.data.allGreen ? "alle Δ = €0" : "verschillen — zie de rode cellen" },
+          ] : undefined,
+          undefined,
+          "Een rij met 'n.g.' is NIET groen: daar gaf BC's eigen rapport geen antwoord, dus die vennootschap is onbekend en niet gecontroleerd. Alleen rijen met een echte Δ zijn een bewijs.",
+        ))}
         right={agingChk.data?.allGreen ? <ShieldCheck className="h-4 w-4 text-positive" /> : agingChk.data?.unchecked?.length ? <AlertTriangle className="h-4 w-4 text-warning" /> : undefined}
       >
         {agingChk.building && !agingChk.data && <p className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Beide wegen worden live herrekend…</p>}

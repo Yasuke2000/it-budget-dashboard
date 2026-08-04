@@ -7,7 +7,7 @@ import type { CfoUnits } from "@/lib/units";
 import { EChart, type EChartClick } from "./echart";
 import { FullBalanceCard } from "./full-balance-card";
 import { ConsolidatedCard } from "./consolidated-card";
-import { usePolledData } from "./cfo-ui";
+import { usePolledData, fmtDate } from "./cfo-ui";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
 import { useChartPalette, type ChartPalette } from "@/lib/chart-theme";
 import {
@@ -328,7 +328,9 @@ function LeasingCard({ excluded, onDrillAccount }: { excluded: string[]; onDrill
     <Card
       title="Leasing & huur — rollend materieel"
       hint={d ? `extern · excl. IC${d.config.excludedVendors.length ? ` & ${d.config.excludedVendors.join(", ")}` : ""}` : undefined}
-      source="Rekeningen volgens finance (Birgit) · excl. btw · BC grootboek + leveranciersjoin"
+      period={d ? `${fmtDate(d.period.from)} t/m ${fmtDate(d.period.to)}` : undefined}
+      explain="De cash-out voor leasing en huur van trekkers, trailers en overig rollend materieel, per maand en per grootboekrekening. Alleen EXTERNE leasing: wat groepsvennootschappen aan elkaar doorrekenen is eruit gehaald, anders zou je dezelfde trekker twee keer tellen. Klik een rekening om de boekingen erachter in Business Central te openen."
+      source="Grootboekposten op de leasing- en huurrekeningen die finance (Birgit) heeft aangewezen, met een join op de leveranciersgegevens om intercompany en de uitgesloten leveranciers eruit te filteren. Excl. btw."
     >
       {!d && !err && (
         <p className="flex items-center gap-2 py-6 text-xs text-muted-foreground">
@@ -505,6 +507,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
   // P&L-weergave: "brug" = klassieke resultaatbrug (balken zweven op het lopende
   // totaal); "nul" = elke balk vanaf 0 (pure groottes, geen cumulatief verloop).
   const [pnlView, setPnlView] = useState<"brug" | "nul">("brug");
+  const [ratioOpen, setRatioOpen] = useState<string | null>(null);
   const k = data.kpis;
 
   // Thema-bewust palet (light/dark) — kleuren rechtstreeks uit p; helpers krijgen p mee.
@@ -799,6 +802,12 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
   // periode zouden de tegels YTD-cijfers onder een kwartaal-label tonen — daarom
   // consolideren we alleen in de YTD-stand en zeggen we het eerlijk buiten YTD.
   const isYtdPeriod = /\(YTD\)/.test(data.period.label);
+  // Exacte periode als badge op élke kaart: "ze mogen nooit moeten twijfelen over
+  // welke periode een cijfer gaat". P&L-kaarten dragen de gekozen periode, kaarten
+  // met open posten of een balans dragen hun momentopname-datum.
+  const perExact = `${fmtDate(data.period.from)} t/m ${fmtDate(data.period.to)}`;
+  const perPnl = `${data.period.label} · ${perExact}`;
+  const perNu = `momentopname ${fmtDate(new Date().toISOString().slice(0, 10))}`;
   const icOn = eliminateIC && Boolean(cons) && isYtdPeriod;
   const ebitNetVal = cons ? cons.totals.ebitNet : 0;
   const netResultNet = cons ? k.netResult - cons.icSymmetry.delta : 0; // netto − operationeel IC-effect
@@ -833,19 +842,45 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
   const r = data.ratios;
   // Elke ratio draagt zijn formule + benaderings-caveat als tooltip — een CFO moet
   // kunnen zien WAT er gedeeld wordt voor die op een ratio stuurt.
+  // Elke ratio draagt zijn formule, zijn periode én zijn benaderings-caveat — een CFO
+  // moet kunnen zien WAT er gedeeld wordt en over welke periode, vóór die erop stuurt.
   const ratioTiles = r ? [
     { label: "Current ratio", value: r.currentRatio.toFixed(2), tone: r.currentRatio >= 1.2 ? "emerald" : r.currentRatio >= 1 ? "amber" : "rose",
-      hint: "(kas + handelsvorderingen + voorraad) ÷ handelsschulden. LET OP: kortlopende financiële/fiscale schulden (43x/45x) zitten niet in de noemer — werkelijke ratio ligt lager." },
+      periode: perNu,
+      wat: "Kan de groep haar korte schulden betalen met wat er op korte termijn beschikbaar is? Boven 1 betekent dat de vlottende activa de korte schulden dekken.",
+      formule: "(kas + handelsvorderingen + voorraad) ÷ handelsschulden",
+      hint: "(kas + handelsvorderingen + voorraad) ÷ handelsschulden. LET OP: kortlopende financiële/fiscale schulden (43x/45x) zitten niet in de noemer — werkelijke ratio ligt lager.",
+      caveat: "Kortlopende financiële en fiscale schulden (43x en 45x) zitten NIET in de noemer, dus de werkelijke ratio ligt lager dan hier staat. Dit is een indicatie op basis van de condensed balans, geen bankcovenant-cijfer." },
     { label: "Quick ratio", value: r.quickRatio.toFixed(2), tone: r.quickRatio >= 1 ? "emerald" : r.quickRatio >= 0.8 ? "amber" : "rose",
-      hint: "(kas + handelsvorderingen) ÷ handelsschulden, zonder voorraad. Zelfde caveat als current ratio." },
+      periode: perNu,
+      wat: "Dezelfde vraag als de current ratio, maar strenger: zonder de voorraad, want die moet eerst verkocht worden voor het geld is.",
+      formule: "(kas + handelsvorderingen) ÷ handelsschulden",
+      hint: "(kas + handelsvorderingen) ÷ handelsschulden, zonder voorraad. Zelfde caveat als current ratio.",
+      caveat: "Zelfde beperking als de current ratio: de korte financiële en fiscale schulden ontbreken in de noemer." },
     { label: "Solvabiliteit", value: `${r.solvencyPct}%`, tone: r.solvencyPct >= 30 ? "emerald" : r.solvencyPct >= 20 ? "amber" : "rose",
-      hint: "Eigen vermogen (klasse 1) ÷ benaderde activa (kl. 2 + 3 + AR + kas). Condensed — geen volledige balans." },
+      periode: perNu,
+      wat: "Welk deel van alles wat de groep bezit met eigen geld gefinancierd is in plaats van met schuld. Banken kijken hier het eerst naar; 30% of meer is comfortabel.",
+      formule: "eigen vermogen (klasse 1) ÷ benaderde totale activa (klassen 2 + 3 + handelsvorderingen + kas)",
+      hint: "Eigen vermogen (klasse 1) ÷ benaderde activa (kl. 2 + 3 + AR + kas). Condensed — geen volledige balans.",
+      caveat: "De noemer is een BENADERING van de totale activa uit de condensed balans, niet het balanstotaal van een statutaire jaarrekening. Voor de volledige balans: de kaart 'Volledige balans' verder op deze pagina." },
     { label: "DSO (klanten)", value: `${r.dso} d`, tone: "sky",
-      hint: "Open AR ÷ omzet × verstreken dagen. AR is incl. btw, omzet excl. — dagen licht overschat." },
+      periode: `${perExact} (open posten: ${perNu})`,
+      wat: "Hoeveel dagen omzet er bij klanten open staat — hoe lang ons geld gemiddeld bij hen zit voor het binnenkomt.",
+      formule: "open klantvorderingen ÷ omzet van de periode × aantal verstreken dagen",
+      hint: "Open AR ÷ omzet × verstreken dagen. AR is incl. btw, omzet excl. — dagen licht overschat.",
+      caveat: "De teller is incl. btw en de noemer excl. btw, waardoor dit cijfer de dagen licht OVERSCHAT. De zuivere DSO — per maand, per categorie, met de CRF-KPI's erbij — staat op de pagina Klanten & Cash; gebruik die voor rapportering naar de bank." },
     { label: "DPO (leveranciers)", value: `${r.dpo} d`, tone: "sky",
-      hint: "Open AP ÷ inkopen (klasse 60/61/64) × verstreken dagen. Bezoldigingen/afschrijvingen tellen niet mee (lopen niet via leveranciers)." },
+      periode: `${perExact} (open posten: ${perNu})`,
+      wat: "Hoeveel dagen we er zelf over doen om onze leveranciers te betalen. Hoger is gunstig voor de cash, tot het de relatie of de leveringszekerheid schaadt.",
+      formule: "open leveranciersschulden ÷ inkopen van de periode (klassen 60, 61 en 64) × aantal verstreken dagen",
+      hint: "Open AP ÷ inkopen (klasse 60/61/64) × verstreken dagen. Bezoldigingen/afschrijvingen tellen niet mee (lopen niet via leveranciers).",
+      caveat: "Bezoldigingen (klasse 62) en afschrijvingen (klasse 63) zitten bewust NIET in de noemer: die lopen niet via leveranciersfacturen en zouden de dagen kunstmatig verlagen." },
     { label: "Cash conversion", value: `${r.ccc} d`, tone: r.ccc <= 0 ? "emerald" : "amber",
-      hint: "DSO + DIO − DPO: dagen tussen geld uitgeven en geld innen. Negatief = leveranciers financieren de cyclus." },
+      periode: `${perExact} (open posten: ${perNu})`,
+      wat: "Het aantal dagen tussen geld uitgeven aan een opdracht en geld ervoor ontvangen. Negatief betekent dat leveranciers de cyclus financieren in plaats van wij.",
+      formule: "DSO + DIO (voorraaddagen) − DPO",
+      hint: "DSO + DIO − DPO: dagen tussen geld uitgeven en geld innen. Negatief = leveranciers financieren de cyclus.",
+      caveat: "Erft alle beperkingen van de DSO en DPO hiernaast. Voor een transportgroep is de voorraadcomponent klein, dus dit cijfer wordt vooral gedreven door het verschil tussen klant- en leverancierstermijnen." },
   ] : [];
   const toneClass: Record<string, string> = { emerald: "text-positive", amber: "text-warning", rose: "text-negative", sky: "text-primary" };
 
@@ -941,16 +976,64 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
       {ratioTiles.length > 0 && (
         <div className="mt-4 grid grid-cols-3 gap-3 lg:grid-cols-6">
           {ratioTiles.map((t) => (
-            <div key={t.label} className="group/ratio rounded-xl border border-border bg-card px-3 py-2.5" title={t.hint}>
+            <button
+              key={t.label}
+              onClick={() => setRatioOpen(t.label)}
+              title="Klik voor de formule, de exacte periode en de beperkingen van deze ratio"
+              className="group/ratio rounded-xl border border-border bg-card px-3 py-2.5 text-left transition hover:border-primary/40 hover:ring-1 hover:ring-primary/25"
+            >
               <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
                 {t.label}
-                <Info className="h-2.5 w-2.5 opacity-0 transition-opacity group-hover/ratio:opacity-60" />
+                <Info className="h-2.5 w-2.5 opacity-40 transition-opacity group-hover/ratio:opacity-90" />
               </div>
               <div className={`mt-1 text-lg font-bold ${toneClass[t.tone]}`}>{t.value}</div>
-            </div>
+              <div className="mt-0.5 truncate text-[9px] text-muted-foreground" title={t.periode}>{t.periode}</div>
+            </button>
           ))}
         </div>
       )}
+
+      {/* Ratio-detail: formule met de echte definitie, exacte periode en beperkingen */}
+      {(() => {
+        const t = ratioTiles.find((x) => x.label === ratioOpen);
+        if (!t) return null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setRatioOpen(null)}>
+            <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Bron van dit cijfer</p>
+                  <h3 className="mt-0.5 text-base font-bold text-foreground">{t.label}</h3>
+                  <p className={`mt-1 text-2xl font-bold tabular-nums ${toneClass[t.tone]}`}>{t.value}</p>
+                </div>
+                <button onClick={() => setRatioOpen(null)} className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Sluiten">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="mt-4 rounded-xl border border-primary/30 bg-primary/5 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Periode</p>
+                <p className="mt-1 text-[11px] font-semibold leading-snug text-foreground">{t.periode}</p>
+              </div>
+              <div className="mt-3 rounded-xl border border-border bg-background/50 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Wat zegt dit cijfer</p>
+                <p className="mt-1 text-[11px] leading-snug text-foreground">{t.wat}</p>
+              </div>
+              <div className="mt-3 rounded-xl border border-border bg-background/50 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Zo is het gerekend</p>
+                <p className="mt-1 font-mono text-[11px] leading-relaxed text-foreground">{t.formule}</p>
+                <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+                  Onderliggende bron: grootboeksaldi en open klant-/leveranciersposten uit Business Central, over de periode hierboven.
+                  Voor de opbouw per rekening: de kaart &quot;Volledige balans&quot; en de pagina Klanten &amp; Cash.
+                </p>
+              </div>
+              <div className="mt-3 rounded-xl border border-warning/30 bg-warning/10 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-warning">Waar je op moet letten</p>
+                <p className="mt-1 text-[11px] leading-snug text-foreground">{t.caveat}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Eerlijkheid eerst: live-load mislukt of achtergrond-vernieuwing bezig */}
       {data.loadError && (
@@ -977,7 +1060,11 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
       {/* Main grid */}
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
-          <Card title="Winst & verlies — brug naar nettoresultaat" hint="Klik een balk voor de brongegevens" source="PCMN-klasse 6 & 7 · BC grootboek">
+          <Card
+            title="Winst & verlies — brug naar nettoresultaat" hint="Klik een balk voor de brongegevens" period={perPnl}
+            explain="Het pad van omzet naar nettoresultaat in stappen: bedrijfsopbrengsten, min de bedrijfskosten geeft EBITDA, min de afschrijvingen geeft EBIT, dan het financiële en uitzonderlijke resultaat en de belastingen tot het nettoresultaat. Belangrijk onderscheid: EBITDA sluit klasse 63 (afschrijvingen) uit, EBIT rekent die wél mee. Klik een balk om af te dalen naar de rekeningen erachter en verder naar de boekingen in Business Central."
+            source="Grootboekposten per PCMN/MAR-klasse: 70–74 opbrengsten, 60–64 bedrijfskosten, 65/75 financieel, 66/76 uitzonderlijk, 67/77 belastingen. Klassen 68/69/78/79 (resultaatverwerking) blijven buiten beschouwing. Excl. btw."
+          >
             <div className="mb-2 flex items-center gap-1.5">
               {(["brug", "nul"] as const).map((v) => (
                 <button
@@ -1001,8 +1088,10 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
           {forecast && (
             <Card
               title="13-weken cashflowprognose (directe methode)"
-              hint={`Week van ma ${fmtDM(data.cashForecast!.weeks[0]?.weekStart || "")} t/m week van ma ${fmtDM(data.cashForecast!.weeks[12]?.weekStart || data.cashForecast!.weeks[data.cashForecast!.weeks.length - 1]?.weekStart || "")} · as-labels = maandag van de week · klik een week`}
-              source="Openstaande AR/AP op vervaldatum + loon"
+              hint="as-labels = maandag van de week · klik een week"
+              period={`VOORUITBLIK ${weekRange(data.cashForecast!.weeks[0]?.weekStart || "")} t/m ${weekRange(data.cashForecast!.weeks[data.cashForecast!.weeks.length - 1]?.weekStart || "").split(" t/m ")[1] || ""}`}
+              explain="Het enige cijfer op deze pagina dat naar de TOEKOMST kijkt, en dus níet meebeweegt met de periodekiezer bovenaan. We plannen elke openstaande klant- en leveranciersfactuur in op haar vervaldatum, tellen de loonkost per maand erbij, en rollen dat af vanaf het huidige kassaldo. Zo zie je waar het saldo het laagste punt raakt. Klik een week voor de facturen die er die week in vallen."
+              source="Open klantposten en leveranciersposten (Cust_LedgerEntries en VendorLedgerEntries met Open = true) ingepland op hun vervaldatum, plus de loonkost, plus het huidige saldo van de bankrekeningen. Bedragen incl. btw, want dit is een geldstroomcijfer."
             >
               <EChart option={forecast} height={300} onSelect={onForecastWeek} ariaLabel="13-week cash forecast" />
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
@@ -1013,15 +1102,30 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
           )}
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <Card title="Kostenstructuur" hint="Klik een segment" source="Klasse 60–64">
+            <Card
+              title="Kostenstructuur" hint="Klik een segment" period={perPnl}
+              explain="Alle bedrijfskosten van de gekozen periode, verdeeld over de kostenklassen van het Belgische rekeningstelsel: 60 handelsgoederen en diensten van derden, 61 diensten en diverse goederen, 62 personeel, 63 afschrijvingen, 64 andere bedrijfskosten. Klik een segment om door te dalen naar de rekeningen en vervolgens naar de individuele boekingen in Business Central."
+              source="Grootboekposten op de klassen 60 t/m 64, bedrag = debet − credit, excl. btw."
+            >
               <EChart option={donut} height={300} onSelect={onDonut} ariaLabel="Cost structure" />
             </Card>
-            <Card title="Opbrengsten vs. kosten per maand" hint={data.budget?.configured ? `omzet vs doel ${data.budget.revenueVariancePct >= 0 ? "+" : ""}${data.budget.revenueVariancePct}%` : undefined} source="Klasse 6 & 7 per maand">
+            <Card
+              title="Opbrengsten vs. kosten per maand"
+              hint={data.budget?.configured ? `omzet vs doel ${data.budget.revenueVariancePct >= 0 ? "+" : ""}${data.budget.revenueVariancePct}%` : undefined}
+              period={`elke kalendermaand apart, ${perExact}`}
+              explain="Per kalendermaand de bedrijfsopbrengsten naast de bedrijfskosten, zodat je het seizoenpatroon en de marge-ontwikkeling ziet. Elke maand staat op zichzelf — dit is geen cumulatieve of rollende reeks. De lopende maand is per definitie nog niet volledig geboekt en ligt daardoor lager dan ze zal uitkomen."
+              source="Grootboekposten klassen 70–74 (opbrengsten) en 60–64 (kosten), gegroepeerd op boekingsmaand, excl. btw."
+            >
               <EChart option={monthly} height={300} ariaLabel="Monthly revenue vs cost" />
             </Card>
 
           {heat && (
-            <Card title="Kosten per klasse per maand" hint="Klik een cel — kleur = t.o.v. de eigen klasse" source="Klasse 60–64 per maand · BC grootboek">
+            <Card
+              title="Kosten per klasse per maand" hint="Klik een cel — kleur = t.o.v. de eigen klasse"
+              period={`elke kalendermaand apart, ${perExact}`}
+              explain="Een raster van kostenklasse (rij) tegen kalendermaand (kolom). De kleur vergelijkt elke cel met het gemiddelde van DIE klasse, niet met de andere klassen — anders zou personeelskost alle overige klassen wegdrukken en zag je niks. Klik een cel om de boekingen van die klasse in die maand te openen."
+              source="Grootboekposten klassen 60 t/m 64, gegroepeerd op klasse × boekingsmaand, excl. btw."
+            >
               <EChart option={heat} height={240} onSelect={onHeatCell} ariaLabel="Kosten heatmap per klasse per maand" />
               {!!data.budget?.classVariance?.length && (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border pt-2">
@@ -1045,18 +1149,30 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <Card title="Leveranciersaging (te betalen)" hint="Klik een bucket" source="Open leveranciersposten · vervaldatum · incl. btw">
+            <Card
+              title="Leveranciersaging (te betalen)" hint="Klik een bucket" period={perNu}
+              explain="Wat wij onze leveranciers vandaag nog moeten betalen, verdeeld naar hoe lang de vervaldatum al voorbij is. LET OP: dit is géén periodecijfer maar een momentopname van vandaag — het verandert dus niet als je de periodekiezer bovenaan aanpast. Klik een blok voor de facturen erin, met doorklik naar de post in Business Central."
+              source="Open leveranciersposten (VendorLedgerEntries met Open = true), gebucket op de vervaldatum. Bedragen incl. btw, want dat is wat er effectief overgeschreven wordt."
+            >
               <EChart option={apAging} height={260} onSelect={onApAging} ariaLabel="AP aging" />
             </Card>
             {arAging && (
-              <Card title="Klantenaging (te ontvangen)" hint="Klik een bucket" source="Open verkoopfacturen · vervaldatum · incl. btw">
+              <Card
+                title="Klantenaging (te ontvangen)" hint="Klik een bucket" period={perNu}
+                explain="Wat onze klanten ons vandaag nog moeten betalen, verdeeld naar hoe lang de vervaldatum al voorbij is. Ook dit is een momentopname en niet gebonden aan de gekozen periode. Voor de belversie van dit cijfer — met namen, telefoonnummers en de belvolgorde — gebruik je de bellijst op de pagina Klanten & Cash."
+                source="Open klantposten (Cust_LedgerEntries met Open = true), gebucket op de vervaldatum. Bedragen incl. btw."
+              >
                 <EChart option={arAging} height={260} onSelect={onArAging} ariaLabel="AR aging" />
               </Card>
             )}
           </div>
 
           {bs && (
-            <Card title="Balans (condensed)" source={`Momentopname ${bs.asOf} · betrouwbare posten`}>
+            <Card
+              title="Balans (condensed)" period={`momentopname ${fmtDate(bs.asOf)}`}
+              explain="Een verkorte balans op één datum: links wat de groep bezit, rechts hoe dat gefinancierd is. Dit is per definitie een standcijfer op één dag en verandert dus niet met de periodekiezer bovenaan. Alleen de posten die we betrouwbaar kunnen afleiden staan hier; de volledige balans met alle klassen, doorklik per rekening en een eigen datumkiezer staat in de kaart eronder."
+              source={`Grootboeksaldi per rekening op ${fmtDate(bs.asOf)}, gegroepeerd naar balansrubriek volgens het Belgische rekeningstelsel (MAR).`}
+            >
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <BalanceCol title="Activa" total={bs.totalAssets} lines={bs.assets} max={bsMax} color={p.categorical[1]} />
                 <BalanceCol title="Passiva & eigen vermogen" total={bs.totalClaims} lines={bs.claims} max={bsMax} color={p.categorical[4]} />
@@ -1069,7 +1185,11 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
 
           <ConsolidatedCard excluded={data.scope?.excluded || []} />
 
-          <Card title="Per vennootschap" hint="Klik een rij" source="Operationeel resultaat per entiteit">
+          <Card
+            title="Per vennootschap" hint="Klik een rij" period={perPnl}
+            explain="Per vennootschap de omzet, het operationele resultaat (EBIT) en de marge over de gekozen periode. Alle drie de kolommen gaan over exact dezelfde periode. Bedragen zijn bruto: de omzet die firma's aan elkaar factureren zit er nog in — het geconsolideerde beeld met echte IC-eliminatie staat op de pagina Business Units. Klik een rij om af te dalen naar de rekeningen van die firma en verder naar de boekingen in Business Central."
+            source="Grootboekposten per vennootschap: klassen 70–74 als omzet, 60–64 als kosten (afschrijvingen inbegrepen), excl. btw."
+          >
             <div className="max-h-[300px] overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-background/80 text-[11px] uppercase tracking-wider text-muted-foreground backdrop-blur">
@@ -1335,15 +1455,38 @@ function ExportButton({ kind, label }: { kind: "ap" | "ar" | "leasing"; label: s
 }
 
 // ---- helpers ----
-function Card({ title, hint, source, children }: { title: string; hint?: string; source?: string; children: React.ReactNode }) {
+// `period` = altijd zichtbare periode-badge met EXACTE datums (finance mag nooit
+// moeten twijfelen waarover een cijfer gaat). `explain` = openklapbare uitleg:
+// wat staat er precies, en hoe komen we eraan.
+function Card({ title, hint, source, period, explain, children }: {
+  title: string; hint?: string; source?: string; period?: string; explain?: string; children: React.ReactNode;
+}) {
   return (
     <section className="rounded-2xl border border-border bg-card p-5 backdrop-blur">
       <div className="mb-3 flex items-start justify-between gap-3">
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          {period && (
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground ring-1 ring-border" title={`Periode: ${period}`}>
+              {period}
+            </span>
+          )}
+        </div>
         {hint && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-border">{hint}</span>}
       </div>
       {children}
-      {source && <p className="mt-2 text-[10px] uppercase tracking-wider text-muted-foreground/70">Bron: {source}</p>}
+      {(source || explain) && (
+        <details className="group mt-2.5 border-t border-border pt-2">
+          <summary className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground ring-1 ring-border transition hover:bg-primary/10 hover:text-primary hover:ring-primary/40">
+            <Info className="h-3 w-3" />bron &amp; uitleg
+          </summary>
+          <div className="mt-2 space-y-1.5">
+            {period && <p className="text-[11px] leading-snug text-foreground"><b>Periode:</b> {period}</p>}
+            {explain && <p className="text-[11px] leading-snug text-muted-foreground">{explain}</p>}
+            {source && <p className="text-[11px] leading-snug text-muted-foreground"><b className="text-foreground">Bron in Business Central:</b> {source}</p>}
+          </div>
+        </details>
+      )}
     </section>
   );
 }

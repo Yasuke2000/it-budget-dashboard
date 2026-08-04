@@ -5,22 +5,40 @@
 
 import type { CfoUnits } from "@/lib/units";
 import { formatCurrencyCompact } from "@/lib/utils";
-import { usePolledData } from "./cfo-ui";
-import { Loader2, GitMerge, ChevronRight } from "lucide-react";
+import { usePolledData, fmtDate } from "./cfo-ui";
+import { Loader2, GitMerge, ChevronRight, Info } from "lucide-react";
 
 export function ConsolidatedCard({ excluded }: { excluded: string[] }) {
   const qs = excluded.length ? `?exclude=${excluded.join(",")}` : "";
   const { data, building, error } = usePolledData<CfoUnits>(`/api/cfo/units${qs}`);
   const t = data?.consolidated?.totals;
+  const vandaag = fmtDate(new Date().toISOString().slice(0, 10));
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-2 flex items-start justify-between gap-2">
         <div>
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground"><GitMerge className="h-4 w-4 text-primary" /> Geconsolideerd (IC-eliminatie)</h2>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground"><GitMerge className="h-4 w-4 text-primary" /> Geconsolideerd (IC-eliminatie)</h2>
+            <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary ring-1 ring-primary/30">
+              {data ? `01/01/${data.year} t/m ${vandaag} (YTD)` : "YTD"}
+            </span>
+          </div>
           <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-            Operationele P&amp;L YTD, intercompany per grootboekregel geëlimineerd (tegenpartij-herkenning{data ? `, dekking ${data.consolidated.coveragePct}%` : ""}).
+            Operationele P&amp;L over het lopende boekjaar, intercompany per grootboekregel geëlimineerd (tegenpartij-herkenning{data ? `, dekking ${data.consolidated.coveragePct}%` : ""}).
+            Deze kaart rekent ALTIJD year-to-date en volgt dus niet de periodekiezer bovenaan.
           </p>
+          <details className="mt-1.5">
+            <summary className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground ring-1 ring-border transition hover:bg-primary/10 hover:text-primary hover:ring-primary/40">
+              <Info className="h-3 w-3" />bron &amp; uitleg
+            </summary>
+            <div className="mt-2 space-y-1.5">
+              <p className="text-[11px] leading-snug text-foreground"><b>Periode:</b> {data ? `01/01/${data.year} tot en met vandaag (${vandaag})` : "year-to-date"} — altijd YTD, ongeacht de periodekiezer bovenaan de pagina.</p>
+              <p className="text-[11px] leading-snug text-muted-foreground"><b className="text-foreground">Wat staat er:</b> kolom 1 is de naïeve som van de elf vennootschappen, waarin de omzet die firma&apos;s aan elkaar factureren dubbel geteld zit. Kolom 2 is precies dat interne deel. Kolom 3 is wat de groep werkelijk aan de buitenwereld verdient — dat is het cijfer dat je aan een bank of een externe partij geeft.</p>
+              <p className="text-[11px] leading-snug text-muted-foreground"><b className="text-foreground">Bron in Business Central:</b> Grootboekposten_Excel per klasse. Een regel geldt als intercompany wanneer de tegenpartij (klant of leverancier) een groepsvennootschap is; bij memoriaalboekingen, die geen tegenpartij hebben, kijken we aanvullend naar de omschrijving.{data ? ` De tegenpartij-dekking van ${data.consolidated.coveragePct}% zegt voor welk deel van het P&L-volume die toets mogelijk is.` : ""}</p>
+              <p className="text-[11px] leading-snug text-muted-foreground"><b className="text-foreground">Waar je op moet letten:</b> dit is een management-consolidatie voor besluitvorming, geen statutaire geconsolideerde jaarrekening — deelnemingen, minderheidsbelangen en herwaarderingen zitten er niet in. De volledige opbouw per klasse, met de symmetrie-check tussen IC-omzet en IC-kosten, staat via &quot;detail&quot; op de pagina Business Units.</p>
+            </div>
+          </details>
         </div>
         <a href="/cfo/units" className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-semibold text-primary hover:opacity-80">detail<ChevronRight className="h-3.5 w-3.5" /></a>
       </div>

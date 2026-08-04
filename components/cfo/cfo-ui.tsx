@@ -78,26 +78,44 @@ export function usePolledData<T>(url: string): { data: T | null; building: boole
   return { data, building, error, reload };
 }
 
-export function Card({ title, hint, source, right, children }: {
-  title: string; hint?: string; source?: string; right?: React.ReactNode; children: React.ReactNode;
+export function Card({ title, hint, source, right, onSource, period, children }: {
+  title: string; hint?: string; source?: string; right?: React.ReactNode;
+  // onSource: maakt het bron-icoon een KNOP die het volledige bronpaneel opent
+  // (periode, wat er staat, hoe we eraan komen). period: altijd zichtbaar labeltje.
+  onSource?: () => void; period?: string; children: React.ReactNode;
 }) {
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+            {period && (
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground ring-1 ring-border">
+                {period}
+              </span>
+            )}
+          </div>
           {hint && <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{hint}</p>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {right}
-          {source && (
+          {onSource ? (
+            <button
+              onClick={onSource}
+              title="Bron: welke periode, wat staat er precies, en hoe komen we eraan"
+              className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground ring-1 ring-border transition hover:bg-primary/10 hover:text-primary hover:ring-primary/40"
+            >
+              <Info className="h-3 w-3" />bron
+            </button>
+          ) : source ? (
             <span className="group relative inline-flex">
               <Info className="h-3.5 w-3.5 text-muted-foreground/60" />
               <span className="pointer-events-none absolute right-0 top-5 z-30 hidden w-72 rounded-lg border border-border bg-popover p-2.5 text-[11px] leading-snug text-popover-foreground shadow-xl group-hover:block">
                 {source}
               </span>
             </span>
-          )}
+          ) : null}
         </div>
       </div>
       {children}
