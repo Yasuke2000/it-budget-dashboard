@@ -22,6 +22,7 @@
 import type {
   CfoReceivables, CfoSource, RcvCustomerRow, RcvDsoSeries, RcvFactorRow,
   RcvInvoiceItem, RcvSpeedBucket, RcvWeekFlow, RcvCashWeekExpectation, RcvCategory,
+  CfoBehaviour, RcvPayRow, RcvCustomerRisk, RcvFactorTiming,
 } from "./types";
 import { getBCToken, fetchBCCompanies } from "./bc-client";
 import { fetchWithRetry } from "./http";
@@ -159,6 +160,7 @@ interface CompanyRcvBundle {
   factoringCost: Record<string, number>;            // maand → factorcommissie (613340, kl. 61)
   factoringInterest: Record<string, number>;        // maand → rente/disconto (653x, kl. 65 — CBN 2011/23)
   creditByCust: Record<string, number>;             // klantKey → som kredietlimieten (klantkaarten)
+  contactByCust: Record<string, { phone: string; email: string }>; // voor de sales-bellijst
   dimOk: boolean;                                   // false = dimensiepull mislukte (geen "AFDELING ontbreekt"-claim doen)
   degraded: boolean;                                // true = fallback-veldenset gebruikt (open bedragen bruto benaderd)
   earliestEntry: string;                            // vroegste klantpost (beginbalans-check)
@@ -187,12 +189,16 @@ async function buildCompanyRcvBundle(
 
   // ---- 0b. Kredietlimieten van de klantkaarten (customersGT) ----
   const creditByNo: Record<string, number> = {};
+  const contactByNo: Record<string, { phone: string; email: string }> = {};
   try {
-    await pageAll(`${ODATA_ROOT}/api/gmi/CustomersGMI/v2.0/companies(${co.id})/customersGT?$select=number,creditLimit,displayName`, token, (e) => {
+    await pageAll(`${ODATA_ROOT}/api/gmi/CustomersGMI/v2.0/companies(${co.id})/customersGT?$select=number,creditLimit,displayName,phoneNumber,email`, token, (e) => {
+      const no = String(e.number || "");
       const lim = (e.creditLimit as number) || 0;
-      if (lim > 0) creditByNo[String(e.number || "")] = lim;
+      if (lim > 0) creditByNo[no] = lim;
+      const phone = String(e.phoneNumber || "").trim(), email = String(e.email || "").trim();
+      if (phone || email) contactByNo[no] = { phone, email };
     });
-  } catch { /* gmi-API niet beschikbaar → geen limieten */ }
+  } catch { /* gmi-API niet beschikbaar → geen limieten/contactgegevens */ }
   const windowStart = `${win.keys[0]}-01`;
   const todayIso = iso(today);
   const monthIdx = (pd: string): number => {
@@ -250,14 +256,17 @@ async function buildCompanyRcvBundle(
     await pageAll(`${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(co.code)}')/Cust_LedgerEntries?${sel2}`, token, handleCle);
   }
 
-  // Kredietlimiet per genormaliseerde klantnaam (som over de klantnummers van deze firma).
+  // Kredietlimiet + contactgegevens per genormaliseerde klantnaam.
   const creditByCust: Record<string, number> = {};
+  const contactByCust: Record<string, { phone: string; email: string }> = {};
   const seenCustNo = new Set<string>();
   for (const inv of invoices) {
     if (inv.ic || !inv.custNo || seenCustNo.has(inv.custNo)) continue;
     seenCustNo.add(inv.custNo);
     const lim = creditByNo[inv.custNo];
     if (lim) creditByCust[inv.cust] = (creditByCust[inv.cust] || 0) + lim;
+    const ct = contactByNo[inv.custNo];
+    if (ct && !contactByCust[inv.cust]) contactByCust[inv.cust] = ct;
   }
 
   // ---- 2. Betalings-applicaties (echte betaaldatum) ----
@@ -344,7 +353,7 @@ async function buildCompanyRcvBundle(
 
   const bundle: CompanyRcvBundle = {
     code: co.code, arRows, apMonthly: { end: apEnd.map(r2), purch: apPurch.map(r2) },
-    invoices, factorVolumeByCust, paidVolumeByCust, unapplied, factoringCost, factoringInterest, creditByCust, earliestEntry,
+    invoices, factorVolumeByCust, paidVolumeByCust, unapplied, factoringCost, factoringInterest, creditByCust, contactByCust, earliestEntry,
     dimOk, degraded,
   };
   setCache(key, bundle, 720);
@@ -766,6 +775,155 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     note: `CRF-standaard (crfonline.org), alle drie op dezelfde maand als de DSO (${win.keys[nowIdx]}) — niet op de stand van vandaag, zodat teller en noemer dezelfde periode meten. CEI = (AR begin maand + omzet maand − AR eind maand) ÷ (idem − niet-vervallen AR eind maand) × 100, per maand (N=1); ~100% = vrijwel alles wat inbaar was, is geïnd. BPDSO = niet-vervallen AR ÷ maandomzet × dagen = de DSO die je zou halen als élke klant exact op de vervaldag betaalde; ADD = DSO − BPDSO = het zuivere achterstalligheidsdeel. Benadering: de niet-vervallen stand op een historisch maandeinde is gereconstrueerd uit de facturen (deelbetalingen vóór die datum zijn niet reconstrueerbaar en tellen dus nog als open).`,
   };
 
+  // ============================================================
+  // Betaalgedrag & cash-timing — de bankvraag "hoe verlagen we onze DSO?"
+  // ============================================================
+  // Norm = 30 dagen (richtlijn van de groep). Alles daarboven is uitstel dat kapitaal
+  // vastzet; dat kwantificeren we per klant in euro's, in kostprijs en in DSO-dagen.
+  const NORM = 30;
+  const RATE = 5.0;                       // % per jaar; expliciete aanname, staat in de noot
+  const salesMature = salesExt[nowIdx] || 0;
+  const daysMature = win.daysIn[nowIdx];
+
+  // Volledige tijdlijn per factuur: factuurdatum → vervaldag → betaaldatum.
+  const payRows: RcvPayRow[] = [];
+  for (const b of bundles) for (const inv of b.invoices) {
+    if (inv.ic || inv.amt <= 0) continue;
+    const openAmt = inv.open ? (inv.rem || inv.amt - inv.applied) : 0;
+    const dtp = inv.paidAt ? daysBetween(inv.invDate, inv.paidAt) : null;
+    payRows.push({
+      company: inv.co, customer: inv.rawCust, docNo: inv.doc,
+      invDate: inv.invDate, dueDate: inv.due, paidAt: inv.paidAt,
+      amount: r0(inv.open ? openAmt : inv.amt),
+      daysToPay: dtp != null && dtp >= -5 && dtp <= 500 ? dtp : null,
+      daysVsDue: inv.due ? daysBetween(inv.due, inv.paidAt || todayIso) : null,
+      via: inv.ic ? "IC" : isFactored(inv.cust) ? (custDominantFactor[inv.cust] || "factor") : "bank",
+      open: inv.open, bcUrl: custLedgerDocLink(inv.co, inv.doc),
+    });
+  }
+
+  // Buckets 0–30 / 31–60 / 61–90 / >90 op dagen tot betaling (bedrag-gewogen).
+  const BK: [string, (d: number) => boolean][] = [
+    ["0–30 dagen (binnen de norm)", (x) => x <= 30],
+    ["31–60 dagen", (x) => x > 30 && x <= 60],
+    ["61–90 dagen", (x) => x > 60 && x <= 90],
+    ["> 90 dagen", (x) => x > 90],
+  ];
+  const paidRows = payRows.filter((r) => !r.open && r.daysToPay != null);
+  const paidTot = paidRows.reduce((s, r) => s + r.amount, 0) || 1;
+  const payBuckets = BK.map(([label, fn]) => {
+    const rows = paidRows.filter((r) => fn(r.daysToPay as number));
+    const amount = r0(rows.reduce((s, r) => s + r.amount, 0));
+    return { label, amount, count: rows.length, pct: Math.round((amount / paidTot) * 1000) / 10 };
+  });
+
+  // Per factor: hoe snel wordt een factuur geld? Percentielen op de werkelijke historie —
+  // dát is het antwoord op "als ik vandaag factureer, wanneer heb ik mijn geld".
+  const pct = (xs: number[], q: number): number | null => {
+    if (!xs.length) return null;
+    const s = [...xs].sort((a, b) => a - b);
+    return s[Math.min(s.length - 1, Math.floor(q * s.length))];
+  };
+  const factorTiming: RcvFactorTiming[] = d0factors().map((f) => {
+    const days = paidRows.filter((r) => r.via === f.key).map((r) => r.daysToPay as number);
+    return {
+      key: f.key, label: f.label, companies: f.companies,
+      p50: pct(days, 0.5), p75: pct(days, 0.75), p90: pct(days, 0.9),
+      max: days.length ? Math.max(...days) : null, n: days.length, settled12m: f.settled12m,
+    };
+  });
+  function d0factors() { return factors; }
+
+  // Per klant: uitstel boven de norm → vastgezet kapitaal → kost → DSO-dagen.
+  const riskOf = (c: RcvCustomerRow): RcvCustomerRisk => {
+    const excess = c.avgDaysToPay != null ? Math.max(0, c.avgDaysToPay - NORM) : 0;
+    const tiedUp = (c.invoiced12m / 365) * excess;      // gemiddeld vastgezet kapitaal
+    return {
+      name: c.name, companies: c.companies,
+      invoiced12m: c.invoiced12m, openNow: c.openNow, overdueNow: c.overdueNow,
+      avgDaysToPay: c.avgDaysToPay, excessDays: excess,
+      tiedUp: r0(tiedUp), costAtRate: r0(tiedUp * (RATE / 100)),
+      dsoImpactDays: salesMature > 0 ? Math.round((tiedUp / salesMature) * daysMature * 10) / 10 : 0,
+      creditLimit: c.creditLimit ?? null,
+      aboveLimit: c.creditLimit && c.openNow > c.creditLimit ? r0(c.openNow - c.creditLimit) : 0,
+      factoredSharePct: c.factoredSharePct,
+    };
+  };
+  const risks = customers.filter((c) => !c.ic).map(riskOf);
+  const topCost = [...risks].filter((r) => r.tiedUp > 0).sort((a, b) => b.tiedUp - a.tiedUp).slice(0, 25);
+  const aboveLimit = [...risks].filter((r) => r.aboveLimit > 0).sort((a, b) => b.aboveLimit - a.aboveLimit).slice(0, 25);
+  const tiedUpTotal = r0(risks.reduce((s, r) => s + r.tiedUp, 0));
+  const overdueWeighted = (() => {
+    const od = payRows.filter((r) => r.open && r.dueDate && r.dueDate < todayIso);
+    const tot = od.reduce((s, r) => s + r.amount, 0);
+    return tot > 0 ? r0(od.reduce((s, r) => s + r.amount * (r.daysVsDue || 0), 0) / tot) : null;
+  })();
+  // ---- SALES-BELTOOL: openstaand geld in blokken vanaf de norm, met de klanten erachter ----
+  // Blokken op OUDERDOM van de factuur (dagen sinds factuurdatum), want dat is wat sales
+  // moet weten: hoeveel geld zweeft er hoe lang, en bij wie. Klik een blok → de klanten.
+  const contactMerged: Record<string, { phone: string; email: string }> = {};
+  for (const b of bundles) for (const [c, v] of Object.entries(b.contactByCust || {})) if (!contactMerged[c]) contactMerged[c] = v;
+  const AGE: [string, number, number | null][] = [
+    ["< 30 dagen (binnen de norm)", 0, 30],
+    ["30 – 45 dagen", 30, 45],
+    ["45 – 60 dagen", 45, 60],
+    ["60 – 90 dagen", 60, 90],
+    ["> 90 dagen", 90, null],
+  ];
+  const openByCust = new Map<string, { amount: number; inv: number; maxD: number; wD: number; ic: boolean; cos: Set<string>; overdue: number }>();
+  const ageing = AGE.map(([label, minD, maxD]) => {
+    let amount = 0, invoiceCount = 0;
+    const perCust = new Map<string, { amount: number; inv: number; maxD: number; wD: number; cos: Set<string>; overdue: number }>();
+    for (const b of bundles) for (const inv of b.invoices) {
+      if (inv.ic || !inv.open) continue;
+      const openAmt = inv.rem || inv.amt - inv.applied;
+      if (openAmt <= 0) continue;
+      const age = daysBetween(inv.invDate, todayIso);
+      if (age < minD || (maxD != null && age >= maxD)) continue;
+      amount += openAmt; invoiceCount++;
+      const k = inv.cust;
+      const a = perCust.get(k) || { amount: 0, inv: 0, maxD: 0, wD: 0, cos: new Set<string>(), overdue: 0 };
+      a.amount += openAmt; a.inv++; a.maxD = Math.max(a.maxD, age); a.wD += age * openAmt; a.cos.add(inv.co);
+      if (inv.due && inv.due < todayIso) a.overdue += openAmt;
+      perCust.set(k, a);
+      const g = openByCust.get(k) || { amount: 0, inv: 0, maxD: 0, wD: 0, ic: false, cos: new Set<string>(), overdue: 0 };
+      g.amount += openAmt; g.inv++; g.maxD = Math.max(g.maxD, age); g.wD += age * openAmt; g.cos.add(inv.co);
+      if (inv.due && inv.due < todayIso) g.overdue += openAmt;
+      openByCust.set(k, g);
+    }
+    return {
+      label, minDays: minD, maxDays: maxD, amount: r0(amount), invoiceCount, customerCount: perCust.size,
+      customers: [...perCust.entries()].sort((x, y) => y[1].amount - x[1].amount).slice(0, 40).map(([name, a]) => ({
+        name, companies: [...a.cos].sort(), amount: r0(a.amount), invoices: a.inv,
+        maxDays: a.maxD, avgDays: a.amount ? r0(a.wD / a.amount) : 0,
+        phone: contactMerged[name]?.phone || "", email: contactMerged[name]?.email || "",
+        factored: isFactored(name), overdue: r0(a.overdue),
+      })),
+    };
+  });
+  const monthlyFloating = win.keys.slice(Math.max(0, nowIdx - 11), nowIdx + 1).map((m) => ({
+    month: m, open: r0(arExt[win.keys.indexOf(m)]),
+  }));
+
+  const behaviour: CfoBehaviour = {
+    ageing, ageingTotal: r0(ageing.reduce((s, a) => s + a.amount, 0)), monthlyFloating,
+    norm: NORM, ratePct: RATE, buckets: payBuckets, factorTiming, topCost, aboveLimit,
+    // De 200 grootste/laatste facturen met volledige tijdlijn (rest via de Excel-export).
+    invoices: payRows.sort((a, b) => b.amount - a.amount).slice(0, 200),
+    overdueNow: r0(openOverdue),
+    overdueWeightedDays: overdueWeighted,
+    monthlyOpenAvg: r0(arExt.slice(Math.max(0, nowIdx - 11), nowIdx + 1).reduce((s, x) => s + x, 0) / Math.min(12, nowIdx + 1)),
+    tiedUpTotal, costTotal: r0(tiedUpTotal * (RATE / 100)),
+    dsoIfNorm: salesMature > 0 && dsoNow.total != null
+      ? Math.round((dsoNow.total - (tiedUpTotal / salesMature) * daysMature) * 10) / 10 : null,
+    notes: [
+      `Norm = ${NORM} dagen. "Vastgezet kapitaal" = gefactureerd 12m ÷ 365 × dagen boven de norm: het bedrag dat gemiddeld extra uitstaat doordat een klant later betaalt dan afgesproken. De kostprijs erbij rekent aan ${RATE.toFixed(1)}% per jaar — een expliciete aanname, geen gemeten rente; pas ze aan zodra de werkelijke financieringsrente per factor bekend is.`,
+      "DSO-impact per klant = het vastgezette kapitaal omgerekend naar groeps-DSO-dagen (÷ maandomzet × dagen in de maand). Samen tellen die op tot het verschil tussen de huidige DSO en de DSO die je zou halen als iedereen binnen de norm betaalde.",
+      "DE 85/15-SPLIT ZIT NIET IN BUSINESS CENTRAL — live gecontroleerd 04/08/2026: de factor wikkelt elke factuur in BC in één keer op 100% af (WHS 492/492, GDI 749/753, GTR 339/340 meifacturen) en rekening 499200 heeft geen beweging. Het 85%-voorschot, de 15%-retentie en de terugname bij niet-betaling leven volledig binnen de factorrelatie. De kolom 'dagen tot geld' hieronder is dus de dag waarop de factuur in BC afgewikkeld werd; wanneer de éindklant aan de factor betaalde en wanneer de 15% vrijkomt, kan alleen uit de maandrapporten van KBC/Belfius/BNP komen (openstaande vraag aan finance).",
+      "Bedragen incl. btw (klantposten). 'Dagen te laat' bij open posten is gerekend t.o.v. vandaag.",
+    ],
+  };
+
   // ---- IC-aandeel + datakwaliteit ----
   const arIcNow = arEndByCat.ic[n - 1];
   const arAllNow = arIcNow + arEndByCat.extFactoring[n - 1] + arEndByCat.extOther[n - 1];
@@ -831,7 +989,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       netLedger: r0(arExt[n - 1] + arEndByCat.ic[n - 1]),
       items: openItems.slice(0, 80), itemsShown: Math.min(80, openItems.length), itemsTotal: openItems.length,
     },
-    cashExpectation, icShare, dataQuality, sources, notes,
+    cashExpectation, behaviour, icShare, dataQuality, sources, notes,
   };
 }
 

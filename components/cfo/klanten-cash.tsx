@@ -187,6 +187,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
   const [kpiMonth, setKpiMonth] = useState<number | null>(null);       // maand waarop de KPI-rij rekent
   const [chartRange, setChartRange] = useState<12 | 19>(19);           // getoond interval in de DSO-grafiek
   const [kpiSrc, setKpiSrc] = useState<KpiSource | null>(null);        // bronpaneel achter een KPI
+  const [ageBucket, setAgeBucket] = useState<number>(1);               // gekozen blok in de bellijst
   const d = rcv.data;
 
   // ---------- grafiek-opties ----------
@@ -416,6 +417,35 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       ])),
     };
   }, [bank.data, p]);
+
+  // Sales-beltool: openstaand geld per ouderdomsblok. Kleur loopt van groen (binnen de
+  // norm) naar rood (>90d); klik een balk en de klantenlijst eronder volgt.
+  const ageChart = useMemo<echarts.EChartsOption | null>(() => {
+    const ag = d?.behaviour?.ageing; if (!ag?.length) return null;
+    const COLORS = [p.positive, p.result, p.warning, p.categorical[5], p.negative];
+    return {
+      tooltip: {
+        trigger: "axis", axisPointer: { type: "shadow" },
+        formatter: (prs: unknown) => {
+          const i = (prs as { dataIndex: number }[])[0]?.dataIndex ?? 0;
+          const b = ag[i];
+          return `<b>${b.label}</b><br/>Openstaand: <b>${formatCurrency(b.amount)}</b><br/>${b.invoiceCount} facturen bij ${b.customerCount} klanten<br/><i style="opacity:.65">klik voor de bellijst</i>`;
+        },
+      },
+      grid: { top: 16, left: 6, right: 8, bottom: 22, containLabel: true },
+      xAxis: {
+        type: "category", data: ag.map((b) => b.label.replace(" dagen", "d").replace(" (binnen de norm)", "")),
+        axisLabel: { color: p.text, fontSize: 10 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false },
+        name: "ouderdom van de factuur", nameLocation: "middle", nameGap: 26, nameTextStyle: { color: p.textMuted, fontSize: 9 },
+      },
+      yAxis: { type: "value", name: "openstaand (€)", nameTextStyle: { color: p.textMuted, fontSize: 9 }, axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
+      series: [{
+        type: "bar", barMaxWidth: 64,
+        data: ag.map((b, i) => ({ value: b.amount, itemStyle: { color: COLORS[i % COLORS.length], borderRadius: [4, 4, 0, 0], opacity: i === ageBucket ? 1 : 0.55 } })),
+        label: { show: true, position: "top", color: p.text, fontSize: 10, fontWeight: "bold", formatter: (pl: LP) => eurAxis(Number(pl.value)) },
+      }],
+    };
+  }, [d, p, ageBucket]);
 
   // ---------- laad-/fouttoestanden ----------
   if (!d) {
@@ -680,6 +710,91 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           })}
         />
       </div>
+
+      {/* ---- SALES-BELTOOL ---- */}
+      {d.behaviour?.ageing?.length ? (
+        <Card
+          title="Bellijst — welk geld zweeft er hoe lang, en bij wie"
+          hint={`Openstaand extern per ouderdomsblok, stand vandaag. Totaal ${formatCurrency(d.behaviour.ageingTotal)}. Norm ${d.behaviour.norm} dagen — klik een balk voor de klanten in dat blok.`}
+          source="Open klantfacturen (Cust_LedgerEntries, Open = true), gebucket op ouderdom = dagen sinds factuurdatum. Bedragen incl. btw, intercompany uitgesloten. Telefoon en e-mail komen van de klantenkaart in BC; waar ze leeg zijn, staan ze niet in BC ingevuld."
+          right={
+            <a
+              href={`/api/cfo/export/klantencash${qs}`}
+              className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[10px] font-semibold text-primary-foreground hover:opacity-90"
+              title="Alle open posten met BC-doorkliklinks als Excel"
+            >
+              <FileSpreadsheet className="h-3 w-3" />Excel
+            </a>
+          }
+        >
+          <div className="grid gap-4 lg:grid-cols-5">
+            <div className="lg:col-span-2">
+              {ageChart && (
+                <EChart
+                  option={ageChart} height={260}
+                  onSelect={(pt) => { if (typeof pt.dataIndex === "number") setAgeBucket(pt.dataIndex); }}
+                  ariaLabel="Openstaand geld per ouderdomsblok"
+                />
+              )}
+              <div className="mt-2 grid grid-cols-5 gap-1">
+                {d.behaviour.ageing.map((b, i) => (
+                  <button
+                    key={b.label}
+                    onClick={() => setAgeBucket(i)}
+                    className={`rounded-lg px-1 py-1 text-[9px] font-semibold leading-tight transition ${i === ageBucket ? "bg-primary/15 text-primary ring-1 ring-primary/40" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+                  >
+                    {b.label.replace(" dagen", "d").replace(" (binnen de norm)", "")}
+                    <br />
+                    <span className="font-normal">{b.customerCount} klanten</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="lg:col-span-3">
+              <p className="mb-1.5 text-[11px] font-semibold text-foreground">
+                {d.behaviour.ageing[ageBucket]?.label} — {formatCurrency(d.behaviour.ageing[ageBucket]?.amount || 0)} bij {d.behaviour.ageing[ageBucket]?.customerCount || 0} klanten
+                <span className="ml-1 font-normal text-muted-foreground">(grootste eerst — dit is de belvolgorde)</span>
+              </p>
+              <div className="max-h-[300px] overflow-y-auto overflow-x-auto">
+                <table className="w-full min-w-[640px] border-collapse text-xs">
+                  <thead className="sticky top-0 bg-card">
+                    <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <th className="px-2 py-1 text-left">Klant</th>
+                      <th className="px-2 py-1 text-right">Openstaand</th>
+                      <th className="px-2 py-1 text-right">Waarvan vervallen</th>
+                      <th className="px-2 py-1 text-right">Fact.</th>
+                      <th className="px-2 py-1 text-right">Oudste</th>
+                      <th className="px-2 py-1 text-left">Telefoon</th>
+                      <th className="px-2 py-1 text-left">E-mail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(d.behaviour.ageing[ageBucket]?.customers || []).map((c) => (
+                      <tr key={c.name} className="border-b border-border/40">
+                        <td className="max-w-[210px] truncate px-2 py-1 font-medium text-foreground" title={`${c.name} · ${c.companies.join(", ")}`}>
+                          {c.name}
+                          {c.factored && <span className="ml-1 rounded bg-primary/15 px-1 text-[9px] font-semibold text-primary">factor</span>}
+                        </td>
+                        <td className="px-2 py-1 text-right font-semibold tabular-nums">{formatCurrency(c.amount)}</td>
+                        <td className={`px-2 py-1 text-right tabular-nums ${c.overdue > 0 ? "text-negative" : "text-muted-foreground"}`}>{c.overdue ? formatCurrency(c.overdue) : "—"}</td>
+                        <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{c.invoices}</td>
+                        <td className="px-2 py-1 text-right font-semibold tabular-nums">{c.maxDays}d</td>
+                        <td className="px-2 py-1">{c.phone ? <a href={`tel:${c.phone.replace(/\s/g, "")}`} className="text-primary hover:underline">{c.phone}</a> : <span className="text-muted-foreground">—</span>}</td>
+                        <td className="max-w-[170px] truncate px-2 py-1">{c.email ? <a href={`mailto:${c.email}`} className="text-primary hover:underline">{c.email}</a> : <span className="text-muted-foreground">—</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {(d.behaviour.ageing[ageBucket]?.customerCount || 0) > (d.behaviour.ageing[ageBucket]?.customers.length || 0) && (
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {d.behaviour.ageing[ageBucket].customers.length} grootste van {d.behaviour.ageing[ageBucket].customerCount} klanten getoond — de volledige lijst staat in de Excel.
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {/* ---- DSO-verloop + YoY ---- */}
       <div className="grid gap-4 xl:grid-cols-2">

@@ -821,6 +821,7 @@ export interface CfoReceivables {
     items: RcvInvoiceItem[]; itemsShown: number; itemsTotal: number;
   };
   cashExpectation: RcvCashWeekExpectation[];  // 13 weken verwachte inning
+  behaviour?: CfoBehaviour;                   // betaalgedrag-analyse (norm 30 dagen)
   icShare: { arOpenIcPct: number; salesIcPct: number };
   dataQuality: string[];                      // bv. INTERCO-dim ontbreekt bij X; beginbalans ontbreekt
   sources: CfoSource[];
@@ -835,6 +836,61 @@ export interface VatMonthRow {
   purchBase: number; purchVat: number;        // aankoop: maatstaf + aftrekbare btw
   net: number;                                // te betalen (+) / te vorderen (−)
   nonDeductible: number;                      // niet-aftrekbare btw (werkelijke kost)
+}
+
+// === Betaalgedrag & cash-timing (bankvraag: "hoe verlagen we onze DSO?") ===
+export interface RcvPayRow {
+  company: string; customer: string; docNo: string;
+  invDate: string; dueDate: string; paidAt: string | null;
+  amount: number; daysToPay: number | null; daysVsDue: number | null;
+  via: string; open: boolean; bcUrl: string;
+}
+export interface RcvCustomerRisk {
+  name: string; companies: string[];
+  invoiced12m: number; openNow: number; overdueNow: number;
+  avgDaysToPay: number | null;
+  excessDays: number;      // dagen boven de norm van 30
+  tiedUp: number;          // gemiddeld vastgezet kapitaal door dat uitstel
+  costAtRate: number;      // wat dat kost tegen `rate` per jaar
+  dsoImpactDays: number;   // hoeveel dagen groeps-DSO deze klant kost
+  creditLimit: number | null; aboveLimit: number;
+  factoredSharePct: number;
+}
+export interface RcvFactorTiming {
+  key: string; label: string; companies: string[];
+  p50: number | null; p75: number | null; p90: number | null; max: number | null;
+  n: number; settled12m: number;
+}
+// Sales-beltool: openstaand geld in blokken vanaf de norm van 30 dagen, met per blok
+// de klanten erachter — bedrag, oudste factuur in dagen en contactgegevens.
+export interface RcvAgeCustomer {
+  name: string; companies: string[]; amount: number; invoices: number;
+  maxDays: number; avgDays: number; phone: string; email: string;
+  factored: boolean; overdue: number;
+}
+export interface RcvAgeBucket {
+  label: string; minDays: number; maxDays: number | null;
+  amount: number; invoiceCount: number; customerCount: number;
+  customers: RcvAgeCustomer[];
+}
+export interface CfoBehaviour {
+  ageing: RcvAgeBucket[];
+  ageingTotal: number;
+  monthlyFloating: { month: string; open: number }[];   // "hoeveel geld zweeft er per maand"
+  norm: number;                 // richtlijn in dagen (30)
+  ratePct: number;              // gehanteerde jaarrente voor de kostberekening
+  buckets: { label: string; amount: number; count: number; pct: number }[];
+  factorTiming: RcvFactorTiming[];
+  topCost: RcvCustomerRisk[];
+  aboveLimit: RcvCustomerRisk[];
+  invoices: RcvPayRow[];
+  overdueNow: number;
+  overdueWeightedDays: number | null;
+  monthlyOpenAvg: number;
+  tiedUpTotal: number;
+  costTotal: number;
+  dsoIfNorm: number | null;     // DSO als iedereen binnen de norm betaalde
+  notes: string[];
 }
 
 export interface CfoVat {
