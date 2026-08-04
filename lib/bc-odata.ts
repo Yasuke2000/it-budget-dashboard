@@ -68,12 +68,16 @@ export async function polledResponse<T extends { refreshing?: boolean }>(
   const url = new URL(req.url);
   const force = url.searchParams.get("refresh") === "1";
   const exclude = (url.searchParams.get("exclude") || "").split(",").map((s) => s.trim()).filter(Boolean);
+  // no-store: de browser mag deze payloads NOOIT cachen. Een verouderde dataset naast
+  // verse pagina-code liet de DSO-grafiek een piek van 132.302 dagen tonen die in de
+  // huidige berekening niet meer bestaat (CFO-melding 04/08/2026).
+  const noStore = { "Cache-Control": "no-store, max-age=0, must-revalidate" };
   try {
     const data = await getter(force, exclude);
-    if ("building" in data && data.building) return Response.json(data, { status: 202 });
-    return Response.json(data);
+    if ("building" in data && data.building) return Response.json(data, { status: 202, headers: noStore });
+    return Response.json(data, { headers: noStore });
   } catch (err) {
     console.error("polled route failed:", err);
-    return Response.json({ error: String(err).slice(0, 300) }, { status: 500 });
+    return Response.json({ error: String(err).slice(0, 300) }, { status: 500, headers: noStore });
   }
 }

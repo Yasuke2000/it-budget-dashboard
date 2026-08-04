@@ -15,7 +15,7 @@ import type { CfoUnits } from "@/lib/units";
 import { EChart } from "./echart";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
 import { useChartPalette } from "@/lib/chart-theme";
-import { usePolledData, Card, Kpi, eurAxis, fmtStamp, fmtMonth, fmtDate, fmtDM, weekRange } from "./cfo-ui";
+import { usePolledData, Card, Kpi, KpiSourceModal, type KpiSource, eurAxis, fmtStamp, fmtMonth, fmtDate, fmtDM, weekRange } from "./cfo-ui";
 import {
   Loader2, RefreshCcw, Info, ExternalLink,
   AlertTriangle, Search, ArrowUpDown, Receipt, Undo2, X, ArrowLeft, ShieldCheck,
@@ -186,6 +186,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
   const [pickedMonth, setPickedMonth] = useState<number | null>(null); // index in dso.months (grafiek-drill)
   const [kpiMonth, setKpiMonth] = useState<number | null>(null);       // maand waarop de KPI-rij rekent
   const [chartRange, setChartRange] = useState<12 | 19>(19);           // getoond interval in de DSO-grafiek
+  const [kpiSrc, setKpiSrc] = useState<KpiSource | null>(null);        // bronpaneel achter een KPI
   const d = rcv.data;
 
   // ---------- grafiek-opties ----------
@@ -194,7 +195,11 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
     const s = d.dso;
     const from = Math.max(0, s.months.length - chartRange);
     const months = s.months.slice(from);
-    const cut = (a: (number | null)[]) => a.slice(from);
+    // Laatste vangnet: een dagenwaarde boven de 400 is per definitie een artefact van
+    // een onvolledig geboekte maand. Die tonen we niet — ook niet als een oudere
+    // payload hem ooit toch zou aanleveren (dan blijft de schaal leesbaar).
+    const sane = (v: number | null) => (v == null || Math.abs(v) > 400 ? null : v);
+    const cut = (a: (number | null)[]) => a.slice(from).map(sane);
     // Onzichtbare balk over de volledige kolombreedte: zo is élke maand aanklikbaar
     // (exact op een lijnpunt raken lukte niet — CFO-feedback "ik kan niet doorklikken").
     const clickCatcher: echarts.SeriesOption = {
@@ -465,6 +470,8 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
     return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
   })();
   const monthWindowLabel = `${fmtMonth(selMonth)}: openstaand op ${fmtDate(monthEnd)} ÷ omzet van die maand × ${monthEnd.slice(8, 10)} dagen`;
+  const arExtSel = d.dso.arEndByCat.extFactoring[mi] + d.dso.arEndByCat.extOther[mi];
+  const salesExtSel = d.dso.salesByCat.extFactoring[mi] + d.dso.salesByCat.extOther[mi];
   const nf = dsoSel.extOther != null && dsoSel.extFactoring != null ? dsoSel.extOther - dsoSel.extFactoring : null;
 
   return (
@@ -527,19 +534,150 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
         )}
       </div>
 
-      {/* ---- KPI-rij ---- */}
+      {/* ---- KPI-rij — elke tegel is klikbaar en toont zijn eigen bron ---- */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
-        <Kpi label="DSO extern" value={dsoSel.total != null ? `${dsoSel.total}d` : "—"} sub={`${monthWindowLabel} · countback ${dsoSel.countback != null ? `${dsoSel.countback}d` : "—"}`} />
-        <Kpi label="DSO via factoring" value={dsoSel.extFactoring != null ? `${dsoSel.extFactoring}d` : "—"} sub={`time-to-cash factor · ${fmtMonth(selMonth)}`} tone="pos" />
-        <Kpi label="DSO niet-factoring" value={dsoSel.extOther != null ? `${dsoSel.extOther}d` : "—"} sub={nf != null ? `${nf > 0 ? "+" : ""}${nf}d vs factoring · echt klantgedrag` : `echt klantgedrag · ${fmtMonth(selMonth)}`} tone={nf != null && nf > 10 ? "warn" : "neutral"} />
-        <Kpi label="DPO" value={dsoSel.dpo != null ? `${dsoSel.dpo}d` : "—"} sub={`leveranciers extern · ${fmtMonth(selMonth)}`} />
-        <Kpi label="Mediane betaaltijd" value={d.dsoInvoiceLevel.medianDays != null ? `${d.dsoInvoiceLevel.medianDays}d` : "—"} sub={`factuur → geld · betaalde facturen sinds ${fmtMonth(d.dso.months[0])}`} />
-        <Kpi label="Op tijd betaald" value={d.dsoInvoiceLevel.onTimePct != null ? `${d.dsoInvoiceLevel.onTimePct}%` : "—"} sub={`van betaald volume vs vervaldag · sinds ${fmtMonth(d.dso.months[0])}`} tone={d.dsoInvoiceLevel.onTimePct != null && d.dsoInvoiceLevel.onTimePct < 50 ? "warn" : "pos"} />
-        <Kpi label="Open klanten (extern)" value={formatCurrencyCompact(d.openInvoices.total)} sub={`stand vandaag · ${overduePct}% vervallen · incl. btw · IC apart ${formatCurrencyCompact(d.openInvoices.ic ?? 0)}`} tone={overduePct > 40 ? "neg" : "neutral"} />
+        <Kpi
+          label="DSO extern" value={dsoSel.total != null ? `${dsoSel.total}d` : "—"}
+          sub={`${monthWindowLabel} · countback ${dsoSel.countback != null ? `${dsoSel.countback}d` : "—"}`}
+          onClick={() => setKpiSrc({
+            label: `DSO extern — ${fmtMonth(selMonth)}`, value: dsoSel.total != null ? `${dsoSel.total} dagen` : "—",
+            formule: {
+              tekst: "openstaand op maandeinde ÷ gefactureerd die maand × dagen in de maand",
+              delen: [
+                { naam: `Openstaand extern op ${fmtDate(monthEnd)} (incl. btw)`, waarde: formatCurrency(arExtSel) },
+                { naam: `Gefactureerd extern in ${fmtMonth(selMonth)} (incl. btw)`, waarde: formatCurrency(salesExtSel) },
+                { naam: "Dagen in de maand", waarde: monthEnd.slice(8, 10) },
+                { naam: "= DSO", waarde: dsoSel.total != null ? `${dsoSel.total} dagen` : "—" },
+                { naam: "Countback-methode (controle)", waarde: dsoSel.countback != null ? `${dsoSel.countback} dagen` : "—" },
+              ],
+            },
+            bron: "Klantposten uit BC (ODataV4 Cust_LedgerEntries), volledige historie van alle vennootschappen. Het openstaand saldo is de som van álle klantposten t/m die datum (facturen +, betalingen en creditnota's −); de noemer zijn de verkoopfacturen met documentdatum in die maand. Intercompany is uitgesloten (naam + IC-partnercode).",
+            excel: "DSO per maand",
+            caveat: "Teller én noemer zijn incl. btw — de dagratio is daardoor btw-neutraal, maar vergelijk het bedrag niet met de omzet in de P&L (die is excl. btw). Eenmalige, niet-operationele verkopen zijn uit de noemer gehouden.",
+          })}
+        />
+        <Kpi
+          label="DSO via factoring" value={dsoSel.extFactoring != null ? `${dsoSel.extFactoring}d` : "—"}
+          sub={`time-to-cash factor · ${fmtMonth(selMonth)}`} tone="pos"
+          onClick={() => setKpiSrc({
+            label: `DSO via factoring — ${fmtMonth(selMonth)}`, value: dsoSel.extFactoring != null ? `${dsoSel.extFactoring} dagen` : "—",
+            formule: {
+              tekst: "zelfde formule, maar alleen klanten die via een factor afwikkelen",
+              delen: [
+                { naam: `Openstaand bij factoring-klanten op ${fmtDate(monthEnd)}`, waarde: formatCurrency(d.dso.arEndByCat.extFactoring[mi]) },
+                { naam: `Gefactureerd aan die klanten in ${fmtMonth(selMonth)}`, waarde: formatCurrency(d.dso.salesByCat.extFactoring[mi]) },
+                { naam: "= DSO via factoring", waarde: dsoSel.extFactoring != null ? `${dsoSel.extFactoring} dagen` : "—" },
+              ],
+            },
+            bron: `Een klant geldt als factoring-klant zodra ≥40% van zijn betaald volume via een factor-dagboek liep. Die dagboeken zijn per vennootschap herkend: ${d.factors.map((f) => `${f.label} (${f.companies.join("/")})`).join(", ")}. De betaaldatum komt uit Gedetailleerde_klantenposten_Excel (Application-posten) — dat is de dag dat het geld binnenkwam.`,
+            excel: "DSO per maand + Factoring",
+            caveat: "Dit is time-to-cash: hoe snel de factuur geld wordt. Het zegt niets over wanneer de eindklant aan de factor betaalt — daarvoor zijn de maandrapporten van de factor nodig (openstaande vraag aan finance).",
+          })}
+        />
+        <Kpi
+          label="DSO niet-factoring" value={dsoSel.extOther != null ? `${dsoSel.extOther}d` : "—"}
+          sub={nf != null ? `${nf > 0 ? "+" : ""}${nf}d vs factoring · echt klantgedrag` : `echt klantgedrag · ${fmtMonth(selMonth)}`}
+          tone={nf != null && nf > 10 ? "warn" : "neutral"}
+          onClick={() => setKpiSrc({
+            label: `DSO niet-factoring — ${fmtMonth(selMonth)}`, value: dsoSel.extOther != null ? `${dsoSel.extOther} dagen` : "—",
+            formule: {
+              tekst: "zelfde formule, alleen klanten die rechtstreeks aan ons betalen",
+              delen: [
+                { naam: `Openstaand bij deze klanten op ${fmtDate(monthEnd)}`, waarde: formatCurrency(d.dso.arEndByCat.extOther[mi]) },
+                { naam: `Gefactureerd aan deze klanten in ${fmtMonth(selMonth)}`, waarde: formatCurrency(d.dso.salesByCat.extOther[mi]) },
+                { naam: "= DSO niet-factoring", waarde: dsoSel.extOther != null ? `${dsoSel.extOther} dagen` : "—" },
+                { naam: "Verschil met de factoring-lijn", waarde: nf != null ? `${nf > 0 ? "+" : ""}${nf} dagen` : "—" },
+              ],
+            },
+            bron: "Zelfde klantposten, maar de klanten waarvan minder dan 40% van het betaald volume via een factor liep. Dit is dus het zuiverste beeld van échte betaaldiscipline.",
+            excel: "DSO per maand + Klantbetaalgedrag (kolom 'Dagen vs vervaldag' per klant)",
+            caveat: "Belgische context: de wettelijke maximumtermijn B2B is 60 dagen (wet 2022) en de gemiddelde werkelijke betaaltermijn is ±61 dagen. Alles boven de 100 dagen is dus ver buiten de norm en geeft recht op verwijlinterest + €40 forfait.",
+          })}
+        />
+        <Kpi
+          label="DPO" value={dsoSel.dpo != null ? `${dsoSel.dpo}d` : "—"} sub={`leveranciers extern · ${fmtMonth(selMonth)}`}
+          onClick={() => setKpiSrc({
+            label: `DPO — ${fmtMonth(selMonth)}`, value: dsoSel.dpo != null ? `${dsoSel.dpo} dagen` : "—",
+            formule: {
+              tekst: "openstaand bij leveranciers op maandeinde ÷ inkoopfacturen die maand × dagen",
+              delen: [{ naam: "= DPO", waarde: dsoSel.dpo != null ? `${dsoSel.dpo} dagen` : "—" }],
+            },
+            bron: "Leveranciersposten uit BC (ODataV4 VendorLedgerEntries), extern (intercompany uitgesloten). Alleen documenttype 'Factuur' in de noemer.",
+            excel: "DSO per maand (kolom DPO extern)",
+            caveat: "De noemer is bruto: leverancierscreditnota's verlagen wél het openstaand saldo maar niet de inkoop, waardoor de DPO iets te laag kan uitkomen. DPO op factuurniveau kan pas als BC de webservice 'Detailed Vendor Ledger Entries' publiceert (openstaand punt bij de BC-beheerder).",
+          })}
+        />
+        <Kpi
+          label="Mediane betaaltijd" value={d.dsoInvoiceLevel.medianDays != null ? `${d.dsoInvoiceLevel.medianDays}d` : "—"}
+          sub={`factuur → geld · betaalde facturen sinds ${fmtMonth(d.dso.months[0])}`}
+          onClick={() => setKpiSrc({
+            label: "Mediane betaaltijd (factuurniveau)", value: d.dsoInvoiceLevel.medianDays != null ? `${d.dsoInvoiceLevel.medianDays} dagen` : "—",
+            formule: {
+              tekst: "per factuur: dagen tussen factuurdatum en de laatste betaling, bedrag-gewogen",
+              delen: [
+                { naam: "Mediaan", waarde: d.dsoInvoiceLevel.medianDays != null ? `${d.dsoInvoiceLevel.medianDays} dagen` : "—" },
+                { naam: "Gemiddelde (bedrag-gewogen)", waarde: d.dsoInvoiceLevel.avgDays != null ? `${d.dsoInvoiceLevel.avgDays} dagen` : "—" },
+                { naam: "Op tijd betaald (vs vervaldag)", waarde: d.dsoInvoiceLevel.onTimePct != null ? `${d.dsoInvoiceLevel.onTimePct}%` : "—" },
+              ],
+            },
+            bron: "De échte betaaldatum per factuur komt uit Gedetailleerde_klantenposten_Excel (Entry_Type = 'Application'): de boekingsdatum van de toewijzing betaling ↔ factuur. Alleen externe facturen die volledig betaald zijn.",
+            excel: "Klantbetaalgedrag (kolom 'Dagen tot betaling (gew.)' per klant)",
+            caveat: d.dsoInvoiceLevel.note,
+          })}
+        />
+        <Kpi
+          label="Op tijd betaald" value={d.dsoInvoiceLevel.onTimePct != null ? `${d.dsoInvoiceLevel.onTimePct}%` : "—"}
+          sub={`van betaald volume vs vervaldag · sinds ${fmtMonth(d.dso.months[0])}`}
+          tone={d.dsoInvoiceLevel.onTimePct != null && d.dsoInvoiceLevel.onTimePct < 50 ? "warn" : "pos"}
+          onClick={() => setKpiSrc({
+            label: "Op tijd betaald", value: d.dsoInvoiceLevel.onTimePct != null ? `${d.dsoInvoiceLevel.onTimePct}%` : "—",
+            formule: {
+              tekst: "aandeel van het betaalde factuurbedrag dat op of vóór de vervaldag binnenkwam",
+              delen: d.speedBuckets.map((b) => ({ naam: b.label, waarde: `${formatCurrency(b.amount)} · ${b.count} facturen` })),
+            },
+            bron: "Zelfde betaaldata als de mediane betaaltijd, vergeleken met de vervaldatum op de klantpost. Bedrag-gewogen, niet per stuk — één grote late factuur weegt dus zwaarder dan tien kleine tijdige.",
+            excel: "Klantbetaalgedrag",
+          })}
+        />
+        <Kpi
+          label="Open klanten (extern)" value={formatCurrencyCompact(d.openInvoices.total)}
+          sub={`stand vandaag · ${overduePct}% vervallen · incl. btw · IC apart ${formatCurrencyCompact(d.openInvoices.ic ?? 0)}`}
+          tone={overduePct > 40 ? "neg" : "neutral"}
+          onClick={() => setKpiSrc({
+            label: "Open klanten (extern)", value: formatCurrency(d.openInvoices.total),
+            formule: {
+              tekst: "som van de openstaande bedragen van alle externe klantfacturen, stand vandaag",
+              delen: [
+                { naam: "Open externe facturen (bruto)", waarde: formatCurrency(d.openInvoices.total) },
+                { naam: "Waarvan vervallen", waarde: `${formatCurrency(d.openInvoices.overdue)} (${overduePct}%)` },
+                { naam: "Intercompany (apart gehouden)", waarde: formatCurrency(d.openInvoices.ic ?? 0) },
+                { naam: "Grootboek-nettosaldo incl. IC", waarde: formatCurrency(d.openInvoices.netLedger ?? 0) },
+              ],
+            },
+            bron: "Open klantposten (Cust_LedgerEntries met Open = true), per factuur. Dit is een BRUTO-cijfer: open creditnota's en betalingen zonder toewijzing netten er niet in — het grootboek-nettosaldo hierboven doet dat wél, en dát cijfer sluit exact aan op GL-rekening 400000/400001 (verificatiepaneel onderaan de pagina).",
+            excel: "Open posten — met een doorkliklink naar elke boeking in Business Central",
+          })}
+        />
         <Kpi
           label={`Factoringkost ${d.factoringCost.ytdThrough ? `YTD t/m ${fmtMonth(d.factoringCost.ytdThrough)}` : "12m"}`}
           value={formatCurrencyCompact(d.factoringCost.totalYtd ?? d.factoringCost.total12m)}
           sub={`commissie ${formatCurrencyCompact(d.factoringCost.feeYtd ?? 0)} (613340) + rente ${formatCurrencyCompact(d.factoringCost.interestYtd ?? 0)} (650000) · 12m ${formatCurrencyCompact(d.factoringCost.total12m)}`}
+          onClick={() => setKpiSrc({
+            label: `Factoringkost YTD t/m ${fmtMonth(d.factoringCost.ytdThrough || selMonth)}`,
+            value: formatCurrency(d.factoringCost.totalYtd ?? d.factoringCost.total12m),
+            formule: {
+              tekst: "factorcommissie + factoringrente, alle vennootschappen, excl. btw",
+              delen: [
+                { naam: "Commissie — GL 613340 (klasse 61)", waarde: formatCurrency(d.factoringCost.feeYtd ?? 0) },
+                { naam: "Rente — GL 650000, enkel factorposten (klasse 65)", waarde: formatCurrency(d.factoringCost.interestYtd ?? 0) },
+                { naam: "= Totaal YTD", waarde: formatCurrency(d.factoringCost.totalYtd ?? 0) },
+                { naam: "12 maanden rollend", waarde: formatCurrency(d.factoringCost.total12m) },
+              ],
+            },
+            bron: "Grootboekposten (Grootboekposten_Excel) op rekening 613340 en 650000. Op 650000 staat óók gewone financieringsrente (bv. €123k straight-loan-rente bij GPR), dus we nemen daar enkel de posten waarvan de tegenpartij of omschrijving de factormaatschappij aanwijst: BNP Paribas Fortis Factor bij GTR (inclusief de reclass op contract 0003946), Belfius Commercial Finance bij GDI en KBC Comm.Fin.Factoring bij WHS.",
+            excel: "Factoring — met de maandreeks commissie/rente apart",
+            caveat: "Conform CBN-advies 2011/23 hoort de commissie in klasse 61 en de rente/disconto in klasse 65; bij Gheeraert staat die rente op 650000 en niet op de door de CBN genoemde rekening 653. Laat de accountant bevestigen dat er op 650000 geen andere factoringkosten staan die wij nu missen.",
+          })}
         />
       </div>
 
@@ -902,6 +1040,9 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           {(vat.data?.notes || []).map((nte, i) => <li key={`v${i}`}>{nte}</li>)}
         </ul>
       </details>
+
+      {/* ---- bronpaneel achter een KPI ---- */}
+      {kpiSrc && <KpiSourceModal src={kpiSrc} onClose={() => setKpiSrc(null)} />}
 
       {/* ---- maand-drill (DSO-grafiek) ---- */}
       {pickedMonth != null && d.dso.months[pickedMonth] && (

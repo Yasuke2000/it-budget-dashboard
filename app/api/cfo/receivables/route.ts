@@ -16,14 +16,15 @@ export async function GET(req: Request) {
   const force = url.searchParams.get("refresh") === "1";
   const exclude = (url.searchParams.get("exclude") || "").split(",").map((s) => s.trim()).filter(Boolean);
 
+  const noStore = { "Cache-Control": "no-store, max-age=0, must-revalidate" };
   try {
     const data = await getReceivables(force, exclude);
     if ("building" in data && data.building) {
-      return Response.json(data, { status: 202 });
+      return Response.json(data, { status: 202, headers: noStore });
     }
-    return Response.json(data);
+    return Response.json(data, { headers: noStore });
   } catch (err) {
     console.error("receivables route failed:", err);
-    return Response.json({ error: String(err).slice(0, 300) }, { status: 500 });
+    return Response.json({ error: String(err).slice(0, 300) }, { status: 500, headers: noStore });
   }
 }

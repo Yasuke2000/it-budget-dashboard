@@ -867,7 +867,9 @@ export async function getReceivables(
 ): Promise<CfoReceivables | (RcvState & { isLive: boolean })> {
   if (isDemoMode()) return demoReceivables();
   const excl = [...new Set(exclude.map((x) => x.trim().toUpperCase()).filter(Boolean))].sort();
-  const cacheKey = `rcv-v3-x:${excl.join(",")}`;
+  // v4: DSO-rijpheid en de uitsluiting van eenmalige verkopen wijzigen de reeksen —
+  // een payload van een oudere build mag nooit blijven hangen (die toonde 132.302 dagen).
+  const cacheKey = `rcv-v4-x:${excl.join(",")}`;
   const cached = getCache<CfoReceivables>(cacheKey);
   if (cached && !force) return cached;
 

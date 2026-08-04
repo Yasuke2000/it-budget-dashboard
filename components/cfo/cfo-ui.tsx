@@ -4,7 +4,7 @@
 // poll-fetch voor de zware 202-building-endpoints + kaart/KPI-primitieven.
 
 import { useCallback, useEffect, useState } from "react";
-import { Info } from "lucide-react";
+import { Info, X, ExternalLink } from "lucide-react";
 
 export function eurAxis(v: number): string {
   const a = Math.abs(v);
@@ -105,13 +105,101 @@ export function Card({ title, hint, source, right, children }: {
   );
 }
 
-export function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "pos" | "neg" | "warn" | "neutral" }) {
+export function Kpi({ label, value, sub, tone, onClick }: {
+  label: string; value: string; sub?: string; tone?: "pos" | "neg" | "warn" | "neutral"; onClick?: () => void;
+}) {
   const toneCls = tone === "pos" ? "text-positive" : tone === "neg" ? "text-negative" : tone === "warn" ? "text-warning" : "text-foreground";
-  return (
-    <div className="rounded-2xl border border-border bg-card p-3.5 shadow-sm">
+  const body = (
+    <>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className={`mt-1 text-xl font-bold tabular-nums ${toneCls}`}>{value}</p>
       {sub && <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{sub}</p>}
+    </>
+  );
+  if (!onClick) return <div className="rounded-2xl border border-border bg-card p-3.5 shadow-sm">{body}</div>;
+  return (
+    <button
+      onClick={onClick}
+      title="Klik voor de bron: formule met de echte bedragen, BC-tabel en waar je het in de Excel terugvindt"
+      className="group relative rounded-2xl border border-border bg-card p-3.5 text-left shadow-sm transition hover:border-primary/40 hover:ring-1 hover:ring-primary/25"
+    >
+      {body}
+      <Info className="absolute right-2.5 top-2.5 h-3 w-3 text-muted-foreground/40 transition group-hover:text-primary" />
+    </button>
+  );
+}
+
+// Bronpaneel achter een KPI: de formule met de échte getallen, de BC-tabel/velden en
+// waar het cijfer in de Excel-export staat. "Ze wil ook de sources kunnen vinden."
+export interface KpiSource {
+  label: string; value: string;
+  formule?: { tekst: string; delen: { naam: string; waarde: string }[] };
+  bron: string;
+  excel?: string;
+  caveat?: string;
+  links?: { label: string; url: string }[];
+}
+export function KpiSourceModal({ src, onClose }: { src: KpiSource; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Bron van dit cijfer</p>
+            <h3 className="mt-0.5 text-base font-bold text-foreground">{src.label}</h3>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-primary">{src.value}</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Sluiten">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {src.formule && (
+          <div className="mt-4 rounded-xl border border-border bg-background/50 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Zo is het gerekend</p>
+            <p className="mt-1 font-mono text-[11px] leading-relaxed text-foreground">{src.formule.tekst}</p>
+            <table className="mt-2 w-full border-collapse text-xs">
+              <tbody>
+                {src.formule.delen.map((dl) => (
+                  <tr key={dl.naam} className="border-t border-border/50">
+                    <td className="py-1 pr-2 text-muted-foreground">{dl.naam}</td>
+                    <td className="py-1 text-right font-semibold tabular-nums text-foreground">{dl.waarde}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="mt-3 rounded-xl border border-border bg-background/50 p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Waar komt het uit Business Central</p>
+          <p className="mt-1 text-[11px] leading-snug text-foreground">{src.bron}</p>
+        </div>
+
+        {src.excel && (
+          <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Terugvinden in de Excel-export</p>
+            <p className="mt-1 text-[11px] leading-snug text-foreground">Blad <b>{src.excel}</b> — download via de knop &quot;Excel met de brondata&quot; bovenaan de pagina; daar staan alle onderliggende regels, met doorkliklinks naar de boekingen in BC.</p>
+          </div>
+        )}
+
+        {src.caveat && (
+          <div className="mt-3 rounded-xl border border-warning/30 bg-warning/10 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-warning">Waar je op moet letten</p>
+            <p className="mt-1 text-[11px] leading-snug text-foreground">{src.caveat}</p>
+          </div>
+        )}
+
+        {src.links?.length ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {src.links.map((l) => (
+              <a key={l.url} href={l.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground hover:opacity-90">
+                {l.label} <ExternalLink className="h-3 w-3" />
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
