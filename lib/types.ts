@@ -799,7 +799,10 @@ export interface CfoReceivables {
   businessUnits: RcvBuRow[];                  // facturatie/DSO per AFDELING (dimensie op de factuur)
   weekFlow: RcvWeekFlow[];                    // facturatie per week (laatste 26w), excl. IC
   factors: RcvFactorRow[];
-  factoringCost: { months: string[]; amounts: number[]; total12m: number };  // GL 613340
+  // Factoringkost gesplitst per CBN-advies 2011/23: commissie (kl. 61/613340) + rente/disconto (kl. 65/653x).
+  factoringCost: { months: string[]; amounts: number[]; fee: number[]; interest: number[]; total12m: number };
+  // CRF-collectie-KPI's (crfonline.org): CEI (formule 3-0 geverifieerd), Best Possible DSO, Average Days Delinquent.
+  crfKpis: { cei: number | null; bpdso: number | null; add: number | null; note: string };
   bounceBacks: { count: number; amount: number; note: string; examples: RcvInvoiceItem[] };
   openInvoices: { total: number; overdue: number; items: RcvInvoiceItem[] }; // grootste open posten (drill)
   cashExpectation: RcvCashWeekExpectation[];  // 13 weken verwachte inning

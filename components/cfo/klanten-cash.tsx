@@ -295,13 +295,18 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
   const factoringCost = useMemo<echarts.EChartsOption | null>(() => {
     if (!d) return null;
     const months = d.factoringCost.months.slice(-12);
-    const amounts = d.factoringCost.amounts.slice(-12);
+    const fee = (d.factoringCost.fee || d.factoringCost.amounts).slice(-12);
+    const interest = (d.factoringCost.interest || months.map(() => 0)).slice(-12);
     return {
-      tooltip: { trigger: "axis", valueFormatter: (v) => formatCurrency(Number(v)) },
-      grid: { top: 12, left: 6, right: 8, bottom: 20, containLabel: true },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (v) => formatCurrency(Number(v)) },
+      legend: { data: ["Commissie (61)", "Rente/disconto (653)"], textStyle: { color: p.text, fontSize: 9 }, top: 0, icon: "roundRect", itemWidth: 8, itemHeight: 8 },
+      grid: { top: 24, left: 6, right: 8, bottom: 20, containLabel: true },
       xAxis: { type: "category", data: months.map(fmtMonth), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
       yAxis: { type: "value", axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
-      series: [{ type: "bar", data: amounts, itemStyle: { color: p.expense, borderRadius: [3, 3, 0, 0] }, barMaxWidth: 22 }],
+      series: [
+        { name: "Commissie (61)", type: "bar", stack: "fc", data: fee, itemStyle: { color: p.expense }, barMaxWidth: 22 },
+        { name: "Rente/disconto (653)", type: "bar", stack: "fc", data: interest, itemStyle: { color: p.warning, borderRadius: [3, 3, 0, 0] }, barMaxWidth: 22 },
+      ],
     };
   }, [d, p]);
 
@@ -453,10 +458,16 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       <div className="grid gap-4 xl:grid-cols-2">
         <Card
           title="Hoe laat betalen klanten? (vs vervaldag)"
-          hint={`Bedrag-gewogen verdeling van betaald volume. Gemiddeld ${d.dsoInvoiceLevel.avgDays ?? "—"}d van factuur tot geld.`}
+          hint={`Bedrag-gewogen verdeling van betaald volume. Gemiddeld ${d.dsoInvoiceLevel.avgDays ?? "—"}d van factuur tot geld. Context BE: werkelijke B2B-termijn ±61d, wettelijk max 60d; transport = slechtst betalende sector 2024.`}
           source={d.dsoInvoiceLevel.note}
         >
-          {speedHist && <EChart option={speedHist} height={280} ariaLabel="Betaalsnelheid vs vervaldag" />}
+          {speedHist && <EChart option={speedHist} height={244} ariaLabel="Betaalsnelheid vs vervaldag" />}
+          <div className="mt-3 grid grid-cols-3 gap-3">
+            <Kpi label="CEI (inningseffectiviteit)" value={d.crfKpis.cei != null ? `${d.crfKpis.cei}%` : "—"} sub="CRF-standaard · 100% = perfect · YTD" tone={d.crfKpis.cei != null && d.crfKpis.cei < 80 ? "warn" : "pos"} />
+            <Kpi label="Best Possible DSO" value={d.crfKpis.bpdso != null ? `${d.crfKpis.bpdso}d` : "—"} sub="DSO als iedereen op de vervaldag betaalde" />
+            <Kpi label="Achterstalligheid (ADD)" value={d.crfKpis.add != null ? `${d.crfKpis.add}d` : "—"} sub="DSO − BPDSO = zuivere vertraging" tone={d.crfKpis.add != null && d.crfKpis.add > 20 ? "warn" : "neutral"} />
+          </div>
+          <p className="mt-2 text-[10px] leading-snug text-muted-foreground">{d.crfKpis.note}</p>
         </Card>
         <Card
           title="Facturatie per week (excl. IC)"
@@ -511,8 +522,8 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           </Card>
         </div>
         <div className="space-y-4">
-          <Card title="Factoringkost per maand" hint={`GL 613340 · ${formatCurrencyCompact(d.factoringCost.total12m)} laatste 12m`} source="Grootboekrekening 613340 'Factoringsdiensten - invorderingskosten', alle vennootschappen, excl. btw.">
-            {factoringCost && <EChart option={factoringCost} height={170} ariaLabel="Factoringkost per maand" />}
+          <Card title="Factoringkost per maand" hint={`Commissie + rente · ${formatCurrencyCompact(d.factoringCost.total12m)} laatste 12m`} source="Split per CBN-advies 2011/23: factorcommissie op 613340 (klasse 61) + rente/disconto op 653x 'Discontokosten op vorderingen' (klasse 65). Alle vennootschappen, excl. btw. 653x kan ook niet-factoring-disconto bevatten.">
+            {factoringCost && <EChart option={factoringCost} height={170} ariaLabel="Factoringkost per maand (commissie + rente)" />}
           </Card>
           <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <div className="flex items-center gap-2">
