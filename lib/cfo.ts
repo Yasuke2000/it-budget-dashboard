@@ -428,6 +428,14 @@ function combine(
   ];
   const notes: string[] = [];
   notes.push("P&L t/m nettoresultaat (financieel 65/75, niet-recurrent 66/76, belastingen 67/77); resultaatverwerking (68/69/78/79) uitgesloten.");
+  // Eenmalige posten die op een OMZETrekening staan expliciet benoemen: dit is de
+  // statutaire P&L (die hoort ze te bevatten), maar zonder waarschuwing leest een
+  // eenmalige meerwaarde als bedrijfsomzet — en spreekt de cockpit de operationele
+  // cijfers op Business Units tegen. Data-gedreven, geen hardgecodeerd bedrag.
+  const oneOff = revenueAccounts.find((a) => a.accountNumber === "705200" && Math.abs(a.amount) > 100_000);
+  if (oneOff) {
+    notes.push(`LET OP eenmalige post: ${new Intl.NumberFormat("nl-BE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(oneOff.amount)} staat op rekening 705200 "Omzet verkoop gebouwen" en zit dus in de bedrijfsopbrengsten en in EBITDA/EBIT hierboven. Dat is een verkoop van vastgoed (sale-and-leaseback), geen bedrijfsactiviteit — in het Belgische MAR hoort zo'n meerwaarde op 763. Het operationele beeld ZONDER deze post staat op de pagina Business Units; daar is het YTD-bedrijfsresultaat negatief.`);
+  }
   // Interim-caveats (data-gedreven): bij Gheeraert worden afschrijvingen en belastingen
   // grotendeels op jaareinde geboekt — zonder deze noten oogt YTD-winst geflatteerd.
   if (isLive && cls("63") < 0.02 * Math.max(income, 1)) {
