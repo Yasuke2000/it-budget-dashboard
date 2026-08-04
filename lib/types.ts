@@ -799,14 +799,20 @@ export interface CfoReceivables {
   businessUnits: RcvBuRow[];                  // facturatie/DSO per AFDELING (dimensie op de factuur)
   weekFlow: RcvWeekFlow[];                    // facturatie per week (laatste 26w), excl. IC
   factors: RcvFactorRow[];
-  // Factoringkost gesplitst per CBN-advies 2011/23: commissie (kl. 61/613340) + rente/disconto (kl. 65/653x).
-  factoringCost: { months: string[]; amounts: number[]; fee: number[]; interest: number[]; total12m: number };
-  // CRF-collectie-KPI's (crfonline.org), PER MAAND berekend op `asOfMonth` (dezelfde
-  // maand als dsoNow) — niet op de stand van vandaag. cei12mAvg = gemiddelde van de
-  // laatste 12 maandwaarden; ceiSeries loopt gelijk met `months`.
+  // Factoringkost: commissie (613340, kl. 61) + rente (650000 beperkt tot de posten van
+  // de factormaatschappij, kl. 65). `totalYtd` = t/m `ytdThrough` (laatste rijpe maand).
+  factoringCost: {
+    months: string[]; amounts: number[]; fee: number[]; interest: number[]; total12m: number;
+    totalYtd?: number; feeYtd?: number; interestYtd?: number; ytdThrough?: string;
+  };
+  // CRF-collectie-KPI's (crfonline.org), PER MAAND berekend; `asOfMonth` = de laatste
+  // rijpe maand. De *Series-velden lopen gelijk met `months`, zodat de UI elke maand
+  // kan tonen die de gebruiker kiest.
   crfKpis: {
     cei: number | null; cei12mAvg: number | null; bpdso: number | null; add: number | null;
-    months: string[]; ceiSeries: (number | null)[]; asOfMonth: string; note: string;
+    months: string[]; ceiSeries: (number | null)[];
+    bpdsoSeries?: (number | null)[]; addSeries?: (number | null)[];
+    asOfMonth: string; note: string;
   };
   bounceBacks: { count: number; amount: number; note: string; examples: RcvInvoiceItem[] };
   // Open FACTUREN (bruto, extern) + IC apart + het grootboek-nettosaldo als aansluiting.

@@ -29,10 +29,28 @@ export async function GET(
   if (!cfoAllowed(session?.user?.email)) return new Response("Forbidden", { status: 403 });
 
   const { kind } = await params;
-  if (kind !== "ap" && kind !== "ar" && kind !== "leasing") return new Response("Unknown export", { status: 404 });
+  if (kind !== "ap" && kind !== "ar" && kind !== "leasing" && kind !== "klantencash") return new Response("Unknown export", { status: 404 });
 
   try {
     const pulledAt = new Date();
+
+    // Klanten & Cash: de volledige brondata achter de pagina (DSO per maand,
+    // betaalgedrag per klant, open posten met BC-links, factoring, facturatie per week).
+    if (kind === "klantencash") {
+      const url = new URL(req.url);
+      const exclude = (url.searchParams.get("exclude") || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const { getReceivables } = await import("@/lib/receivables");
+      const data = await getReceivables(false, exclude);
+      if ("building" in data && data.building) {
+        return Response.json({ error: "De data wordt nog opgebouwd uit Business Central — probeer over een paar minuten opnieuw." }, { status: 503 });
+      }
+      if (!("dso" in data)) {
+        return Response.json({ error: "Geen data beschikbaar om te exporteren." }, { status: 503 });
+      }
+      const { buildRcvWorkbook } = await import("@/lib/rcv-export");
+      const { buffer, filename } = await buildRcvWorkbook(data, pulledAt);
+      return xlsxResponse(buffer, filename, pulledAt);
+    }
 
     if (kind === "leasing") {
       const url = new URL(req.url);

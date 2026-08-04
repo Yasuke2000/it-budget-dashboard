@@ -23,7 +23,7 @@ import type {
   CfoReceivables, CfoSource, RcvCustomerRow, RcvDsoSeries, RcvFactorRow,
   RcvInvoiceItem, RcvSpeedBucket, RcvWeekFlow, RcvCashWeekExpectation, RcvCategory,
 } from "./types";
-import { getBCToken, fetchBCCompanies, fetchBCLedgerByAccounts } from "./bc-client";
+import { getBCToken, fetchBCCompanies } from "./bc-client";
 import { fetchWithRetry } from "./http";
 import { getCache, setCache } from "./sync-cache";
 import { isIcName } from "./cfo";
@@ -56,6 +56,16 @@ const FACTOR_JOURNALS: Record<string, Record<string, string>> = {
   WHS: { KBCC: "KBC" },
   TDR: { KBC: "KBC" },
 };
+// Factoringkosten-herkenning op rekening 650000 (waar de factor-rente bij Gheeraert
+// staat, náást gewone financieringsrente). Match op de tegenpartij/omschrijving:
+// "BNP Paribas Fortis Factor", "BELFIUS COMMERCIAL FINANCE", "KBC COMM.FIN.FACTORING".
+// LET OP: "ES FINANCE", "KBC BANK LEASING" en "VFS FINANCIAL SERVICES" mogen NIET
+// matchen — dat zijn leasing/vastgoed, geen factoring.
+const FACTORING_COST_RX = /factoring|comm\.?\s*fin\b|commercial\s*finance|\bfactor\b/i;
+// Per firma bekende factoringcontract-referenties die als reclass-boeking op 650000
+// terechtkomen zonder de naam van de factor (GTR: BNP-contract 0003946/001).
+const FACTORING_COST_REFS: Record<string, RegExp> = { GTR: /0003946/ };
+
 const factorKeyOf = (company: string, docNo: string): string | null => {
   const map = FACTOR_JOURNALS[company];
   if (!map) return null;
@@ -296,25 +306,35 @@ async function buildCompanyRcvBundle(
     }
   );
 
-  // ---- 4. Factoringkosten per maand: fee (61) + rente/disconto (653x) ----
-  // CBN-advies 2011/23: de factorCOMMISSIE hoort in klasse 61 (bij Gheeraert 613340),
-  // de rente-/discontocomponent op rekening 653 "Discontokosten op vorderingen" (kl. 65).
+  // ---- 4. Factoringkosten per maand: commissie (613340) + rente (650000) ----
+  // Gecorrigeerd 04/08/2026 op aanwijzing van de CFO en geverifieerd tegen de data:
+  // de factorCOMMISSIE staat op 613340 (klasse 61 — conform CBN-advies 2011/23), maar de
+  // RENTE staat bij Gheeraert niet op 653x (dat is leeg) wél op **650000**, samen met
+  // gewone financieringsrente. Rekening 650000 mag dus NOOIT integraal meegeteld worden
+  // (daar zit o.a. €123k GPR-straight-loan-rente in) — we nemen enkel de posten waarvan
+  // de tegenpartij/omschrijving de factormaatschappij aanwijst. Zo reproduceert de som
+  // exact de €119.025 die finance voor H1-2026 verwachtte.
   const factoringCost: Record<string, number> = {};
-  try {
-    const glRows = await fetchBCLedgerByAccounts(co.id, `${win.keys[0]}-01`, iso(today), ["613340"]);
-    for (const g of glRows) {
-      const m = String(g.postingDate || "").slice(0, 7);
-      factoringCost[m] = (factoringCost[m] || 0) + (((g.debitAmount as number) || 0) - ((g.creditAmount as number) || 0));
-    }
-  } catch { /* geen 613340 in deze firma */ }
   const factoringInterest: Record<string, number> = {};
   try {
-    const f653 = encodeURIComponent(`postingDate ge ${win.keys[0]}-01 and postingDate le ${iso(today)} and startswith(accountNumber,'653')`);
-    await pageAll(`${ODATA_ROOT}/api/v2.0/companies(${co.id})/generalLedgerEntries?$filter=${f653}&$select=postingDate,debitAmount,creditAmount`, token, (g) => {
-      const m = String(g.postingDate || "").slice(0, 7);
-      factoringInterest[m] = (factoringInterest[m] || 0) + (((g.debitAmount as number) || 0) - ((g.creditAmount as number) || 0));
-    });
-  } catch { /* geen 653x in deze firma */ }
+    const glFilter = encodeURIComponent(
+      `Posting_Date ge ${win.keys[0]}-01 and Posting_Date le ${todayIso} and (G_L_Account_No eq '613340' or G_L_Account_No eq '650000')`
+    );
+    await pageAll(
+      `${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(co.code)}')/Grootboekposten_Excel?$filter=${glFilter}&$select=Posting_Date,G_L_Account_No,Amount,Description,ESCW_Source_Name`,
+      token,
+      (g) => {
+        const m = String(g.Posting_Date || "").slice(0, 7);
+        const amt = (g.Amount as number) || 0;
+        if (String(g.G_L_Account_No) === "613340") { factoringCost[m] = (factoringCost[m] || 0) + amt; return; }
+        const tag = `${String(g.ESCW_Source_Name || "")} ${String(g.Description || "")}`;
+        const ref = FACTORING_COST_REFS[co.code];
+        if (FACTORING_COST_RX.test(tag) || (ref && ref.test(tag))) {
+          factoringInterest[m] = (factoringInterest[m] || 0) + amt;
+        }
+      }
+    );
+  } catch { /* geen 613340/650000 in deze firma */ }
 
   const bundle: CompanyRcvBundle = {
     code: co.code, arRows, apMonthly: { end: apEnd.map(r2), purch: apPurch.map(r2) },
@@ -371,8 +391,19 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   }
 
   // ---- DSO/DPO per maand (balansmethode) ----
-  const dsoOf = (ar: number[], sales: number[]): (number | null)[] =>
-    win.keys.map((_, i) => (sales[i] > 1000 ? r0((ar[i] / sales[i]) * win.daysIn[i]) : null));
+  // RIJPHEIDSDREMPEL (CFO-feedback 04/08/2026): een maand waarvan de facturatie nog
+  // niet (volledig) geboekt is geeft een absurde DSO — augustus met €2.463 omzet tegen
+  // €10M openstaand leverde 127.000 dagen op en blies de grafiekschaal op, waardoor de
+  // hele historiek visueel verdween. Een maand telt daarom alleen mee als haar omzet
+  // minstens 25% van de mediane maandomzet bedraagt; anders `null` (geen punt).
+  const medianOf = (xs: number[]): number => {
+    const s = xs.filter((x) => x > 0).sort((a, b) => a - b);
+    return s.length ? s[Math.floor(s.length / 2)] : 0;
+  };
+  const dsoOf = (ar: number[], sales: number[]): (number | null)[] => {
+    const floor = Math.max(1000, medianOf(sales.slice(-13)) * 0.25);
+    return win.keys.map((_, i) => (sales[i] >= floor ? r0((ar[i] / sales[i]) * win.daysIn[i]) : null));
+  };
   const arExt = win.keys.map((_, i) => arEndByCat.extFactoring[i] + arEndByCat.extOther[i]);
   const salesExt = win.keys.map((_, i) => salesByCat.extFactoring[i] + salesByCat.extOther[i]);
   const apEnd = zero(); const apPurch = zero();
@@ -396,8 +427,9 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     dsoTotal: dsoOf(arExt, salesExt),
     dsoExtFactoring: dsoOf(arEndByCat.extFactoring, salesByCat.extFactoring),
     dsoExtOther: dsoOf(arEndByCat.extOther, salesByCat.extOther),
-    dsoCountback: win.keys.map((_, i) => countbackAt(i)),
-    dpoTotal: win.keys.map((_, i) => (apPurch[i] > 1000 ? r0((-apEnd[i] / apPurch[i]) * win.daysIn[i]) : null)),
+    // Countback alleen op rijpe maanden (zelfde drempel als de balansmethode).
+    dsoCountback: win.keys.map((_, i) => (dsoOf(arExt, salesExt)[i] == null ? null : countbackAt(i))),
+    dpoTotal: dsoOf(apEnd.map((x) => -x), apPurch),
     arEndByCat: {
       extFactoring: arEndByCat.extFactoring.map(r0), extOther: arEndByCat.extOther.map(r0), ic: arEndByCat.ic.map(r0),
     },
@@ -588,9 +620,16 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   const fcFee = win.keys.map((k) => r0(bundles.reduce((s, b) => s + (b.factoringCost[k] || 0), 0)));
   const fcInterest = win.keys.map((k) => r0(bundles.reduce((s, b) => s + ((b.factoringInterest || {})[k] || 0), 0)));
   const fcAmounts = win.keys.map((_, i) => fcFee[i] + fcInterest[i]);
+  // YTD t/m de laatste rijpe maand is wat finance controleert ("t/m eind juni = €119k");
+  // het 12-maands rollende cijfer staat er als context bij.
+  const ytdIdx = win.keys.map((k, i) => ({ k, i })).filter((x) => x.k.startsWith(win.keys[nowIdx].slice(0, 4)) && x.i <= nowIdx);
   const factoringCost = {
     months: win.keys, amounts: fcAmounts, fee: fcFee, interest: fcInterest,
     total12m: r0(fcAmounts.slice(-12).reduce((s, x) => s + x, 0)),
+    totalYtd: r0(ytdIdx.reduce((s, x) => s + fcAmounts[x.i], 0)),
+    feeYtd: r0(ytdIdx.reduce((s, x) => s + fcFee[x.i], 0)),
+    interestYtd: r0(ytdIdx.reduce((s, x) => s + fcInterest[x.i], 0)),
+    ytdThrough: win.keys[nowIdx],
   };
 
   // ---- terugboekingen (unapplied = teruggenomen inningen/correcties) ----
@@ -689,11 +728,19 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   const ceiVals = ceiSeries.filter((x): x is number => x != null).slice(-12);
   const cei = ceiSeries[nowIdx];
   const cei12mAvg = ceiVals.length ? Math.round((ceiVals.reduce((s, x) => s + x, 0) / ceiVals.length) * 10) / 10 : null;
-  const notDueMature = notDueAt(win.ends[nowIdx]);
-  const bpdso = salesExt[nowIdx] > 1000 ? r0((notDueMature / salesExt[nowIdx]) * win.daysIn[nowIdx]) : null;
-  const add = bpdso != null && dsoNow.total != null ? dsoNow.total - bpdso : null;
+  // BPDSO/ADD als volledige reeks, zodat de KPI-rij elke gekozen maand kan tonen
+  // (CFO-feedback: "verandert er iets als ik de periode aanpas?" — nu expliciet ja).
+  // Alleen rijpe maanden, dezelfde drempel als de DSO-reeks.
+  const bpdsoSeries = win.keys.map((_, i) =>
+    dso.dsoTotal[i] == null ? null : r0((notDueAt(win.ends[i]) / salesExt[i]) * win.daysIn[i]));
+  const addSeries = win.keys.map((_, i) => {
+    const b = bpdsoSeries[i], d = dso.dsoTotal[i];
+    return b != null && d != null ? d - b : null;
+  });
+  const bpdso = bpdsoSeries[nowIdx];
+  const add = addSeries[nowIdx];
   const crfKpis = {
-    cei, cei12mAvg, bpdso, add, months: win.keys, ceiSeries,
+    cei, cei12mAvg, bpdso, add, months: win.keys, ceiSeries, bpdsoSeries, addSeries,
     asOfMonth: win.keys[nowIdx],
     note: `CRF-standaard (crfonline.org), alle drie op dezelfde maand als de DSO (${win.keys[nowIdx]}) — niet op de stand van vandaag, zodat teller en noemer dezelfde periode meten. CEI = (AR begin maand + omzet maand − AR eind maand) ÷ (idem − niet-vervallen AR eind maand) × 100, per maand (N=1); ~100% = vrijwel alles wat inbaar was, is geïnd. BPDSO = niet-vervallen AR ÷ maandomzet × dagen = de DSO die je zou halen als élke klant exact op de vervaldag betaalde; ADD = DSO − BPDSO = het zuivere achterstalligheidsdeel. Benadering: de niet-vervallen stand op een historisch maandeinde is gereconstrueerd uit de facturen (deelbetalingen vóór die datum zijn niet reconstrueerbaar en tellen dus nog als open).`,
   };
@@ -870,6 +917,8 @@ function demoReceivables(): CfoReceivables {
     crfKpis: {
       cei: 92.4, cei12mAvg: 90.1, bpdso: 34, add: 20,
       months: win.keys, ceiSeries: win.keys.map((_, i) => (i <= n - 2 ? 88 + ((i * 7) % 9) : null)),
+      bpdsoSeries: win.keys.map((_, i) => (i <= n - 2 ? 32 + ((i * 3) % 6) : null)),
+      addSeries: win.keys.map((_, i) => (i <= n - 2 ? 18 + ((i * 5) % 7) : null)),
       asOfMonth: win.keys[n - 2],
       note: "Voorbeelddata — CRF-standaard (CEI/BPDSO/ADD), per maand berekend.",
     },
@@ -900,7 +949,7 @@ function demoReceivables(): CfoReceivables {
       amounts: win.keys.map((_, i) => wave(i, 21_000, 4_000) + wave(i, 14_000, 3_000, 1)),
       fee: win.keys.map((_, i) => wave(i, 21_000, 4_000)),
       interest: win.keys.map((_, i) => wave(i, 14_000, 3_000, 1)),
-      total12m: 420_000,
+      total12m: 420_000, totalYtd: 119_025, feeYtd: 45_932, interestYtd: 73_093, ytdThrough: win.keys[n - 2],
     },
     bounceBacks: { count: 34, amount: 412_000, note: "Voorbeeld — teruggeboekte toewijzingen laatste 12m.", examples: [] },
     openInvoices: {

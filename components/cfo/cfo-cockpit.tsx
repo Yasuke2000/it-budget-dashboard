@@ -109,7 +109,7 @@ function navigateWith(params: Record<string, string | null>) {
 
 // Periode-kiezer: YTD (default), kwartalen, halfjaar of een vrije van/tot-range.
 // Navigeert met ?from&to — de server rekent alles op de periode door.
-function PeriodPicker({ label }: { label: string }) {
+function PeriodPicker({ label, prominent = false }: { label: string; prominent?: boolean }) {
   const [open, setOpen] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -127,12 +127,14 @@ function PeriodPicker({ label }: { label: string }) {
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-[11px] font-semibold text-muted-foreground ring-1 ring-border transition hover:text-foreground"
-        title="Periode van de cockpit wijzigen"
+        className={prominent
+          ? "inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow-sm ring-1 ring-primary/40 transition hover:opacity-90"
+          : "inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-[11px] font-semibold text-muted-foreground ring-1 ring-border transition hover:text-foreground"}
+        title="Periode van de cockpit wijzigen — P&L, ratio's en grafieken rekenen op deze periode"
       >
-        <CalendarClock className="h-3 w-3" />
+        <CalendarClock className={prominent ? "h-3.5 w-3.5" : "h-3 w-3"} />
         {label}
-        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`${prominent ? "h-3.5 w-3.5" : "h-3 w-3"} transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-border bg-popover p-2 shadow-xl">
@@ -852,13 +854,18 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
 
   return (
     <div className="min-h-full -m-6 p-6 lg:-m-8 lg:p-8 bg-[radial-gradient(1200px_600px_at_20%_-10%,rgba(47,189,138,0.07),transparent),radial-gradient(1000px_500px_at_100%_0%,rgba(224,182,74,0.05),transparent)]">
-      {/* Hero */}
+      {/* Hero — de periodekiezer staat vóór de titel en in de accentkleur: het is de
+          schakelaar die álle cijfers op deze pagina bepaalt (CFO-feedback 04/08/2026). */}
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-border">
             <Landmark className="h-6 w-6 text-primary" />
           </div>
           <div>
+            <div className="mb-1 flex items-center gap-2">
+              <PeriodPicker label={data.period.label} prominent />
+              <span className="text-[11px] text-muted-foreground">← alle cijfers op deze pagina volgen deze periode</span>
+            </div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Financiële Cockpit</h1>
             <p className="text-sm text-muted-foreground">
               {data.company === "all"
@@ -878,7 +885,6 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <PeriodPicker label={data.period.label} />
           {data.scope && data.company === "all" && <ScopePicker scope={data.scope} />}
           <SnapshotPicker />
           <button

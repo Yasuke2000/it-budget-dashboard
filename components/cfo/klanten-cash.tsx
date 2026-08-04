@@ -19,9 +19,20 @@ import { usePolledData, Card, Kpi, eurAxis, fmtStamp, fmtMonth, fmtDate, fmtDM, 
 import {
   Loader2, RefreshCcw, Info, ExternalLink,
   AlertTriangle, Search, ArrowUpDown, Receipt, Undo2, X, ArrowLeft, ShieldCheck,
+  CalendarClock, FileSpreadsheet,
 } from "lucide-react";
 
 type LP = echarts.DefaultLabelFormatterCallbackParams;
+
+// Uitleg per DSO-categorie — verschijnt als tooltip op de legenda én in de kaart,
+// omdat de termen zonder uitleg niet intuïtief zijn (CFO-feedback 04/08/2026).
+const CAT_UITLEG: Record<string, string> = {
+  "DSO extern totaal": "Alle externe klanten samen (factoring + niet-factoring, zonder intercompany).<br/>Hoeveel dagen omzet staat er gemiddeld open? Lager = sneller geld.<br/><i>AR-eindsaldo van de maand ÷ omzet van die maand × dagen in de maand.</i>",
+  "DSO via factoring": "Klanten waarvan de facturen via een factor (KBC/Belfius/BNP) afgewikkeld worden.<br/>Dit meet <b>time-to-cash</b>: hoe snel de factuur geld wordt — niet hoe snel de eindklant betaalt.",
+  "DSO niet-factoring": "Klanten die rechtstreeks aan ons betalen, buiten factoring om.<br/>Dit is het <b>echte betaalgedrag</b> van die klanten. Hoger dan de factoring-lijn = hier zit de cash vast.",
+  "DSO countback": "Zelfde vraag, andere rekenwijze: vanaf het openstaand saldo maand per maand terugtellen tegen de werkelijke omzet.<br/>Robuuster bij schommelende omzet; de meeste CFO's gebruiken deze naast de balansmethode.",
+  "DPO (leveranciers)": "Spiegelbeeld aan de inkoopzijde: na hoeveel dagen betalen wíj onze leveranciers (extern).<br/>DPO hoger dan DSO = de groep wordt sneller betaald dan ze betaalt.",
+};
 
 // ---- klantentabel: sorteerbaar + zoekbaar ----
 type SortKey = "invoiced12m" | "openNow" | "overdueNow" | "avgDaysToPay" | "avgDaysVsDue" | "factoredSharePct" | "creditUsedPct";
@@ -173,27 +184,65 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
   const [pickedCustomer, setPickedCustomer] = useState<RcvCustomerRow | null>(null);
   const [showOpenList, setShowOpenList] = useState(false);
   const [pickedMonth, setPickedMonth] = useState<number | null>(null); // index in dso.months (grafiek-drill)
+  const [kpiMonth, setKpiMonth] = useState<number | null>(null);       // maand waarop de KPI-rij rekent
+  const [chartRange, setChartRange] = useState<12 | 19>(19);           // getoond interval in de DSO-grafiek
   const d = rcv.data;
 
   // ---------- grafiek-opties ----------
   const dsoTrend = useMemo<echarts.EChartsOption | null>(() => {
     if (!d) return null;
     const s = d.dso;
+    const from = Math.max(0, s.months.length - chartRange);
+    const months = s.months.slice(from);
+    const cut = (a: (number | null)[]) => a.slice(from);
+    // Onzichtbare balk over de volledige kolombreedte: zo is élke maand aanklikbaar
+    // (exact op een lijnpunt raken lukte niet — CFO-feedback "ik kan niet doorklikken").
+    const clickCatcher: echarts.SeriesOption = {
+      name: "kolom", type: "bar", barWidth: "100%",
+      itemStyle: { color: "transparent" }, emphasis: { itemStyle: { color: `${p.text}12` } },
+      data: months.map(() => 1), yAxisIndex: 1, z: 0,
+    };
+    const line = (name: string, data: (number | null)[], color: string, w: number, dash?: "dashed" | "dotted"): echarts.SeriesOption => ({
+      name, type: "line", data: cut(data || []), itemStyle: { color },
+      lineStyle: { width: w, ...(dash ? { type: dash } : {}) },
+      symbol: dash ? "none" : "circle", symbolSize: w >= 2.5 ? 5 : 4, connectNulls: true, z: 3,
+    });
     return {
-      tooltip: { trigger: "axis", valueFormatter: (v) => (v == null ? "—" : `${v} dagen`) },
-      legend: { data: ["DSO extern totaal", "DSO via factoring", "DSO niet-factoring", "DSO countback", "DPO (leveranciers)"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10, type: "scroll" },
-      grid: { top: 32, left: 6, right: 8, bottom: 20, containLabel: true },
-      xAxis: { type: "category", data: s.months.map(fmtMonth), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
-      yAxis: { type: "value", name: "dagen", nameTextStyle: { color: p.textMuted, fontSize: 9 }, axisLabel: { color: p.textMuted }, splitLine: { lineStyle: { color: p.grid } } },
+      tooltip: {
+        trigger: "axis",
+        formatter: (prs: unknown) => {
+          const arr = (prs as { seriesName: string; value: unknown; marker: string; dataIndex: number }[]).filter((x) => x.seriesName !== "kolom");
+          const mi = arr[0]?.dataIndex ?? 0;
+          const rows = arr.map((x) => `${x.marker}${x.seriesName}: <b>${x.value == null ? "n.b." : `${x.value} dagen`}</b>`).join("<br/>");
+          return `<b>${fmtMonth(months[mi])}</b><br/>${rows}<br/><i style="opacity:.65">klik voor de onderliggende bedragen</i>`;
+        },
+      },
+      legend: {
+        data: ["DSO extern totaal", "DSO via factoring", "DSO niet-factoring", "DSO countback", "DPO (leveranciers)"],
+        textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10, type: "scroll",
+        // Zweef over een categorie → uitleg in gewone taal.
+        tooltip: {
+          show: true,
+          formatter: (pp: unknown) => CAT_UITLEG[(pp as { name: string }).name] || (pp as { name: string }).name,
+          extraCssText: "max-width:360px;white-space:normal;line-height:1.5",
+        },
+      },
+      grid: { top: 34, left: 6, right: 8, bottom: 20, containLabel: true },
+      xAxis: { type: "category", data: months.map(fmtMonth), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
+      yAxis: [
+        { type: "value", name: "dagen", nameTextStyle: { color: p.textMuted, fontSize: 9 }, axisLabel: { color: p.textMuted }, splitLine: { lineStyle: { color: p.grid } } },
+        { type: "value", max: 1, show: false },
+      ],
       series: [
-        { name: "DSO extern totaal", type: "line", data: s.dsoTotal, itemStyle: { color: p.result }, lineStyle: { width: 2.5 }, symbol: "circle", symbolSize: 5, connectNulls: true },
-        { name: "DSO via factoring", type: "line", data: s.dsoExtFactoring, itemStyle: { color: p.income }, lineStyle: { width: 1.8 }, symbol: "circle", symbolSize: 4, connectNulls: true },
-        { name: "DSO niet-factoring", type: "line", data: s.dsoExtOther, itemStyle: { color: p.warning }, lineStyle: { width: 1.8 }, symbol: "circle", symbolSize: 4, connectNulls: true },
-        { name: "DSO countback", type: "line", data: s.dsoCountback, itemStyle: { color: p.categorical[5] }, lineStyle: { width: 1.5, type: "dotted" }, symbol: "none", connectNulls: true },
-        { name: "DPO (leveranciers)", type: "line", data: s.dpoTotal, itemStyle: { color: p.textMuted }, lineStyle: { width: 1.5, type: "dashed" }, symbol: "none", connectNulls: true },
+        clickCatcher,
+        line("DSO extern totaal", s.dsoTotal, p.result, 2.5),
+        line("DSO via factoring", s.dsoExtFactoring, p.income, 1.8),
+        line("DSO niet-factoring", s.dsoExtOther, p.warning, 1.8),
+        line("DSO countback", s.dsoCountback, p.categorical[5], 1.5, "dotted"),
+        line("DPO (leveranciers)", s.dpoTotal, p.textMuted, 1.5, "dashed"),
       ],
     };
-  }, [d, p]);
+  }, [d, p, chartRange]);
 
   // YoY: zelfde kalendermaand dit jaar vs vorig jaar (uit de doorlopende reeks geknipt).
   const dsoYoY = useMemo<echarts.EChartsOption | null>(() => {
@@ -393,7 +442,30 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
   }
 
   const overduePct = d.openInvoices.total ? Math.round((d.openInvoices.overdue / d.openInvoices.total) * 100) : 0;
-  const nf = d.dsoNow.extOther != null && d.dsoNow.extFactoring != null ? d.dsoNow.extOther - d.dsoNow.extFactoring : null;
+
+  // Welke maand rekenen de kerncijfers? Standaard de laatste RIJPE maand (dsoNow), maar
+  // de CFO kan elke maand kiezen — dan volgen alle DSO-/CRF-tegels mee. Zo is meteen
+  // duidelijk dat "56 dagen" één maand is en niet een periode van 12 maanden.
+  const defaultMi = Math.max(0, d.dso.months.indexOf(d.dsoNow.asOfMonth));
+  const mi = kpiMonth != null && kpiMonth >= 0 && kpiMonth < d.dso.months.length ? kpiMonth : defaultMi;
+  const selMonth = d.dso.months[mi];
+  const dsoSel = {
+    total: d.dso.dsoTotal[mi], extFactoring: d.dso.dsoExtFactoring[mi],
+    extOther: d.dso.dsoExtOther[mi], countback: d.dso.dsoCountback?.[mi] ?? null, dpo: d.dso.dpoTotal[mi],
+  };
+  const crfSel = {
+    cei: d.crfKpis.ceiSeries?.[mi] ?? (mi === defaultMi ? d.crfKpis.cei : null),
+    bpdso: d.crfKpis.bpdsoSeries?.[mi] ?? (mi === defaultMi ? d.crfKpis.bpdso : null),
+    add: d.crfKpis.addSeries?.[mi] ?? (mi === defaultMi ? d.crfKpis.add : null),
+  };
+  // Leesbare uitleg van wat die maand precies betekent (Laura's vraag: "is 56 dagen
+  // tussen 04/08/2025 en 04/08/2026?" — nee, het is één maand).
+  const monthEnd = (() => {
+    const [y, m] = selMonth.split("-").map(Number);
+    return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  })();
+  const monthWindowLabel = `${fmtMonth(selMonth)}: openstaand op ${fmtDate(monthEnd)} ÷ omzet van die maand × ${monthEnd.slice(8, 10)} dagen`;
+  const nf = dsoSel.extOther != null && dsoSel.extFactoring != null ? dsoSel.extOther - dsoSel.extFactoring : null;
 
   return (
     <div className="space-y-4">
@@ -417,6 +489,13 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
             <button onClick={() => rcv.reload(true)} title="Verse pull uit BC (achtergrond)" className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 font-semibold ring-1 ring-border hover:text-foreground">
               <RefreshCcw className="h-3 w-3" />Vernieuwen
             </button>
+            <a
+              href={`/api/cfo/export/klantencash${qs}`}
+              title="Alle data achter deze pagina als Excel: DSO per maand, betaalgedrag per klant, open posten met BC-links, factoring, facturatie per week en een methodiek-blad"
+              className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 font-semibold text-primary-foreground ring-1 ring-primary/40 transition hover:opacity-90"
+            >
+              <FileSpreadsheet className="h-3 w-3" />Excel met de brondata
+            </a>
             <a href={`/api/cfo/ai-export${qs}`} title="Volledige CFO-dataset + methodiek als JSON — voor AI-analyse" className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 font-semibold ring-1 ring-border hover:text-foreground">
               <Receipt className="h-3 w-3" />Export voor AI
             </a>
@@ -424,16 +503,44 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
         </div>
       </div>
 
+      {/* ---- maandkeuze voor de KPI-rij ---- */}
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 px-3 py-2">
+        <CalendarClock className="h-4 w-4 shrink-0 text-primary" />
+        <span className="text-[11px] font-semibold text-foreground">Kerncijfers rekenen op de maand</span>
+        <select
+          value={mi}
+          onChange={(e) => setKpiMonth(Number(e.target.value))}
+          className="rounded-lg border border-primary/40 bg-card px-2 py-1 text-xs font-bold text-primary"
+          aria-label="Maand voor de kerncijfers"
+        >
+          {d.dso.months.map((m, i) => (
+            <option key={m} value={i} disabled={d.dso.dsoTotal[i] == null}>
+              {fmtMonth(m)}{d.dso.dsoTotal[i] == null ? " — nog niet volledig geboekt" : ""}{i === defaultMi ? " (standaard)" : ""}
+            </option>
+          ))}
+        </select>
+        <span className="text-[11px] text-muted-foreground">
+          = <b className="text-foreground">{monthWindowLabel}</b>. Elke tegel hieronder verandert mee; de tabellen en de facturatie-per-week-grafiek zijn rollend (12 resp. 26 perioden) en volgen deze keuze niet.
+        </span>
+        {mi !== defaultMi && (
+          <button onClick={() => setKpiMonth(null)} className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground ring-1 ring-border hover:text-foreground">terug naar standaard</button>
+        )}
+      </div>
+
       {/* ---- KPI-rij ---- */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
-        <Kpi label="DSO extern" value={d.dsoNow.total != null ? `${d.dsoNow.total}d` : "—"} sub={`balans · countback ${d.dsoNow.countback != null ? `${d.dsoNow.countback}d` : "—"} · ${fmtMonth(d.dsoNow.asOfMonth)}`} />
-        <Kpi label="DSO via factoring" value={d.dsoNow.extFactoring != null ? `${d.dsoNow.extFactoring}d` : "—"} sub="time-to-cash factor-afwikkeling" tone="pos" />
-        <Kpi label="DSO niet-factoring" value={d.dsoNow.extOther != null ? `${d.dsoNow.extOther}d` : "—"} sub={nf != null ? `${nf > 0 ? "+" : ""}${nf}d vs factoring` : undefined} tone={nf != null && nf > 10 ? "warn" : "neutral"} />
-        <Kpi label="DPO" value={d.dsoNow.dpo != null ? `${d.dsoNow.dpo}d` : "—"} sub="leveranciers extern" />
-        <Kpi label="Mediane betaaltijd" value={d.dsoInvoiceLevel.medianDays != null ? `${d.dsoInvoiceLevel.medianDays}d` : "—"} sub="factuur → geld (betaalde facturen)" />
-        <Kpi label="Op tijd betaald" value={d.dsoInvoiceLevel.onTimePct != null ? `${d.dsoInvoiceLevel.onTimePct}%` : "—"} sub="van betaald volume, vs vervaldag" tone={d.dsoInvoiceLevel.onTimePct != null && d.dsoInvoiceLevel.onTimePct < 50 ? "warn" : "pos"} />
-        <Kpi label="Open klanten (extern)" value={formatCurrencyCompact(d.openInvoices.total)} sub={`${overduePct}% vervallen · incl. btw · IC apart ${formatCurrencyCompact(d.openInvoices.ic ?? 0)}`} tone={overduePct > 40 ? "neg" : "neutral"} />
-        <Kpi label="Factoringkost 12m" value={formatCurrencyCompact(d.factoringCost.total12m)} sub="GL 613340 · excl. btw" />
+        <Kpi label="DSO extern" value={dsoSel.total != null ? `${dsoSel.total}d` : "—"} sub={`${monthWindowLabel} · countback ${dsoSel.countback != null ? `${dsoSel.countback}d` : "—"}`} />
+        <Kpi label="DSO via factoring" value={dsoSel.extFactoring != null ? `${dsoSel.extFactoring}d` : "—"} sub={`time-to-cash factor · ${fmtMonth(selMonth)}`} tone="pos" />
+        <Kpi label="DSO niet-factoring" value={dsoSel.extOther != null ? `${dsoSel.extOther}d` : "—"} sub={nf != null ? `${nf > 0 ? "+" : ""}${nf}d vs factoring · echt klantgedrag` : `echt klantgedrag · ${fmtMonth(selMonth)}`} tone={nf != null && nf > 10 ? "warn" : "neutral"} />
+        <Kpi label="DPO" value={dsoSel.dpo != null ? `${dsoSel.dpo}d` : "—"} sub={`leveranciers extern · ${fmtMonth(selMonth)}`} />
+        <Kpi label="Mediane betaaltijd" value={d.dsoInvoiceLevel.medianDays != null ? `${d.dsoInvoiceLevel.medianDays}d` : "—"} sub={`factuur → geld · betaalde facturen sinds ${fmtMonth(d.dso.months[0])}`} />
+        <Kpi label="Op tijd betaald" value={d.dsoInvoiceLevel.onTimePct != null ? `${d.dsoInvoiceLevel.onTimePct}%` : "—"} sub={`van betaald volume vs vervaldag · sinds ${fmtMonth(d.dso.months[0])}`} tone={d.dsoInvoiceLevel.onTimePct != null && d.dsoInvoiceLevel.onTimePct < 50 ? "warn" : "pos"} />
+        <Kpi label="Open klanten (extern)" value={formatCurrencyCompact(d.openInvoices.total)} sub={`stand vandaag · ${overduePct}% vervallen · incl. btw · IC apart ${formatCurrencyCompact(d.openInvoices.ic ?? 0)}`} tone={overduePct > 40 ? "neg" : "neutral"} />
+        <Kpi
+          label={`Factoringkost ${d.factoringCost.ytdThrough ? `YTD t/m ${fmtMonth(d.factoringCost.ytdThrough)}` : "12m"}`}
+          value={formatCurrencyCompact(d.factoringCost.totalYtd ?? d.factoringCost.total12m)}
+          sub={`commissie ${formatCurrencyCompact(d.factoringCost.feeYtd ?? 0)} (613340) + rente ${formatCurrencyCompact(d.factoringCost.interestYtd ?? 0)} (650000) · 12m ${formatCurrencyCompact(d.factoringCost.total12m)}`}
+        />
       </div>
 
       {/* ---- DSO-verloop + YoY ---- */}
@@ -441,9 +548,33 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
         <Card
           title="DSO-verloop per categorie"
           hint="Balansmethode per maand: AR-eindsaldo ÷ gefactureerd × dagen. Categorieën: via factoring vs niet-factoring (extern); IC uitgesloten."
-          source="Cust_LedgerEntries (alle historie) + factor-dagboekherkenning. De lijn 'via factoring' meet time-to-cash van de factor-afwikkeling, niet het gedrag van de eindklant. Maanden zonder noemenswaardige facturatie tonen geen punt. Klik een maand voor de onderliggende bedragen."
+          source="Cust_LedgerEntries (alle historie) + factor-dagboekherkenning. De lijn 'via factoring' meet time-to-cash van de factor-afwikkeling, niet het gedrag van de eindklant. Maanden waarvan de facturatie nog niet volledig geboekt is tonen géén punt (anders zou één onvolledige maand de schaal opblazen). Zweef over een categorie in de legenda voor uitleg; klik een maand voor de onderliggende bedragen."
+          right={
+            <div className="flex items-center gap-1">
+              {([12, 19] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setChartRange(r)}
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 transition ${chartRange === r ? "bg-primary/15 text-primary ring-primary/40" : "bg-muted text-muted-foreground ring-border hover:text-foreground"}`}
+                >
+                  {r} mnd
+                </button>
+              ))}
+            </div>
+          }
         >
-          {dsoTrend && <EChart option={dsoTrend} height={300} onSelect={(pt) => { if (typeof pt.dataIndex === "number") setPickedMonth(pt.dataIndex); }} ariaLabel="DSO-verloop per categorie" />}
+          {dsoTrend && (
+            <EChart
+              option={dsoTrend}
+              height={300}
+              onSelect={(pt) => {
+                if (typeof pt.dataIndex !== "number" || !d) return;
+                const from = Math.max(0, d.dso.months.length - chartRange);
+                setPickedMonth(from + pt.dataIndex);
+              }}
+              ariaLabel="DSO-verloop per categorie"
+            />
+          )}
         </Card>
         <Card
           title="DSO year-over-year"
@@ -465,12 +596,12 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           <div className="mt-3 grid grid-cols-3 gap-3">
             <Kpi
               label="CEI (inningseffectiviteit)"
-              value={d.crfKpis.cei != null ? `${d.crfKpis.cei}%` : "—"}
-              sub={`maand ${fmtMonth(d.crfKpis.asOfMonth)}${d.crfKpis.cei12mAvg != null ? ` · 12m-gem. ${d.crfKpis.cei12mAvg}%` : ""} · 100% = perfect`}
-              tone={d.crfKpis.cei == null ? "neutral" : d.crfKpis.cei >= 90 ? "pos" : d.crfKpis.cei >= 75 ? "neutral" : "warn"}
+              value={crfSel.cei != null ? `${crfSel.cei}%` : "—"}
+              sub={`${fmtMonth(selMonth)}${d.crfKpis.cei12mAvg != null ? ` · 12m-gem. ${d.crfKpis.cei12mAvg}%` : ""} · 100% = alles geïnd wat inbaar was`}
+              tone={crfSel.cei == null ? "neutral" : crfSel.cei >= 90 ? "pos" : crfSel.cei >= 75 ? "neutral" : "warn"}
             />
-            <Kpi label="Best Possible DSO" value={d.crfKpis.bpdso != null ? `${d.crfKpis.bpdso}d` : "—"} sub={`DSO als iedereen op de vervaldag betaalde · ${fmtMonth(d.crfKpis.asOfMonth)}`} />
-            <Kpi label="Achterstalligheid (ADD)" value={d.crfKpis.add != null ? `${d.crfKpis.add}d` : "—"} sub={`DSO − BPDSO = zuivere vertraging · ${fmtMonth(d.crfKpis.asOfMonth)}`} tone={d.crfKpis.add != null && d.crfKpis.add > 20 ? "warn" : "neutral"} />
+            <Kpi label="Best Possible DSO" value={crfSel.bpdso != null ? `${crfSel.bpdso}d` : "—"} sub={`de DSO als élke klant exact op de vervaldag betaalde · ${fmtMonth(selMonth)}`} />
+            <Kpi label="Achterstalligheid (ADD)" value={crfSel.add != null ? `${crfSel.add}d` : "—"} sub={`DSO − BPDSO = dagen puur te laat · ${fmtMonth(selMonth)}`} tone={crfSel.add != null && crfSel.add > 20 ? "warn" : "neutral"} />
           </div>
           <p className="mt-2 text-[10px] leading-snug text-muted-foreground">{d.crfKpis.note}</p>
         </Card>
