@@ -154,6 +154,16 @@ async function applyPayroll(
   return synthetic.length ? [...invoices, ...synthetic] : invoices;
 }
 
+// In BC is het veld `name` de FIRMACODE ("GTR", "GPR", …) en `displayName` de
+// leesbare naam — daarom matchen we een uitsluiting op code, id én weergavenaam.
+// Dezelfde afleiding als de consolidatiescope in lib/cfo.ts, zodat "Active
+// Entities" en de CFO-scope niet uit elkaar kunnen lopen.
+function isExcludedCompany(company: Company, excluded: string[]): boolean {
+  if (!excluded.length) return false;
+  const keys = [company.name, company.id, company.displayName].map((v) => (v || "").toUpperCase());
+  return excluded.some((x) => keys.includes(x.trim().toUpperCase()));
+}
+
 // ---- Companies ----
 export async function getCompanies(): Promise<Company[]> {
   if (isDemoMode()) return demoCompanies;
@@ -225,19 +235,25 @@ export async function getInvoices(
   let vendorRules: Record<string, string>;
   let opVendors: string[];
   let includeOp: boolean;
+  // Vennootschappen die in Settings → Active Entities uitgezet zijn. Die horen
+  // niet in de spendtotalen (dat beloofde de pagina al; sinds 05/08/2026 is het
+  // ook waar). Zit in de cache-key, want een wijziging moet meteen effect hebben.
+  let excludedCompanies: string[];
   try {
     const settings = await getAppSettings();
     glMapping = settings.glMappings;
     vendorRules = settings.itVendorRules;
     opVendors = settings.operationalSoftwareVendors;
     includeOp = settings.includeOperationalSoftware;
+    excludedCompanies = settings.excludedCompanies;
   } catch {
     glMapping = DEFAULT_GL_MAPPING;
     vendorRules = IT_VENDOR_RULES;
     opVendors = OPERATIONAL_SOFTWARE_VENDORS;
     includeOp = true;
+    excludedCompanies = [];
   }
-  const fpStr = `${Object.keys(glMapping).sort().join(".")}|${Object.keys(vendorRules).sort().join(".")}|${[...opVendors].sort().join(".")}|${includeOp ? 1 : 0}`;
+  const fpStr = `${Object.keys(glMapping).sort().join(".")}|${Object.keys(vendorRules).sort().join(".")}|${[...opVendors].sort().join(".")}|${includeOp ? 1 : 0}|x${[...excludedCompanies].sort().join(".")}`;
   let fpHash = 0;
   for (let i = 0; i < fpStr.length; i++) fpHash = (Math.imul(fpHash, 31) + fpStr.charCodeAt(i)) | 0;
   const cacheKey = `invoices-${companyFilter}-${from}-${to}-${(fpHash >>> 0).toString(36)}`;
@@ -252,9 +268,16 @@ export async function getInvoices(
       // fall back to demo data instead of returning an empty live result.
       await getBCToken();
       const companies = await getCompanies();
+      // Uitgezette vennootschappen vallen uit de groepsview. Bij een expliciet
+      // gekozen firma respecteren we die keuze wél — de gebruiker vraagt er dan
+      // rechtstreeks naar en een leeg resultaat zonder uitleg zou verwarrender zijn.
+      const inScope =
+        excludedCompanies.length === 0
+          ? companies
+          : companies.filter((c) => !isExcludedCompany(c, excludedCompanies));
       const targetCompanies =
         companyFilter === "all"
-          ? companies
+          ? inScope
           : companies.filter((c) => c.id === companyFilter);
 
       // The IT account→category map is now EDITABLE in Settings (persisted in
@@ -1573,8 +1596,16 @@ export async function getVendorSummary(
   const to = dateTo ?? `${yr}-12-31`;
   // IT-only, so vendor totals and percent-of-total share the same denominator as
   // the headline KPI (and Unclassified spend never appears as a "vendor").
-  const invoices = (await getInvoices(companyFilter, from, to)).filter((i) =>
-    isITCategory(i.costCategory)
+  // Interne loonkost is GEEN leverancier. De payroll-regels zijn synthetisch
+  // (vendorNumber "EASYPAY", opgebouwd uit de payroll-import, zie applyPayroll) en
+  // stonden voordien als "easypay (Payroll)" tussen de leveranciers — met een
+  // concentratiepercentage erbij, alsof je erop kon heronderhandelen of erdoor
+  // afhankelijk was. De loonkost blijft wél in de spendtotalen; alleen de
+  // LEVERANCIERSanalyse en haar noemer kijken naar externe leveranciers.
+  const isSyntheticPayroll = (i: PurchaseInvoice) =>
+    i.vendorNumber === "EASYPAY" || i.id.startsWith("payroll-");
+  const invoices = (await getInvoices(companyFilter, from, to)).filter(
+    (i) => isITCategory(i.costCategory) && !isSyntheticPayroll(i)
   );
   const totalSpend = invoices.reduce(
     (s, i) => s + i.totalAmountExcludingTax,

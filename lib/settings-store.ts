@@ -58,6 +58,14 @@ export interface AppSettings {
   cfoClassTargets: Record<string, number>;
   // CFO cockpit — leasing/huur-analyse (spec Birgit, finance, 24/07/2026).
   leasing: LeasingConfig;
+  // Vennootschappen die uit de IT-SPENDVIEW gehouden worden ("Active Entities" op
+  // de Settings-pagina). BC-firmacodes (bv. "GPR", "GRE"). Leeg = alles meerekenen.
+  // Tot 05/08/2026 was die schakelaar louter cosmetisch: hij zat enkel in de
+  // client-state en de pagina beloofde tóch dat uitgezette firma's niet meetelden.
+  // BEWUST NIET gekoppeld aan de consolidatiescope van de CFO-cockpit: die heeft
+  // zijn eigen kiezer (?exclude=), zodat een IT-instelling nooit ongemerkt de
+  // geconsolideerde cijfers wijzigt waar finance naar verwijst.
+  excludedCompanies: string[];
 }
 
 export interface LeasingConfig {
@@ -175,6 +183,7 @@ export async function getAppSettings(): Promise<AppSettings> {
   ]);
   const cfoClassTargets = await getSetting<Record<string, number>>("cfoClassTargets");
   const leasing = await getSetting<LeasingConfig>("leasing");
+  const excludedCompanies = await getSetting<string[]>("excludedCompanies");
   // Merge stored GL overrides over defaults, then strip any forbidden account
   // (depreciation 63x / suspense 49x) so it can never leak into the spend total.
   const mergedGl: Record<string, string> = { ...DEFAULT_GL_MAPPING, ...(gl ?? {}) };
@@ -200,6 +209,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     cfoCostTarget: cfoCost ?? envNumber("CFO_COST_TARGET") ?? 0,
     cfoClassTargets: cfoClassTargets ?? {},
     leasing: { ...DEFAULT_LEASING, ...(leasing ?? {}) },
+    excludedCompanies: excludedCompanies ?? [],
   };
 }
 
@@ -218,5 +228,6 @@ export async function saveAppSettings(settings: Partial<AppSettings>): Promise<A
   if (settings.cfoCostTarget !== undefined) await setSetting("cfoCostTarget", settings.cfoCostTarget);
   if (settings.cfoClassTargets !== undefined) await setSetting("cfoClassTargets", settings.cfoClassTargets);
   if (settings.leasing !== undefined) await setSetting("leasing", settings.leasing);
+  if (settings.excludedCompanies !== undefined) await setSetting("excludedCompanies", settings.excludedCompanies);
   return getAppSettings();
 }

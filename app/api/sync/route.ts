@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authorizeOperator } from "@/lib/api-auth";
 import { getBCToken } from "@/lib/bc-client";
 import { getGraphToken } from "@/lib/graph-client";
 import { clearCache } from "@/lib/sync-cache";
@@ -9,14 +10,22 @@ import {
   getDevices,
 } from "@/lib/data-source";
 
-// Daily cron-triggered sync. Refreshes the in-memory cache under the SAME keys
-// (and mapped shapes) that the page data-source reads, so subsequent page loads
-// are served warm instead of hitting the upstream APIs on first access.
+// Sync: verwarmt de in-memory cache onder DEZELFDE keys (en vormen) die de
+// pagina-datasource leest, zodat de volgende paginaload warm bediend wordt.
+//
+// Twee aanroepers, allebei geldig (audit 05/08/2026 — daarvóór eiste deze route
+// het cron-secret, waardoor de knop "Sync Now" op de Settings-pagina áltijd 401
+// gaf: een browser kan die header niet meesturen):
+//   • de dagelijkse cron-job met `Authorization: Bearer <SYNC_CRON_SECRET>`;
+//   • een ingelogde gebruiker die op "Sync Now" klikt (NextAuth-sessie of
+//     Authelia's Remote-User via de ingress).
+// De actie is bewust niet-destructief: ze leest enkel upstream en vult caches.
 export async function POST(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  if (!process.env.SYNC_CRON_SECRET || authHeader !== `Bearer ${process.env.SYNC_CRON_SECRET}`) {
+  const who = await authorizeOperator(request);
+  if (!who.ok) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  console.info(`sync: gestart door ${who.via}${who.user ? ` (${who.user})` : ""}`);
 
   const results: Record<string, string> = {};
   const errors: Record<string, string> = {};
@@ -66,5 +75,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  return NextResponse.json({ message: "Use POST with SYNC_CRON_SECRET to trigger sync" });
+  return NextResponse.json({
+    message: "POST om te synchroniseren — als ingelogde gebruiker, of met Authorization: Bearer <SYNC_CRON_SECRET> voor de cron-job",
+  });
 }

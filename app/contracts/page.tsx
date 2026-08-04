@@ -39,7 +39,17 @@ export default function ContractsPage() {
     });
     const totalAnnual = active.reduce((s, c) => s + c.annualCost, 0);
     const autoRenewing = active.filter((c) => c.autoRenew).length;
-    return { activeCount: active.length, expiringCount: expiringSoon.length, totalAnnual, autoRenewing };
+    // Automatisch ontdekte contracten zijn afgeleid uit terugkerende leveranciers-
+    // spend, niet uit een ondertekend document. Ze horen in het register (anders
+    // mis je ze), maar "Annual Commitment" mag niet doen alsof het contractueel
+    // vastgelegde bedragen zijn — vandaar deze aparte teller.
+    const discovered = active.filter((c) => c.tags?.includes("auto-discovered"));
+    const discoveredAnnual = discovered.reduce((s, c) => s + c.annualCost, 0);
+    const withoutDocument = active.filter((c) => !c.fileId).length;
+    return {
+      activeCount: active.length, expiringCount: expiringSoon.length, totalAnnual, autoRenewing,
+      discoveredCount: discovered.length, discoveredAnnual, withoutDocument,
+    };
   }, [contracts, now]);
 
   function openNew() { setEditing(null); setFormOpen(true); }
@@ -81,9 +91,30 @@ export default function ContractsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard title="Active Contracts" value={kpis.activeCount.toString()} iconName="Shield" description="Currently active" />
         <KPICard title="Expiring ≤90 Days" value={kpis.expiringCount.toString()} changeType={kpis.expiringCount > 0 ? "negative" : "positive"} iconName="AlertTriangle" description="Needs attention" />
-        <KPICard title="Annual Commitment" value={formatCurrencyCompact(kpis.totalAnnual)} iconName="DollarSign" description="Total active contracts" />
+        <KPICard
+          title="Annual Commitment"
+          value={formatCurrencyCompact(kpis.totalAnnual)}
+          iconName="DollarSign"
+          description={kpis.discoveredAnnual > 0
+            ? `waarvan ${formatCurrencyCompact(kpis.discoveredAnnual)} afgeleid uit spend, niet uit een contract`
+            : "Total active contracts"}
+        />
         <KPICard title="Auto-renewing" value={kpis.autoRenewing.toString()} changeType={kpis.autoRenewing > 0 ? "neutral" : "positive"} iconName="Clock" description="Watch the notice window" />
       </div>
+
+      {/* Eerlijk over de herkomst: het register is voor een groot deel automatisch
+          gevuld uit terugkerende leveranciersspend. Dat is bruikbaar (je mist geen
+          leverancier meer) maar het zijn geen gecontroleerde contractvoorwaarden. */}
+      {kpis.discoveredCount > 0 && (
+        <div className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+          <b>{kpis.discoveredCount} van de {kpis.activeCount} actieve lijnen zijn automatisch ontdekt</b> uit
+          terugkerende leveranciersspend in Business Central, niet ingelezen uit een ondertekend contract.
+          Bedragen, einddatums, opzegtermijnen en de vlag &quot;auto-verlengend&quot; zijn dus <b>aannames</b> tot
+          iemand het document erbij legt. {kpis.withoutDocument > 0 && <>Bij {kpis.withoutDocument} lijnen hangt nog geen document. </>}
+          Gebruik dit register om niets te missen en de opzegvensters in het oog te houden — niet als
+          bron voor contractuele verplichtingen.
+        </div>
+      )}
 
       {contracts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl border border-border bg-card">

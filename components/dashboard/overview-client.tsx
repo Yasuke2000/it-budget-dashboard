@@ -22,6 +22,10 @@ export function OverviewClient() {
   const [loading, setLoading] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // PDF-rapport: laad- en foutstatus, zodat een mislukte generatie zichtbaar is
+  // in plaats van stil te falen.
+  const [pdfState, setPdfState] = useState<"idle" | "busy" | "error">("idle");
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const [showSetupBanner, setShowSetupBanner] = useState(() => {
     if (typeof window === "undefined") return false;
     try {
@@ -159,26 +163,41 @@ export function OverviewClient() {
         description={`IT spend across all entities — ${selectedRange.label}`}
         actions={
           <>
+            {/* PDF-rapport: de knop had geen laad- of foutstatus, waardoor een mislukte
+                /api/report-call of een jsPDF-fout gewoon niets deed en de gebruiker
+                bleef wachten op een download die nooit kwam (audit 05/08/2026). */}
             <Button
               variant="outline"
               size="sm"
               className="gap-2"
+              disabled={pdfState === "busy"}
+              title={`Rapport over ${selectedRange.label} (${selectedRange.from} t/m ${selectedRange.to})`}
               onClick={async () => {
-                const qs = `company=${selectedCompany}&dateFrom=${selectedRange.from}&dateTo=${selectedRange.to}`;
-                const res = await fetch(`/api/report?${qs}`);
-                const reportData = await res.json();
-                const { generateExecutiveReport } = await import("@/lib/pdf-report");
-                const doc = generateExecutiveReport(reportData);
-                doc.save(`IT-Finance-Report-${new Date().toISOString().split("T")[0]}.pdf`);
+                setPdfState("busy");
+                setPdfError(null);
+                try {
+                  const qs = `company=${selectedCompany}&dateFrom=${selectedRange.from}&dateTo=${selectedRange.to}`;
+                  const res = await fetch(`/api/report?${qs}`);
+                  if (!res.ok) throw new Error(`rapportdata gaf HTTP ${res.status}`);
+                  const reportData = await res.json();
+                  const { generateExecutiveReport } = await import("@/lib/pdf-report");
+                  const doc = generateExecutiveReport(reportData);
+                  doc.save(`IT-Finance-Report-${selectedRange.from}_${selectedRange.to}.pdf`);
+                  setPdfState("idle");
+                } catch (err) {
+                  setPdfState("error");
+                  setPdfError(err instanceof Error ? err.message : "onbekende fout");
+                }
               }}
             >
-              <FileDown className="h-4 w-4" />
-              PDF Report
+              <FileDown className={`h-4 w-4 ${pdfState === "busy" ? "animate-pulse" : ""}`} />
+              {pdfState === "busy" ? "Rapport maken…" : pdfState === "error" ? "Opnieuw proberen" : "PDF Report"}
             </Button>
             <Button
               variant="ghost"
               size="sm"
               className="gap-2"
+              title={`Export van ${selectedRange.label} (${selectedRange.from} t/m ${selectedRange.to})`}
               onClick={() => {
                 window.open(`/api/export?company=${selectedCompany}&dateFrom=${selectedRange.from}&dateTo=${selectedRange.to}`, "_blank");
               }}
@@ -189,6 +208,13 @@ export function OverviewClient() {
           </>
         }
       />
+
+      {pdfState === "error" && (
+        <div className="rounded-xl border border-negative/30 bg-negative/10 px-4 py-3 text-sm text-negative">
+          Het PDF-rapport kon niet gemaakt worden: {pdfError}. De cijfers op deze pagina zijn
+          niet aangetast — probeer opnieuw, of gebruik de knop Export voor dezelfde periode.
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">

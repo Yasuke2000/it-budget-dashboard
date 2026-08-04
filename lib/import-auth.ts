@@ -1,18 +1,13 @@
-import { auth } from "./auth";
+import { authorizeOperator } from "./api-auth";
 
-// Shared authorization for the self-hosted /api/import/* endpoints.
-// These are excluded from the auth middleware so they can serve two callers:
-//   • Automated jobs (cron / SFTP-drop) pass `Authorization: Bearer <SYNC_CRON_SECRET>`.
-//   • Manual uploads from the Import page rely on the signed-in session.
-// When app auth is disabled (internal/homelab demo) the endpoints are open.
+// Autorisatie voor de self-hosted /api/import/*-endpoints. Deze staan buiten de
+// auth-middleware zodat ze twee aanroepers kunnen bedienen:
+//   • automatische jobs (cron / SFTP-drop) met `Authorization: Bearer <SYNC_CRON_SECRET>`;
+//   • handmatige uploads vanaf de Import-pagina door een ingelogde gebruiker.
+// Sinds 05/08/2026 gaat dat via de gedeelde helper `authorizeOperator`, die óók
+// Authelia's Remote-User erkent — in de homelab-opstelling is er geen NextAuth-
+// sessie, waardoor handmatige uploads voordien alleen met het cron-secret lukten.
 export async function authorizeImport(request: Request): Promise<boolean> {
-  const secret = process.env.SYNC_CRON_SECRET;
-  const header = request.headers.get("authorization");
-  // Automated jobs (cron, SFTP-drop) use a static bearer token.
-  if (secret && header === `Bearer ${secret}`) return true;
-  // Manual browser uploads require an active session.
-  // In homelab mode (Authelia gating, no NextAuth configured) this always
-  // returns null — import API is then only reachable via the cron secret.
-  const session = await auth();
-  return !!session;
+  const who = await authorizeOperator(request);
+  return who.ok;
 }

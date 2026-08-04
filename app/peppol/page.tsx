@@ -357,6 +357,23 @@ export default function PeppolPage() {
         }
       />
 
+      {/* Eerlijk over de lege staat: er is nog geen Peppol Access Point aangesloten,
+          dus alle cijfers hieronder staan op nul. Zonder deze uitleg leest een lege
+          pagina als "wij ontvangen geen e-facturen", terwijl het betekent dat wij ze
+          nog niet automatisch binnenhalen (audit 05/08/2026). */}
+      {!loading && total === 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+          <p className="text-sm text-warning">
+            <b>Nog geen Peppol Access Point aangesloten</b> — daarom staan de cijfers hieronder op nul.
+            Dat is geen meetfout: wij ontvangen wél e-facturen, maar ze komen via de gewone
+            leveranciersstroom in Business Central binnen en niet via dit kanaal. Je kan hier al
+            handmatig een UBL 2.1-bestand opladen om de verwerking en de match met BC te testen.
+            Zodra een Access Point aangesloten is, vult deze pagina zich automatisch.
+          </p>
+        </div>
+      )}
+
       {/* ── KPI cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard

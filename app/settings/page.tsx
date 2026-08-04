@@ -183,14 +183,24 @@ function GeneralTab() {
       .finally(() => setConnLoading(false));
   }, []);
 
-  // Real Business Central companies (not demo placeholders).
+  // Echte Business Central-firma's, met de opgeslagen uitsluitingen erover heen.
+  // Tot 05/08/2026 stond hier `active: true` voor iedereen en werd een omzetting
+  // nergens bewaard — de schakelaar leek te werken maar deed niets.
   useEffect(() => {
-    fetch("/api/companies")
-      .then((r) => r.json())
-      .then((data: { id: string; name: string }[]) => {
-        if (Array.isArray(data)) setCompanies(data.map((c) => ({ id: c.id, name: c.name, active: true })));
-      })
-      .catch(() => {});
+    Promise.all([
+      fetch("/api/companies").then((r) => r.json()).catch(() => []),
+      fetch("/api/settings").then((r) => r.json()).catch(() => ({})),
+    ]).then(([data, settings]: [{ id: string; name: string }[], { excludedCompanies?: string[] }]) => {
+      if (!Array.isArray(data)) return;
+      const off = new Set((settings?.excludedCompanies ?? []).map((x) => x.toUpperCase()));
+      setCompanies(
+        data.map((c) => ({
+          id: c.id,
+          name: c.name,
+          active: !off.has((c.name || "").toUpperCase()) && !off.has((c.id || "").toUpperCase()),
+        })),
+      );
+    });
   }, []);
 
   const handleSync = useCallback(async () => {
@@ -212,11 +222,29 @@ function GeneralTab() {
     }
   }, []);
 
-  const toggleCompany = (id: string) => {
-    setCompanies((cs) =>
-      cs.map((c) => (c.id === id ? { ...c, active: !c.active } : c))
-    );
-  };
+  // Omzetten = meteen bewaren. De uitsluitlijst gaat naar de settings-store (waar
+  // de spendberekening en de standaardscope van de CFO-pagina's hem lezen) en de
+  // spendcache wordt gewist, zodat het effect direct zichtbaar is.
+  const [entitySave, setEntitySave] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const toggleCompany = useCallback((id: string) => {
+    setCompanies((cs) => {
+      const next = cs.map((c) => (c.id === id ? { ...c, active: !c.active } : c));
+      const excluded = next.filter((c) => !c.active).map((c) => c.name);
+      setEntitySave("saving");
+      fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ excludedCompanies: excluded }),
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          setEntitySave("saved");
+          setTimeout(() => setEntitySave("idle"), 2500);
+        })
+        .catch(() => setEntitySave("error"));
+      return next;
+    });
+  }, []);
 
   const statusColor: Record<SyncState["status"], string> = {
     idle: "text-muted-foreground",
@@ -523,10 +551,26 @@ function GeneralTab() {
               />
             </div>
           ))}
-          <p className="text-xs text-muted-foreground pt-1">
-            Disabled entities are excluded from spend totals, variance
-            calculations, and all charts.
-          </p>
+          <div className="flex items-start justify-between gap-3 pt-1">
+            <p className="text-xs text-muted-foreground">
+              Uitgezette vennootschappen vallen uit de <b>IT-spendtotalen</b>, de categorie- en
+              maandgrafieken en de leverancierscijfers. Kies je in de firmakiezer één specifieke
+              firma, dan krijg je die wél te zien — ook als ze hier uit staat; je vraagt er dan
+              rechtstreeks naar.
+              <br />
+              Dit raakt <b>de CFO-cockpit niet</b>: die heeft zijn eigen scope-kiezer, zodat een
+              IT-instelling nooit ongemerkt de geconsolideerde cijfers verandert waar finance naar
+              verwijst.
+              <br />
+              Een omzetting wordt <b>onmiddellijk bewaard</b> en de spendcache wordt gewist,
+              dus het effect is meteen zichtbaar (harde refresh kan nodig zijn).
+            </p>
+            <span className="shrink-0 text-xs">
+              {entitySave === "saving" && <span className="text-warning">bewaren…</span>}
+              {entitySave === "saved" && <span className="text-primary">bewaard</span>}
+              {entitySave === "error" && <span className="text-negative">bewaren mislukt</span>}
+            </span>
+          </div>
         </CardContent>
       </Card>
 

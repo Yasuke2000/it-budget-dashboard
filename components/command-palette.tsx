@@ -12,6 +12,8 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import { useDateRange } from "@/components/layout/date-range-context";
+import { useCompany } from "@/components/layout/company-context";
 import {
   LayoutDashboard,
   FileText,
@@ -54,6 +56,8 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { selectedRange } = useDateRange();
+  const { selectedCompany } = useCompany();
   const [showPeppol, setShowPeppol] = useState(false);
 
   useEffect(() => {
@@ -82,13 +86,20 @@ export function CommandPalette() {
     setOpen(false);
   }
 
+  // Rapport en export volgen dezelfde scope als het scherm (firmakiezer +
+  // datumkiezer uit de gedeelde context). Voordien openden deze twee acties
+  // /api/report en /api/export zónder parameters, waardoor je stil de laatste
+  // 12 maanden van álle firma's kreeg in plaats van wat er op het scherm stond
+  // (audit 05/08/2026).
+  const scopeQs = `company=${encodeURIComponent(selectedCompany)}&dateFrom=${selectedRange.from}&dateTo=${selectedRange.to}`;
+
   function handleGenerateReport() {
-    window.open("/api/report", "_blank");
+    window.open(`/api/report?${scopeQs}`, "_blank");
     setOpen(false);
   }
 
   function handleExportData() {
-    window.open("/api/export", "_blank");
+    window.open(`/api/export?${scopeQs}`, "_blank");
     setOpen(false);
   }
 
@@ -125,10 +136,12 @@ export function CommandPalette() {
           >
             <FileDown className="mr-2 h-4 w-4 text-muted-foreground" />
             <span>Generate PDF Report</span>
+            <span className="ml-2 text-xs text-muted-foreground">{selectedRange.label}</span>
           </CommandItem>
           <CommandItem value="Export Data" onSelect={handleExportData}>
             <Download className="mr-2 h-4 w-4 text-muted-foreground" />
             <span>Export Data</span>
+            <span className="ml-2 text-xs text-muted-foreground">{selectedRange.label}</span>
           </CommandItem>
           <CommandItem value="Toggle Theme" onSelect={handleToggleTheme}>
             <SunMoon className="mr-2 h-4 w-4 text-muted-foreground" />
