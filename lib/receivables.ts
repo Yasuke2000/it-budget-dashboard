@@ -863,12 +863,17 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   // moet weten: hoeveel geld zweeft er hoe lang, en bij wie. Klik een blok → de klanten.
   const contactMerged: Record<string, { phone: string; email: string }> = {};
   for (const b of bundles) for (const [c, v] of Object.entries(b.contactByCust || {})) if (!contactMerged[c]) contactMerged[c] = v;
+  // Live-check 04/08: het blok ">90 dagen" bleek €3,8M te bevatten waarvan posten van
+  // 1.000+ dagen (Travis Road 1.222d, Mattex 1.069d, Green Vision 1.222d). Iemand laten
+  // bellen over een factuur van drie jaar oud is verspilde tijd — daarom staat alles
+  // boven 180 dagen apart: dat is dossier- en niet belwerk.
   const AGE: [string, number, number | null][] = [
     ["< 30 dagen (binnen de norm)", 0, 30],
     ["30 – 45 dagen", 30, 45],
     ["45 – 60 dagen", 45, 60],
     ["60 – 90 dagen", 60, 90],
-    ["> 90 dagen", 90, null],
+    ["90 – 180 dagen", 90, 180],
+    ["> 180 dagen (dossier)", 180, null],
   ];
   const openByCust = new Map<string, { amount: number; inv: number; maxD: number; wD: number; ic: boolean; cos: Set<string>; overdue: number }>();
   const ageing = AGE.map(([label, minD, maxD]) => {

@@ -422,7 +422,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
   // norm) naar rood (>90d); klik een balk en de klantenlijst eronder volgt.
   const ageChart = useMemo<echarts.EChartsOption | null>(() => {
     const ag = d?.behaviour?.ageing; if (!ag?.length) return null;
-    const COLORS = [p.positive, p.result, p.warning, p.categorical[5], p.negative];
+    const COLORS = [p.positive, p.result, p.warning, p.categorical[5], p.negative, p.textMuted];
     return {
       tooltip: {
         trigger: "axis", axisPointer: { type: "shadow" },
@@ -715,7 +715,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       {d.behaviour?.ageing?.length ? (
         <Card
           title="Bellijst — welk geld zweeft er hoe lang, en bij wie"
-          hint={`Openstaand extern per ouderdomsblok, stand vandaag. Totaal ${formatCurrency(d.behaviour.ageingTotal)}. Norm ${d.behaviour.norm} dagen — klik een balk voor de klanten in dat blok.`}
+          hint={`Openstaand extern per ouderdomsblok, stand vandaag. Totaal ${formatCurrency(d.behaviour.ageingTotal)}. Norm ${d.behaviour.norm} dagen — klik een balk voor de klanten in dat blok. Bel de blokken 30–90 dagen: daar haal je het snelst cash binnen. Boven 180 dagen is het dossierwerk (dispuut, aanmaning, jurist), geen belwerk.`}
           source="Open klantfacturen (Cust_LedgerEntries, Open = true), gebucket op ouderdom = dagen sinds factuurdatum. Bedragen incl. btw, intercompany uitgesloten. Telefoon en e-mail komen van de klantenkaart in BC; waar ze leeg zijn, staan ze niet in BC ingevuld."
           right={
             <a
@@ -736,7 +736,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                   ariaLabel="Openstaand geld per ouderdomsblok"
                 />
               )}
-              <div className="mt-2 grid grid-cols-5 gap-1">
+              <div className="mt-2 grid grid-cols-3 gap-1 sm:grid-cols-6">
                 {d.behaviour.ageing.map((b, i) => (
                   <button
                     key={b.label}
