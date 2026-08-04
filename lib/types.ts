@@ -801,10 +801,19 @@ export interface CfoReceivables {
   factors: RcvFactorRow[];
   // Factoringkost gesplitst per CBN-advies 2011/23: commissie (kl. 61/613340) + rente/disconto (kl. 65/653x).
   factoringCost: { months: string[]; amounts: number[]; fee: number[]; interest: number[]; total12m: number };
-  // CRF-collectie-KPI's (crfonline.org): CEI (formule 3-0 geverifieerd), Best Possible DSO, Average Days Delinquent.
-  crfKpis: { cei: number | null; bpdso: number | null; add: number | null; note: string };
+  // CRF-collectie-KPI's (crfonline.org), PER MAAND berekend op `asOfMonth` (dezelfde
+  // maand als dsoNow) — niet op de stand van vandaag. cei12mAvg = gemiddelde van de
+  // laatste 12 maandwaarden; ceiSeries loopt gelijk met `months`.
+  crfKpis: {
+    cei: number | null; cei12mAvg: number | null; bpdso: number | null; add: number | null;
+    months: string[]; ceiSeries: (number | null)[]; asOfMonth: string; note: string;
+  };
   bounceBacks: { count: number; amount: number; note: string; examples: RcvInvoiceItem[] };
-  openInvoices: { total: number; overdue: number; items: RcvInvoiceItem[] }; // grootste open posten (drill)
+  // Open FACTUREN (bruto, extern) + IC apart + het grootboek-nettosaldo als aansluiting.
+  openInvoices: {
+    total: number; overdue: number; ic: number; netLedger: number;
+    items: RcvInvoiceItem[]; itemsShown: number; itemsTotal: number;
+  };
   cashExpectation: RcvCashWeekExpectation[];  // 13 weken verwachte inning
   icShare: { arOpenIcPct: number; salesIcPct: number };
   dataQuality: string[];                      // bv. INTERCO-dim ontbreekt bij X; beginbalans ontbreekt
@@ -827,7 +836,10 @@ export interface CfoVat {
   isLive: boolean;
   months: VatMonthRow[];                      // laatste 19 maanden (YoY-vergelijking mogelijk)
   ytd: { net: number; paid: number; recoverable: number; year: number };
-  prevYtd: { net: number; year: number };     // zelfde periode vorig jaar
+  // Zelfde periode vorig jaar. `matchedNet` = dit jaar over EXACT dezelfde
+  // kalendermaanden (`monthsCompared`), zodat de YoY appels-met-appels is: het
+  // datavenster van 19 maanden dekt vroege maanden van vorig jaar niet altijd.
+  prevYtd: { net: number; year: number; matchedNet?: number; monthsCompared?: string };
   perCompany: { code: string; ytdNet: number; ytdSaleVat: number; ytdPurchVat: number }[];
   icVat: { basePct: number; note: string };   // aandeel btw-basis met groeps-tegenpartij (VAT-match)
   vatUnit: { active: boolean; note: string };

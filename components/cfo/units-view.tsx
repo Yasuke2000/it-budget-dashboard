@@ -37,7 +37,7 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
     const top = taggedUnits.slice(0, 8);
     return {
       tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (v) => formatCurrency(Number(v)) },
-      legend: { data: top.map((x) => x.label), textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+      legend: { data: top.map((x) => x.label), textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10, type: "scroll" },
       grid: { top: 46, left: 6, right: 8, bottom: 20, containLabel: true },
       xAxis: { type: "category", data: u.months.map(fmtMonth), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
       yAxis: { type: "value", axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
@@ -64,7 +64,7 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
           return `${r.label} <span style="opacity:.6">${r.code}</span><br/>Getagde omzet: <b>${formatCurrency(r.revenue)}</b><br/>Getagde kosten: <b>${formatCurrency(r.costs)}</b><br/>${marge}`;
         },
       },
-      legend: { data: ["Getagde omzet", "Getagde kosten"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+      legend: { data: ["Getagde omzet", "Getagde kosten"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10, type: "scroll" },
       grid: { top: 28, left: 6, right: 14, bottom: 20, containLabel: true },
       xAxis: { type: "value", axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
       yAxis: { type: "category", inverse: true, data: rows.map((r) => r.label), axisLabel: { color: p.text, fontSize: 10, interval: 0 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
@@ -129,7 +129,7 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
         <Kpi label="Sterkste activiteit" value={best ? `${best.code} · ${best.activity}` : "—"} sub={best ? `${formatCurrencyCompact(best.result)} · ${best.marginPct}%` : undefined} tone="pos" />
         <Kpi label="Zwakste activiteit" value={worst ? `${worst.code} · ${worst.activity}` : "—"} sub={worst ? `${formatCurrencyCompact(worst.result)} · ${worst.marginPct}%` : undefined} tone={worst && worst.result < 0 ? "neg" : "neutral"} />
         <Kpi label="AFDELING-dekking" value={`${Math.round(100 - u.undimensioned.sharePct)}%`} sub={`${u.undimensioned.sharePct}% van het P&L-volume mist de dimensie (vooral GDI/overnames)`} tone={u.undimensioned.sharePct > 10 ? "warn" : "pos"} />
-        <Kpi label="CAPEX YTD" value={assets.data ? formatCurrencyCompact(assets.data.totals.acquisitionYtd) : "…"} sub={assets.data ? `boekwaarde ${formatCurrencyCompact(assets.data.totals.bookValue)}` : "vaste activa laden…"} />
+        <Kpi label="CAPEX YTD (netto)" value={assets.data ? formatCurrencyCompact(assets.data.totals.acquisitionYtd) : "…"} sub={assets.data ? `boekwaarde ${formatCurrencyCompact(assets.data.totals.bookValue)} · na correcties/desinvest.` : "vaste activa laden…"} />
       </div>
 
       <Card
@@ -169,6 +169,8 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
         </div>
         <p className="mt-2 rounded-lg bg-muted/60 p-2.5 text-[11px] leading-snug text-muted-foreground">
           Bedragen bruto (incl. intra-groep-omzet — zie kolom IC). Voor het geconsolideerde groepsbeeld: de eliminatie-kaart hieronder. Jaareinde-caveat: afschrijvingen/belastingen grotendeels op 31/12 geboekt.
+          {u.nonRecurringRev ? <> <b className="text-foreground">Niet-recurrent apart:</b> {formatCurrency(u.nonRecurringRev)} verkoop gebouwen (GPR, rekening 705200) is uit álle cijfers op deze pagina gehouden — anders zou dat ~18% van de &quot;omzet&quot; zijn en GPR een marge van 99% geven.</> : null}
+          {" "}Het venster loopt tot vandaag: recente omzet is nog niet volledig geboekt terwijl de kosten er al in zitten, dus de lopende maand drukt het resultaat.
         </p>
       </Card>
 
@@ -222,10 +224,16 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
                 <td className="px-2 py-1 text-right font-bold tabular-nums">{formatCurrency(u.consolidated.totals.costsNet)}</td>
               </tr>
               <tr className="border-t border-border">
-                <td className="px-2 py-2 font-bold text-foreground">EBITDA-benadering</td>
+                <td className="px-2 py-2 font-bold text-foreground">EBITDA <span className="font-normal text-muted-foreground">(vóór afschrijvingen)</span></td>
                 <td className="px-2 py-2 text-right font-bold tabular-nums">{formatCurrency(u.consolidated.totals.ebitdaGross)}</td>
                 <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">Δ {formatCurrency(u.consolidated.totals.ebitdaNet - u.consolidated.totals.ebitdaGross)}</td>
                 <td className={`px-2 py-2 text-right font-bold tabular-nums ${u.consolidated.totals.ebitdaNet >= 0 ? "text-positive" : "text-negative"}`}>{formatCurrency(u.consolidated.totals.ebitdaNet)}</td>
+              </tr>
+              <tr>
+                <td className="px-2 py-2 font-bold text-foreground">EBIT <span className="font-normal text-muted-foreground">(ná afschrijvingen)</span></td>
+                <td className="px-2 py-2 text-right font-bold tabular-nums">{formatCurrency(u.consolidated.totals.ebitGross)}</td>
+                <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">Δ {formatCurrency(u.consolidated.totals.ebitNet - u.consolidated.totals.ebitGross)}</td>
+                <td className={`px-2 py-2 text-right font-bold tabular-nums ${u.consolidated.totals.ebitNet >= 0 ? "text-positive" : "text-negative"}`}>{formatCurrency(u.consolidated.totals.ebitNet)}</td>
               </tr>
             </tbody>
           </table>

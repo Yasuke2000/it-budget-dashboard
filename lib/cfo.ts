@@ -164,7 +164,10 @@ function buildForecast(
   const start = mondayOf(today);
   const weeks: CfoCashWeek[] = [];
   let closing = openingCash;
-  let lowestClosing = openingCash, lowestWeekLabel = "start";
+  // Label van het laagste punt: default de eerste week, nooit het letterlijke woord
+  // "start" (dat leverde de melding "negatief kassaldo in start" op als het
+  // openingssaldo al negatief was — auditbevinding 04/08/2026).
+  let lowestClosing = openingCash, lowestWeekLabel = "wk 01";
   for (let w = 0; w < 13; w++) {
     const ws = addDays(start, w * 7), we = addDays(ws, 7);
     let inflow = 0, outflow = 0;

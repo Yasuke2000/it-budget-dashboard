@@ -181,7 +181,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
     const s = d.dso;
     return {
       tooltip: { trigger: "axis", valueFormatter: (v) => (v == null ? "—" : `${v} dagen`) },
-      legend: { data: ["DSO extern totaal", "DSO via factoring", "DSO niet-factoring", "DSO countback", "DPO (leveranciers)"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+      legend: { data: ["DSO extern totaal", "DSO via factoring", "DSO niet-factoring", "DSO countback", "DPO (leveranciers)"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10, type: "scroll" },
       grid: { top: 32, left: 6, right: 8, bottom: 20, containLabel: true },
       xAxis: { type: "category", data: s.months.map(fmtMonth), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
       yAxis: { type: "value", name: "dagen", nameTextStyle: { color: p.textMuted, fontSize: 9 }, axisLabel: { color: p.textMuted }, splitLine: { lineStyle: { color: p.grid } } },
@@ -210,7 +210,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
     if (years.length < 2) return null;
     return {
       tooltip: { trigger: "axis", valueFormatter: (v) => (v == null ? "—" : `${v} dagen`) },
-      legend: { data: years, textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+      legend: { data: years, textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10, type: "scroll" },
       grid: { top: 32, left: 6, right: 8, bottom: 20, containLabel: true },
       xAxis: { type: "category", data: ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"], axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
       yAxis: { type: "value", name: "dagen", nameTextStyle: { color: p.textMuted, fontSize: 9 }, axisLabel: { color: p.textMuted }, splitLine: { lineStyle: { color: p.grid } } },
@@ -258,7 +258,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           return `week ${weekRange(w?.weekStart || "")}<br/>${arr.map((x) => `${x.seriesName}: <b>${formatCurrency(x.value)}</b>`).join("<br/>")}<br/>totaal ${formatCurrency(tot)} · ${w?.count ?? 0} facturen`;
         },
       },
-      legend: { data: ["Naar factoring-klanten", "Overige externe klanten"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+      legend: { data: ["Naar factoring-klanten", "Overige externe klanten"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10, type: "scroll" },
       grid: { top: 32, left: 6, right: 8, bottom: 20, containLabel: true },
       xAxis: { type: "category", data: d.weekFlow.map((w) => fmtDM(w.weekStart)), axisLabel: { color: p.text, fontSize: 8.5, interval: 2 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
       yAxis: { type: "value", axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
@@ -280,7 +280,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           return `${w?.label ?? ""} · ${weekRange(w?.weekStart || "")}<br/>${arr.map((x) => `${x.marker}${x.seriesName}: <b>${formatCurrency(Number(x.value))}</b>`).join("<br/>")}`;
         },
       },
-      legend: { data: ["Verwacht (betaalgedrag)", "Op vervaldatum"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+      legend: { data: ["Verwacht (betaalgedrag)", "Op vervaldatum"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10, type: "scroll" },
       grid: { top: 32, left: 6, right: 8, bottom: 20, containLabel: true },
       // Exacte datums op de as (maandag van de week) — geen ambigu weeknummer.
       xAxis: { type: "category", data: d.cashExpectation.map((w) => fmtDM(w.weekStart)), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
@@ -322,7 +322,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           return `${fmtMonth(m.month)}<br/>Verschuldigd op verkopen: <b>${formatCurrency(m.saleVat)}</b><br/>Aftrekbaar op aankopen: <b>${formatCurrency(m.purchVat)}</b><br/>Saldo: <b>${formatCurrency(m.net)}</b> ${m.net >= 0 ? "(te betalen)" : "(te vorderen)"}`;
         },
       },
-      legend: { data: ["Saldo (te betalen / − te vorderen)"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+      legend: { data: ["Saldo (te betalen / − te vorderen)"], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10, type: "scroll" },
       grid: { top: 32, left: 6, right: 8, bottom: 20, containLabel: true },
       xAxis: { type: "category", data: v.months.map((m) => fmtMonth(m.month)), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
       yAxis: { type: "value", axisLabel: { color: p.textMuted, formatter: (vv: number) => eurAxis(vv) }, splitLine: { lineStyle: { color: p.grid } } },
@@ -352,7 +352,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           return `${fmtMonth(b.months[mi])}<br/>${lines.join("<br/>")}`;
         },
       },
-      legend: { data: brands, textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+      legend: { data: brands, textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10, type: "scroll" },
       grid: { top: 32, left: 6, right: 8, bottom: 20, containLabel: true },
       xAxis: { type: "category", data: b.months.map(fmtMonth), axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false } },
       yAxis: { type: "value", axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
@@ -432,7 +432,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
         <Kpi label="DPO" value={d.dsoNow.dpo != null ? `${d.dsoNow.dpo}d` : "—"} sub="leveranciers extern" />
         <Kpi label="Mediane betaaltijd" value={d.dsoInvoiceLevel.medianDays != null ? `${d.dsoInvoiceLevel.medianDays}d` : "—"} sub="factuur → geld (betaalde facturen)" />
         <Kpi label="Op tijd betaald" value={d.dsoInvoiceLevel.onTimePct != null ? `${d.dsoInvoiceLevel.onTimePct}%` : "—"} sub="van betaald volume, vs vervaldag" tone={d.dsoInvoiceLevel.onTimePct != null && d.dsoInvoiceLevel.onTimePct < 50 ? "warn" : "pos"} />
-        <Kpi label="Open klanten" value={formatCurrencyCompact(d.openInvoices.total)} sub={`${overduePct}% vervallen · incl. btw`} tone={overduePct > 40 ? "neg" : "neutral"} />
+        <Kpi label="Open klanten (extern)" value={formatCurrencyCompact(d.openInvoices.total)} sub={`${overduePct}% vervallen · incl. btw · IC apart ${formatCurrencyCompact(d.openInvoices.ic ?? 0)}`} tone={overduePct > 40 ? "neg" : "neutral"} />
         <Kpi label="Factoringkost 12m" value={formatCurrencyCompact(d.factoringCost.total12m)} sub="GL 613340 · excl. btw" />
       </div>
 
@@ -463,9 +463,14 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
         >
           {speedHist && <EChart option={speedHist} height={244} ariaLabel="Betaalsnelheid vs vervaldag" />}
           <div className="mt-3 grid grid-cols-3 gap-3">
-            <Kpi label="CEI (inningseffectiviteit)" value={d.crfKpis.cei != null ? `${d.crfKpis.cei}%` : "—"} sub="CRF-standaard · 100% = perfect · YTD" tone={d.crfKpis.cei != null && d.crfKpis.cei < 80 ? "warn" : "pos"} />
-            <Kpi label="Best Possible DSO" value={d.crfKpis.bpdso != null ? `${d.crfKpis.bpdso}d` : "—"} sub="DSO als iedereen op de vervaldag betaalde" />
-            <Kpi label="Achterstalligheid (ADD)" value={d.crfKpis.add != null ? `${d.crfKpis.add}d` : "—"} sub="DSO − BPDSO = zuivere vertraging" tone={d.crfKpis.add != null && d.crfKpis.add > 20 ? "warn" : "neutral"} />
+            <Kpi
+              label="CEI (inningseffectiviteit)"
+              value={d.crfKpis.cei != null ? `${d.crfKpis.cei}%` : "—"}
+              sub={`maand ${fmtMonth(d.crfKpis.asOfMonth)}${d.crfKpis.cei12mAvg != null ? ` · 12m-gem. ${d.crfKpis.cei12mAvg}%` : ""} · 100% = perfect`}
+              tone={d.crfKpis.cei == null ? "neutral" : d.crfKpis.cei >= 90 ? "pos" : d.crfKpis.cei >= 75 ? "neutral" : "warn"}
+            />
+            <Kpi label="Best Possible DSO" value={d.crfKpis.bpdso != null ? `${d.crfKpis.bpdso}d` : "—"} sub={`DSO als iedereen op de vervaldag betaalde · ${fmtMonth(d.crfKpis.asOfMonth)}`} />
+            <Kpi label="Achterstalligheid (ADD)" value={d.crfKpis.add != null ? `${d.crfKpis.add}d` : "—"} sub={`DSO − BPDSO = zuivere vertraging · ${fmtMonth(d.crfKpis.asOfMonth)}`} tone={d.crfKpis.add != null && d.crfKpis.add > 20 ? "warn" : "neutral"} />
           </div>
           <p className="mt-2 text-[10px] leading-snug text-muted-foreground">{d.crfKpis.note}</p>
         </Card>
@@ -549,7 +554,12 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       >
         {showOpenList && (
           <div className="mb-4 rounded-xl border border-border bg-background/40 p-2">
-            <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Grootste open posten · ↗ opent de post in Business Central</p>
+            <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {d.openInvoices.itemsShown ?? d.openInvoices.items.length} grootste van {d.openInvoices.itemsTotal ?? d.openInvoices.items.length} open posten (incl. IC-posten, gemarkeerd) · ↗ opent de post in Business Central
+            </p>
+            <p className="mb-1.5 px-1 text-[10px] leading-snug text-muted-foreground">
+              Extern open (facturen, bruto) {formatCurrency(d.openInvoices.total)} · intercompany {formatCurrency(d.openInvoices.ic ?? 0)} · grootboek-nettosaldo incl. IC {formatCurrency(d.openInvoices.netLedger ?? 0)} — het verschil zijn open creditnota&apos;s en betalingen zonder toewijzing.
+            </p>
             <InvoiceList items={d.openInvoices.items} emptyLabel="Geen open posten." />
           </div>
         )}
@@ -638,7 +648,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       {/* ---- BTW ---- */}
       <Card
         title="BTW-positie per maand"
-        hint={vat.data ? `YTD ${vat.data.ytd.year}: saldo ${formatCurrencyCompact(vat.data.ytd.net)} te betalen · zelfde periode ${vat.data.prevYtd.year}: ${formatCurrencyCompact(vat.data.prevYtd.net)}` : "BTW-posten worden geladen…"}
+        hint={vat.data ? `YTD ${vat.data.ytd.year}: saldo ${formatCurrencyCompact(Math.abs(vat.data.ytd.net))} ${vat.data.ytd.net >= 0 ? "te betalen" : "te vorderen"} · zelfde periode ${vat.data.prevYtd.year}: ${formatCurrencyCompact(Math.abs(vat.data.prevYtd.net))} ${vat.data.prevYtd.net >= 0 ? "te betalen" : "te vorderen"}` : "BTW-posten worden geladen…"}
         source="Btw_posten_Excel per btw-aangifteperiode (VAT_Reporting_Date): verschuldigde btw op verkopen − aftrekbare btw op aankopen = maandsaldo. Positief = te betalen aan de overheid, negatief = te vorderen. De groep werkt met een btw-eenheid — het saldo wordt op eenheidsniveau afgerekend."
       >
         {vat.building && <p className="flex items-center gap-2 py-8 text-center text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />BTW-posten worden opgehaald uit BC…</p>}
@@ -681,9 +691,17 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       {/* ---- aging-verificatie ---- */}
       <Card
         title="Verificatie — BC's eigen aged-rapporten vs dit dashboard"
-        hint={agingChk.data ? (agingChk.data.allGreen ? "Alles groen: beide wegen geven exact hetzelfde open saldo." : "Er zijn verschillen — zie de rode cellen.") : agingChk.building ? "Verificatie draait…" : "Verificatie laden…"}
+        hint={
+          agingChk.data
+            ? agingChk.data.allGreen
+              ? `Alles groen: beide wegen geven exact hetzelfde open saldo (${agingChk.data.comparisons ?? agingChk.data.rows.length}/${agingChk.data.rows.length} vennootschappen vergeleken).`
+              : agingChk.data.unchecked?.length
+                ? `NIET VOLLEDIG GECONTROLEERD: BC's rapport gaf geen antwoord voor ${agingChk.data.unchecked.join(", ")} — die rijen zijn onbekend, niet groen. Overige rijen: zie de Δ-kolommen.`
+                : "Er zijn verschillen — zie de rode cellen."
+            : agingChk.building ? "Verificatie draait…" : "Verificatie laden…"
+        }
         source={agingChk.data?.sources?.[0]?.detail || "agedAccountsReceivables/Payables (BC-rapport) vs som open klant-/leveranciersposten."}
-        right={agingChk.data?.allGreen ? <ShieldCheck className="h-4 w-4 text-positive" /> : undefined}
+        right={agingChk.data?.allGreen ? <ShieldCheck className="h-4 w-4 text-positive" /> : agingChk.data?.unchecked?.length ? <AlertTriangle className="h-4 w-4 text-warning" /> : undefined}
       >
         {agingChk.building && !agingChk.data && <p className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Beide wegen worden live herrekend…</p>}
         {agingChk.error && <p className="py-4 text-center text-xs text-warning">Verificatie kon niet draaien: {agingChk.error}</p>}
@@ -707,10 +725,10 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                     <td className="px-2 py-1 font-semibold text-foreground">{r.company}</td>
                     <td className="px-2 py-1 text-right tabular-nums">{r.arBcAged != null ? formatCurrency(r.arBcAged) : "—"}</td>
                     <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(r.arOwn)}</td>
-                    <td className={`px-2 py-1 text-right font-semibold tabular-nums ${r.arDelta != null && Math.abs(r.arDelta) > 1 ? "text-negative" : "text-positive"}`}>{r.arDelta != null ? formatCurrency(r.arDelta) : "—"}</td>
+                    <td className={`px-2 py-1 text-right font-semibold tabular-nums ${r.arDelta == null ? "text-muted-foreground" : Math.abs(r.arDelta) > 1 ? "text-negative" : "text-positive"}`} title={r.arDelta == null ? "BC-rapport gaf geen antwoord — niet gecontroleerd" : undefined}>{r.arDelta != null ? formatCurrency(r.arDelta) : "n.g."}</td>
                     <td className="px-2 py-1 text-right tabular-nums">{r.apBcAged != null ? formatCurrency(r.apBcAged) : "—"}</td>
                     <td className="px-2 py-1 text-right tabular-nums">{formatCurrency(r.apOwn)}</td>
-                    <td className={`px-2 py-1 text-right font-semibold tabular-nums ${r.apDelta != null && Math.abs(r.apDelta) > 1 ? "text-negative" : "text-positive"}`}>{r.apDelta != null ? formatCurrency(r.apDelta) : "—"}</td>
+                    <td className={`px-2 py-1 text-right font-semibold tabular-nums ${r.apDelta == null ? "text-muted-foreground" : Math.abs(r.apDelta) > 1 ? "text-negative" : "text-positive"}`} title={r.apDelta == null ? "BC-rapport gaf geen antwoord — niet gecontroleerd" : undefined}>{r.apDelta != null ? formatCurrency(r.apDelta) : "n.g."}</td>
                   </tr>
                 ))}
               </tbody>

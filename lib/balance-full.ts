@@ -13,7 +13,20 @@ import { fetchWithRetry } from "./http";
 import { getCache, setCache } from "./sync-cache";
 
 const r0 = (n: number) => Math.round(n);
-const num = (s: unknown): number => parseFloat(String(s ?? "0").replace(/,/g, "")) || 0;
+// BC levert deze bedragen als STRING met duizendscheiding ("1,089,138.27").
+// Strikt parsen: bij een onverwacht formaat (bv. een decimale komma na een
+// locale-wissel) zou "1089138,27" stil 108.913.827 worden — een balans 100× te
+// groot. Liever gooien dan een geloofwaardig fout getal tonen (audit 04/08/2026).
+const num = (s: unknown): number => {
+  if (typeof s === "number") return Number.isFinite(s) ? s : 0;
+  const raw = String(s ?? "").trim();
+  if (!raw) return 0;
+  if (!/^-?[\d,]*\.?\d*$/.test(raw)) {
+    throw new Error(`trialBalances: onverwacht getalformaat "${raw}" — parser afgestemd op 1,234.56 (punt = decimaal)`);
+  }
+  const v = parseFloat(raw.replace(/,/g, ""));
+  return Number.isFinite(v) ? v : 0;
+};
 
 export interface BalanceAccount { number: string; name: string; amount: number }
 export interface BalanceRubriek { key: string; label: string; amount: number; accountCount: number; accounts: BalanceAccount[] }
@@ -62,6 +75,7 @@ async function buildBalance(dateIso: string, exclude: string[]): Promise<CfoFull
     .filter((c) => isOperatingCompany(c.code) && !exclude.includes(c.code));
 
   const perRubriek = new Map<string, { label: string; side: "A" | "P"; byAccount: Map<string, { name: string; amount: number }> }>();
+  let postingRows = 0;
   for (const co of companies) {
     const url = `${API_ROOT}/companies(${co.id})/trialBalances?$filter=${encodeURIComponent(`dateFilter eq ${dateIso}`)}`;
     const res = await fetchWithRetry(url, { headers: { Authorization: `Bearer ${token}`, "Data-Access-Intent": "ReadOnly", Accept: "application/json" } }, { timeoutMs: 90_000, maxAttempts: 3 });
@@ -69,6 +83,7 @@ async function buildBalance(dateIso: string, exclude: string[]): Promise<CfoFull
     const d = await res.json() as { value?: Record<string, unknown>[] };
     for (const row of d.value || []) {
       if (String(row.accountType) !== "Posting") continue;
+      postingRows++;
       const nr = String(row.number || "");
       const rub = rubriekOf(nr);
       if (!rub) continue;
@@ -102,6 +117,12 @@ async function buildBalance(dateIso: string, exclude: string[]): Promise<CfoFull
       })
       .filter((x): x is BalanceRubriek => Boolean(x));
 
+  // Geen enkele boekingsrekening verwerkt? Dan is het veld `accountType` veranderd of
+  // gaf BC niets terug — een lege balans die als échte balans oogt is gevaarlijker dan
+  // een foutmelding (audit 04/08/2026).
+  if (!postingRows) {
+    throw new Error(`trialBalances gaf 0 boekingsrekeningen terug voor ${dateIso} (${companies.length} vennootschappen) — balans niet opgebouwd`);
+  }
   const assets = mkRows(RUBRIEK_ORDER_A, "A");
   const liabilities = mkRows(RUBRIEK_ORDER_P, "P");
   const totalAssets = r0(assets.reduce((s, r) => s + r.amount, 0));
@@ -114,7 +135,9 @@ async function buildBalance(dateIso: string, exclude: string[]): Promise<CfoFull
     ],
     notes: [
       "Activa − passiva zou ~0 moeten zijn ná resultaatverwerking; tijdens het jaar is Δ ≈ het nog niet toegewezen resultaat.",
-      "Intercompany is hier NIET geëlimineerd (statutaire brutobalans, som van de vennootschappen).",
+      "Intercompany is hier NIET geëlimineerd (statutaire brutobalans, som van de vennootschappen) — ook niet wanneer de IC-schakelaar op de cockpit aan staat.",
+      "Per rubriek worden de 10 grootste rekeningen getoond; het rubriektotaal en het aantal rekeningen gaan over álle rekeningen, dus de zichtbare rijen tellen niet op tot het totaal.",
+      "Een debetsaldo op een passiefrekening (bv. btw-R/C 494000 of een wachtrekening) verschijnt als negatief bedrag binnen zijn passiefrubriek; het balanstotaal blijft correct.",
     ],
   };
 }

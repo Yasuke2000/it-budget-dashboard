@@ -104,9 +104,13 @@ function buildWindow(today: Date): MonthWindow {
   return { keys, ends, daysIn };
 }
 
+// Paginering. De pagina-limiet is een runaway-beveiliging, GEEN stille afkapping:
+// bij het bereiken ervan gooien we, want stil afkappen is exact de klasse fout die
+// eerder €776k aan openstaande posten liet verdwijnen (de $top-les).
 async function pageAll(url: string, token: string, cb: (row: Record<string, unknown>) => void): Promise<void> {
+  const MAX_PAGES = 800;
   let next: string | null = url; let page = 0;
-  while (next && page < 800) {
+  while (next && page < MAX_PAGES) {
     const res: Response = await fetchWithRetry(next, {
       headers: { Authorization: `Bearer ${token}`, "Data-Access-Intent": "ReadOnly", Accept: "application/json" },
     }, { timeoutMs: 90_000, maxAttempts: 3 });
@@ -116,6 +120,7 @@ async function pageAll(url: string, token: string, cb: (row: Record<string, unkn
     next = data["@odata.nextLink"] || null;
     page++;
   }
+  if (next) throw new Error(`BC-paginering overschreed ${MAX_PAGES} pagina's — data zou stil afgekapt worden: ${url.slice(0, 120)}`);
 }
 
 // ============================================================
@@ -138,25 +143,31 @@ interface CompanyRcvBundle {
   factoringCost: Record<string, number>;            // maand → factorcommissie (613340, kl. 61)
   factoringInterest: Record<string, number>;        // maand → rente/disconto (653x, kl. 65 — CBN 2011/23)
   creditByCust: Record<string, number>;             // klantKey → som kredietlimieten (klantkaarten)
+  dimOk: boolean;                                   // false = dimensiepull mislukte (geen "AFDELING ontbreekt"-claim doen)
+  degraded: boolean;                                // true = fallback-veldenset gebruikt (open bedragen bruto benaderd)
   earliestEntry: string;                            // vroegste klantpost (beginbalans-check)
 }
 
 async function buildCompanyRcvBundle(
   co: { id: string; code: string }, win: MonthWindow, today: Date
 ): Promise<CompanyRcvBundle> {
-  const key = `rcv-co3-${co.code}-${win.keys[win.keys.length - 1]}`;
+  const key = `rcv-co4-${co.code}-${win.keys[win.keys.length - 1]}`;
   const cached = getCache<CompanyRcvBundle>(key);
   if (cached) return cached;
 
   const token = await getBCToken();
 
   // ---- 0a. Dimensiesets → AFDELING (business unit) per Dimension_Set_ID ----
+  // `dimOk` onderscheidt "de dimensie is niet ingevuld" van "de query mislukte" —
+  // zonder die vlag zou een netwerkfout een onterecht actiepunt naar finance sturen
+  // ("AFDELING ontbreekt"). Audit 04/08/2026.
   const buBySet: Record<number, string> = {};
+  let dimOk = true;
   try {
     await pageAll(`${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(co.code)}')/DimensionSetEntries?$filter=${encodeURIComponent("Dimension_Code eq 'AFDELING'")}&$select=Dimension_Set_ID,Dimension_Value_Code`, token, (e) => {
       buBySet[Number(e.Dimension_Set_ID) || 0] = String(e.Dimension_Value_Code || "");
     });
-  } catch { /* geen dimensiesets in deze firma */ }
+  } catch { dimOk = false; }
 
   // ---- 0b. Kredietlimieten van de klantkaarten (customersGT) ----
   const creditByNo: Record<string, number> = {};
@@ -209,10 +220,15 @@ async function buildCompanyRcvBundle(
       invoices.push(rec); invByEntry.set(rec.entryNo, rec);
     }
   };
+  let degraded = false;
   try {
     await pageAll(cleUrl, token, handleCle);
   } catch {
-    // Remaining_Amt_LCY niet in de projectie? Val terug op de bewezen veldenset (pull-dso).
+    // Val terug op de bewezen veldenset (pull-dso). LET OP: die mist Remaining_Amt_LCY,
+    // Customer_No en Dimension_Set_ID → open bedragen worden dan bruto benaderd
+    // (deelbetalingen niet verrekend), kredietlimieten en BU vallen weg. Dat mag
+    // NIET stil gebeuren: `degraded` zet een zichtbare datakwaliteitsmelding.
+    degraded = true;
     arRows.length = 0; invoices.length = 0; invByEntry.clear();
     const sel2 = "$select=Entry_No,Posting_Date,Document_Date,Due_Date,Document_Type,Amount_LCY,IC_Partner_Code,Open,Customer_Name,Document_No";
     await pageAll(`${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(co.code)}')/Cust_LedgerEntries?${sel2}`, token, handleCle);
@@ -303,6 +319,7 @@ async function buildCompanyRcvBundle(
   const bundle: CompanyRcvBundle = {
     code: co.code, arRows, apMonthly: { end: apEnd.map(r2), purch: apPurch.map(r2) },
     invoices, factorVolumeByCust, paidVolumeByCust, unapplied, factoringCost, factoringInterest, creditByCust, earliestEntry,
+    dimOk, degraded,
   };
   setCache(key, bundle, 720);
   return bundle;
@@ -586,15 +603,20 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   };
 
   // ---- open posten (drill) ----
-  let openTotal = 0, openOverdue = 0;
+  // Audit 04/08/2026: `total` was incl. intercompany terwijl de hele pagina extern
+  // rekent → de KPI stond ~€4,8M te hoog naast een externe DSO. Nu extern als
+  // hoofdcijfer, IC apart, en het grootboek-nettosaldo erbij voor de aansluiting
+  // (open FACTUREN zijn bruto: open creditnota's/betalingen-op-rekening netten pas
+  // in het saldo — dat verschil verklaarde de €2,9M kloof met de GL-controle).
+  let openTotal = 0, openOverdue = 0, openIc = 0;
   const openItems: RcvInvoiceItem[] = [];
   for (const b of bundles) for (const inv of b.invoices) {
     if (!inv.open) continue;
     const openAmt = inv.rem || inv.amt - inv.applied;
     if (Math.abs(openAmt) < 1) continue;
-    openTotal += openAmt;
+    if (inv.ic) openIc += openAmt; else openTotal += openAmt;
     const overdue = inv.due && inv.due < todayIso;
-    if (overdue) openOverdue += openAmt;
+    if (overdue && !inv.ic) openOverdue += openAmt;
     openItems.push({
       company: inv.co, customer: inv.rawCust, docNo: inv.doc, invDate: inv.invDate, dueDate: inv.due,
       amount: r0(openAmt), open: true, daysToPay: null,
@@ -628,33 +650,52 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   }
   for (const w of cashExpectation) { w.expected = r0(w.expected); w.onDueDate = r0(w.onDueDate); }
 
-  // ---- CRF-collectie-KPI's: CEI (formule 3-0 geverifieerd, crfonline.org), BPDSO, ADD ----
-  // CEI YTD = (beginAR + kredietverkopen/N − eind-totaal-AR) ÷ (beginAR + kredietverkopen/N − eind-CURRENT-AR) × 100
-  // "Current" = nog niet vervallen. Extern, incl. btw (consistent teller/noemer).
-  const decIdx = win.keys.indexOf(`${Number(win.keys[n - 1].slice(0, 4)) - 1}-12`);
-  let currentOpenExtern = 0;
-  for (const b of bundles) for (const inv of b.invoices) {
-    if (!inv.open || inv.ic) continue;
-    const openAmt = inv.rem || inv.amt - inv.applied;
-    if (openAmt > 0 && (!inv.due || inv.due >= todayIso)) currentOpenExtern += openAmt;
-  }
-  const curYear = win.keys[n - 1].slice(0, 4);
-  const ytdKeys = win.keys.filter((k) => k.startsWith(curYear) && k < win.keys[n - 1]); // volle maanden
-  const creditSalesYtd = ytdKeys.reduce((s, k) => s + salesExt[win.keys.indexOf(k)], 0);
-  const nMonths = Math.max(ytdKeys.length, 1);
-  const beginAR = decIdx >= 0 ? arExt[decIdx] : null;
-  const endTotalAR = arExt[n - 1];
-  let cei: number | null = null;
-  if (beginAR != null && creditSalesYtd > 0) {
-    const denom = beginAR + creditSalesYtd / nMonths - currentOpenExtern;
-    const numer = beginAR + creditSalesYtd / nMonths - endTotalAR;
-    if (denom > 0) cei = Math.round((numer / denom) * 1000) / 10;
-  }
-  const bpdso = salesExt[nowIdx] > 1000 ? r0((currentOpenExtern / salesExt[nowIdx]) * win.daysIn[nowIdx]) : null;
+  // ---- CRF-collectie-KPI's: CEI, Best Possible DSO, ADD ----
+  // Audit 04/08/2026: de CRF-formule met "kredietverkopen/N" is bedoeld voor een
+  // periode-equivalente MAAND. Toegepast op een groeiende YTD-periode (N loopt van 1
+  // naar 12) versterkt ze elke AR-drift met factor N en daalt de KPI structureel
+  // doorheen het jaar — onvergelijkbaar over de tijd. Daarom rekenen we de CEI nu
+  // PER MAAND (N=1) op dezelfde maand als de DSO, plus een 12-maands gemiddelde.
+  // Alles extern, incl. btw, en alle standen op HETZELFDE maandeinde als de noemer.
+  //
+  // "Niet vervallen op datum D" reconstrueren we uit de facturenset: een factuur stond
+  // op D open als ze geboekt was en (nog) niet volledig betaald, en was niet vervallen
+  // als haar vervaldag ná D lag. Deelbetalingen vóór D zijn niet reconstrueerbaar uit
+  // één paidAt — die benadering staat in de noot.
+  const notDueAt = (dateIso: string): number => {
+    let sum = 0;
+    for (const b of bundles) for (const inv of b.invoices) {
+      if (inv.ic || inv.amt <= 0) continue;
+      if (inv.invDate > dateIso) continue;                    // bestond nog niet
+      if (inv.paidAt && inv.paidAt <= dateIso) continue;      // was al betaald
+      if (inv.due && inv.due <= dateIso) continue;            // was al vervallen
+      sum += inv.amt;
+    }
+    return sum;
+  };
+  const ceiAt = (i: number): number | null => {
+    if (i < 1 || salesExt[i] <= 1000) return null;
+    const beginAR = arExt[i - 1];            // saldo einde vorige maand
+    const endTotal = arExt[i];               // saldo einde deze maand
+    const endCurrent = notDueAt(win.ends[i]);
+    const numer = beginAR + salesExt[i] - endTotal;
+    const denom = beginAR + salesExt[i] - endCurrent;
+    if (denom <= 0) return null;
+    const v = (numer / denom) * 100;
+    if (!Number.isFinite(v) || v < -50 || v > 150) return null;  // onzin-uitschieters niet tonen
+    return Math.round(v * 10) / 10;
+  };
+  const ceiSeries = win.keys.map((_, i) => (i <= nowIdx ? ceiAt(i) : null));
+  const ceiVals = ceiSeries.filter((x): x is number => x != null).slice(-12);
+  const cei = ceiSeries[nowIdx];
+  const cei12mAvg = ceiVals.length ? Math.round((ceiVals.reduce((s, x) => s + x, 0) / ceiVals.length) * 10) / 10 : null;
+  const notDueMature = notDueAt(win.ends[nowIdx]);
+  const bpdso = salesExt[nowIdx] > 1000 ? r0((notDueMature / salesExt[nowIdx]) * win.daysIn[nowIdx]) : null;
   const add = bpdso != null && dsoNow.total != null ? dsoNow.total - bpdso : null;
   const crfKpis = {
-    cei, bpdso, add,
-    note: "CRF-standaard (crfonline.org; CEI-formule 3-0 geverifieerd 04/08/2026). CEI ~100% = zeer effectieve inning. BPDSO = DSO als iedereen exact op de vervaldag betaalde (huidige niet-vervallen posten ÷ omzet laatste volle maand); ADD = DSO − BPDSO = het zuivere achterstalligheids-deel. 'Current' = stand vandaag; posten zonder vervaldag tellen als current.",
+    cei, cei12mAvg, bpdso, add, months: win.keys, ceiSeries,
+    asOfMonth: win.keys[nowIdx],
+    note: `CRF-standaard (crfonline.org), alle drie op dezelfde maand als de DSO (${win.keys[nowIdx]}) — niet op de stand van vandaag, zodat teller en noemer dezelfde periode meten. CEI = (AR begin maand + omzet maand − AR eind maand) ÷ (idem − niet-vervallen AR eind maand) × 100, per maand (N=1); ~100% = vrijwel alles wat inbaar was, is geïnd. BPDSO = niet-vervallen AR ÷ maandomzet × dagen = de DSO die je zou halen als élke klant exact op de vervaldag betaalde; ADD = DSO − BPDSO = het zuivere achterstalligheidsdeel. Benadering: de niet-vervallen stand op een historisch maandeinde is gereconstrueerd uit de facturen (deelbetalingen vóór die datum zijn niet reconstrueerbaar en tellen dus nog als open).`,
   };
 
   // ---- IC-aandeel + datakwaliteit ----
@@ -671,8 +712,16 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   ];
   const buAbsTotal = businessUnits.reduce((s, b) => s + Math.abs(b.invoiced12m), 0);
   const buNone = businessUnits.find((b) => b.code === "(geen)");
-  if (buNone && buAbsTotal && Math.abs(buNone.invoiced12m) / buAbsTotal > 0.9) {
-    dataQuality.push("Klantfacturen dragen (vrijwel) geen AFDELING-dimensie op de klantpost (live-check 03/08: ~alles '(geen)') — facturatie/DSO per business unit is daarom nog niet meetbaar. Omzet per unit komt wél correct uit het grootboek (pagina Business Units). Actiepunt finance: AFDELING op de verkoopboeking laten overerven.");
+  const dimFailed = bundles.filter((b) => b.dimOk === false).map((b) => b.code);
+  const degradedCos = bundles.filter((b) => b.degraded).map((b) => b.code);
+  if (dimFailed.length) {
+    // Geen "dimensie ontbreekt"-verwijt aan finance als de pull zélf mislukte.
+    dataQuality.push(`LET OP: de dimensie-pull (AFDELING) mislukte voor ${dimFailed.join(", ")} — de business-unit-verdeling van de facturatie is voor die firma('s) onbekend, niet leeg. Vernieuwen kan het verhelpen.`);
+  } else if (buNone && buAbsTotal && Math.abs(buNone.invoiced12m) / buAbsTotal > 0.9) {
+    dataQuality.push("Klantfacturen dragen (vrijwel) geen AFDELING-dimensie op de klantpost — facturatie/DSO per business unit is daarom nog niet meetbaar. Omzet per unit komt wél correct uit het grootboek (pagina Business Units). Actiepunt finance: AFDELING op de verkoopboeking laten overerven.");
+  }
+  if (degradedCos.length) {
+    dataQuality.push(`LET OP: voor ${degradedCos.join(", ")} moest een beperkte veldenset gebruikt worden (BC gaf de volledige projectie niet). Open bedragen zijn daar bruto benaderd — deelbetalingen zijn niet verrekend — en kredietlimieten ontbreken. Behandel de open-postenkolommen voor die firma('s) als indicatief tot een verse pull lukt.`);
   }
   for (const b of bundles) {
     if (b.earliestEntry > "2025-06-30" && b.earliestEntry < "9999") {
@@ -687,17 +736,20 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     { label: "DSO (balansmethode)", detail: "AR-eindsaldo maand ÷ gefactureerd die maand × dagen in de maand — per categorie. Teller én noemer incl. btw (dag-ratio is btw-neutraal). Zelfde methode als het gevalideerde DSO-Excel (jul 2026)." },
     { label: "DPO", detail: "VendorLedgerEntries (extern): AP-eindsaldo ÷ inkoopfacturen van de maand × dagen. Factuur-niveau DPO kan pas als finance/IT 'Detailed Vendor Ledger Entries' als webservice publiceert." },
     { label: "Factoringkosten", detail: "Gesplitst per CBN-advies 2011/23: factorcommissie op 613340 (klasse 61) + rente/disconto op 653x 'Discontokosten op vorderingen' (klasse 65), per maand, alle vennootschappen. LET OP: 653x kan ook niet-factoring-disconto bevatten." },
-    { label: "Collectie-KPI's (CRF)", detail: "Credit Research Foundation-standaard: CEI = (begin-AR + kredietverkopen/N − eind-AR-totaal) ÷ (begin-AR + kredietverkopen/N − eind-AR-current) × 100 (formule 3-0 geverifieerd op crfonline.org); Best Possible DSO = niet-vervallen posten ÷ omzet × dagen; ADD = DSO − BPDSO. Berekend op externe posten, YTD." },
+    { label: "Collectie-KPI's (CRF)", detail: `Credit Research Foundation-standaard, PER MAAND (N=1) berekend op de maand ${win.keys[nowIdx]} — dezelfde maand als de DSO, zodat teller en noemer één periode meten. CEI = (AR begin maand + omzet maand − AR eind maand) ÷ (idem − niet-vervallen AR eind maand) × 100; Best Possible DSO = niet-vervallen AR eind maand ÷ omzet maand × dagen; ADD = DSO − BPDSO. Externe posten, incl. btw. De YTD-variant met "kredietverkopen/N" is bewust NIET gebruikt: bij een groeiende N (1→12) versterkt die elke AR-drift met factor N en daalt de KPI structureel doorheen het jaar (auditbevinding 04/08/2026).` },
   ];
   const notes: string[] = [
     "LET OP factoring: de 'betaaldatum' in BC is de dag van de factor-afwikkeling, niet per se de dag dat de eindklant betaalde. De categorie 'extern via factoring' meet dus time-to-cash (wat telt voor liquiditeit), niet het gedrag van de eindklant.",
-    "Facturen van maand M worden tot ver in M+1 geboekt — de jongste maand groeit dus nog aan: haar facturatie stijgt en haar DSO-punt zakt nog. Daarom rekent de kop-KPI op de laatste VOLLEDIGE maand en is de allerlaatste maand in de grafieken indicatief.",
-    "Benchmark-context België (Intrum EPR 2025 / EU Late Payment Observatory 2025, bronnen niet formeel 3-stemmen-geverifieerd): gemiddelde wérkelijke B2B-betaaltermijn ±61 dagen (contractueel ±43d, wettelijk max 60d sinds 2022); transport & logistiek was in 2024 de slechtst betalende sector van België (±30% op tijd). Onze externe DSO van ±56d zit dus iets beter dan het Belgische gemiddelde; de ±101d bij niet-gefactorde klanten is ver boven elke norm.",
+    `Facturen van maand M worden tot ver in M+1 geboekt — de jongste maand groeit dus nog aan: haar facturatie stijgt en haar DSO-punt zakt nog. Daarom rekenen alle kop-KPI's op ${win.keys[nowIdx]} (de laatste maand die rijp genoeg is; vanaf de 25e van de maand schuift dat een maand op) en zijn de laatste punten in de grafieken indicatief. Ook de laatste balk van 'facturatie per week' is een lopende, onvolledige week.`,
+    `Benchmark-context België (Intrum EPR 2025 / EU Late Payment Observatory 2025, bronnen niet formeel 3-stemmen-geverifieerd): gemiddelde wérkelijke B2B-betaaltermijn ±61 dagen (contractueel ±43d, wettelijk max 60d sinds 2022); transport & logistiek was in 2024 de slechtst betalende sector van België (±30% op tijd). Onze externe DSO van ${dsoNow.total ?? "—"}d ligt daar${dsoNow.total != null && dsoNow.total < 61 ? " iets onder (gunstiger)" : " boven"}; de ${dsoNow.extOther ?? "—"}d bij niet-gefactorde klanten is ver boven elke norm.`,
     "De 15%-retentie (niet-voorgeschoten deel) en de werkelijke klantbetaling aan de factor staan NIET in BC — die zitten in de factor-portalen (KBC/Belfius/BNP). Actiepunt: maandelijkse factor-rapporten aanleveren om de retentie-doorlooptijd te meten.",
     "Bedragen op deze pagina zijn klantposten en dus INCL. btw (het te innen bedrag). Omzetcijfers in de P&L-cockpit zijn excl. btw — vergelijk niet 1-op-1.",
-    "Factoringkost toont enkel GL 613340 (invorderingskosten — €59k/12m op ±€54M afgewikkeld volume). De rente-/financieringscomponent zit vermoedelijk in klasse 65 (financiële kosten) — bevestiging finance nodig; de werkelijke totaalkost ligt dus hoger.",
-    "Open-postentotaal = open facturen + open creditnota's (genet). Openstaande vooruitbetalingen/betalingen zonder toewijzing vallen buiten deze lijst maar zitten wél in de verificatie-totalen (paneel onderaan) — klein blijvend verschil is dus verklaarbaar.",
-    excluded.length ? `Consolidatiescope: ${excluded.join(", ")} uitgesloten.` : "Alle 11 vennootschappen inbegrepen; intercompany is overal apart gehouden (categorie IC) of uitgesloten waar aangegeven.",
+    `Factoringkost = factorcommissie (613340, klasse 61) ${fcInterest.slice(-12).some((x) => x !== 0) ? "+ rente/disconto (653x, klasse 65)" : "+ rente/disconto (653x, klasse 65) — maar op 653x staat momenteel €0"}. CBN-advies 2011/23 schrijft die splitsing voor. ${fcInterest.slice(-12).every((x) => x === 0) ? "Dat er niets op 653x staat bij dit factoringvolume betekent vrijwel zeker dat de factor zijn rente inhoudt op de doorstortingen zonder aparte boeking — de werkelijke financieringskost is dan hoger dan wat hier staat. Openstaande vraag aan de accountant." : ""}`,
+    `Open posten (KPI + lijst) = open FACTUREN, extern, incl. btw. Open creditnota's en betalingen-zonder-toewijzing netten daar niet in; het grootboek-nettosaldo (AR-balans) staat er als aansluiting bij en is het cijfer dat de GL-controle bevestigt. Intercompany staat apart en zit NIET in het hoofdcijfer. Van ${openItems.length} open posten worden de ${Math.min(80, openItems.length)} grootste getoond.`,
+    `Verwachte inning: reeds vervallen posten staan volledig in week 1 (er is geen latere verwachte datum voor) — week 1 is daardoor structureel hoger dan een normale inningsweek en is géén prognose van één week cash.`,
+    excluded.length
+      ? `Consolidatiescope: ${excluded.join(", ")} uitgesloten (${bundles.length} vennootschappen in beeld).`
+      : `Alle ${bundles.length} vennootschappen inbegrepen; intercompany is overal apart gehouden (categorie IC) of uitgesloten waar aangegeven.`,
   ];
 
   return {
@@ -705,7 +757,12 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     periodNote: `betaalgedrag gemeten op betalingen sinds ${win.keys[0]}-01; facturatieflow laatste 26 weken`,
     isLive: true,
     dso, dsoNow, dsoInvoiceLevel, crfKpis, speedBuckets, customers, businessUnits, weekFlow, factors, factoringCost,
-    bounceBacks, openInvoices: { total: r0(openTotal), overdue: r0(openOverdue), items: openItems.slice(0, 80) },
+    bounceBacks,
+    openInvoices: {
+      total: r0(openTotal), overdue: r0(openOverdue), ic: r0(openIc),
+      netLedger: r0(arExt[n - 1] + arEndByCat.ic[n - 1]),
+      items: openItems.slice(0, 80), itemsShown: Math.min(80, openItems.length), itemsTotal: openItems.length,
+    },
     cashExpectation, icShare, dataQuality, sources, notes,
   };
 }
@@ -810,7 +867,12 @@ function demoReceivables(): CfoReceivables {
     dso,
     dsoNow: { total: 54, extFactoring: 49, extOther: 63, countback: 52, dpo: 48, asOfMonth: win.keys[n - 2] },
     dsoInvoiceLevel: { avgDays: 38, medianDays: 33, onTimePct: 41.5, note: "Voorbeelddata — bedrag-gewogen op volledig betaalde facturen." },
-    crfKpis: { cei: 87.4, bpdso: 34, add: 20, note: "Voorbeelddata — CRF-standaard (CEI/BPDSO/ADD)." },
+    crfKpis: {
+      cei: 92.4, cei12mAvg: 90.1, bpdso: 34, add: 20,
+      months: win.keys, ceiSeries: win.keys.map((_, i) => (i <= n - 2 ? 88 + ((i * 7) % 9) : null)),
+      asOfMonth: win.keys[n - 2],
+      note: "Voorbeelddata — CRF-standaard (CEI/BPDSO/ADD), per maand berekend.",
+    },
     speedBuckets: [
       { label: "Op tijd / te vroeg", amount: 9_400_000, count: 4210 },
       { label: "1–15d te laat", amount: 6_800_000, count: 3010 },
@@ -842,7 +904,8 @@ function demoReceivables(): CfoReceivables {
     },
     bounceBacks: { count: 34, amount: 412_000, note: "Voorbeeld — teruggeboekte toewijzingen laatste 12m.", examples: [] },
     openInvoices: {
-      total: 13_450_000, overdue: 4_820_000,
+      total: 13_450_000, overdue: 4_820_000, ic: 4_100_000, netLedger: 12_900_000,
+      itemsShown: 8, itemsTotal: 640,
       items: custNames.slice(0, 8).map((c, i) => ({
         company: ["GTR", "GDI", "WHS"][i % 3], customer: c, docNo: `812260${700 + i}`,
         invDate: iso(addDays(today, -20 - i * 9)), dueDate: iso(addDays(today, 10 - i * 9)),

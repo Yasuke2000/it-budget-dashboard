@@ -692,19 +692,23 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
     }
   }
 
-  const drillLine = (line: CfoPnlLine) => { resetGl(); setDrill({
+  // Kostenregels tonen hun magnitude (het label zegt al "kosten"); resultaat- en
+  // saldoregels houden hun TEKEN — een verlies of negatief financieel resultaat mag
+  // nooit als positief bedrag in de kop staan (auditbevinding 04/08/2026).
+  const drillTotal = (line: CfoPnlLine) => (line.kind === "expense" ? Math.abs(line.amount) : line.amount);
+  const drillLine = (line: CfoPnlLine, extraNote = "") => { resetGl(); setDrill({
     title: line.label,
     subtitle: line.pnlClass ? `PCMN-klasse ${line.pnlClass} · bron: Business Central grootboek` : "Subtotaal",
-    total: Math.abs(line.amount),
+    total: drillTotal(line),
     rows: line.accounts.map((a) => ({ label: `${a.accountNumber} · ${a.accountName}`, value: a.amount, accountNumber: a.accountNumber })),
-    note: line.accounts.length ? "De grootboekrekeningen die deze regel vormen — klik een rekening voor de individuele boekingen, met doorklik naar Business Central." : "Subtotaal — berekend uit de regels erboven.",
+    note: (line.accounts.length ? "De grootboekrekeningen die deze regel vormen — klik een rekening voor de individuele boekingen, met doorklik naar Business Central." : "Subtotaal — berekend uit de regels erboven.") + extraNote,
   }); };
   const onWaterfall = (p: EChartClick) => { if (typeof p.dataIndex === "number" && data.pnl[p.dataIndex]) drillLine(data.pnl[p.dataIndex]); };
   const onDonut = (p: EChartClick) => { const cls = (p.data as { _class?: string } | undefined)?._class; const line = data.pnl.find((l) => l.pnlClass === cls); if (line) drillLine(line); };
   // Aging-buckets drillen tot op de open post, met BC-deeplink per document.
   const bucketItems = (b: CfoAgingBucket) => (b.items || []).filter((it) => !eliminateIC || !it.ic);
-  const onApAging = (p: EChartClick) => { const b = data.apAging.find((x) => x.label === p.name); if (b) { resetGl(); setDrill({ title: `Leveranciers — ${b.label}`, subtitle: "Open leveranciersposten (VendorLedgerEntries)", total: agingVal(b), rows: b.extern != null ? [{ label: "Extern", value: b.extern }, { label: "Intercompany", value: b.amount - b.extern }] : [], items: bucketItems(b), itemsCount: b.itemCount, note: "Grootste open posten hieronder — ↗ opent de post in Business Central. Volledig detail: export 'Leveranciersaging'." }); } };
-  const onArAging = (p: EChartClick) => { const b = data.arAging?.find((x) => x.label === p.name); if (b) { resetGl(); setDrill({ title: `Klanten — ${b.label}`, subtitle: "Open verkoopfacturen (salesInvoices)", total: agingVal(b), rows: b.extern != null ? [{ label: "Extern", value: b.extern }, { label: "Intercompany", value: b.amount - b.extern }] : [], items: bucketItems(b), itemsCount: b.itemCount, note: "Grootste open facturen hieronder — ↗ opent de factuur in Business Central." }); } };
+  const onApAging = (p: EChartClick) => { const b = data.apAging.find((x) => x.label === p.name); if (b) { resetGl(); setDrill({ title: `Leveranciers — ${b.label}`, subtitle: "Open leveranciersposten (VendorLedgerEntries)", total: agingVal(b), rows: b.extern != null ? [{ label: "Extern", value: b.extern }, { label: "Intercompany", value: b.amount - b.extern }] : [], items: bucketItems(b), itemsCount: eliminateIC ? bucketItems(b).length : b.itemCount, note: "Grootste open posten hieronder — ↗ opent de post in Business Central. Volledig detail: export 'Leveranciersaging'." }); } };
+  const onArAging = (p: EChartClick) => { const b = data.arAging?.find((x) => x.label === p.name); if (b) { resetGl(); setDrill({ title: `Klanten — ${b.label}`, subtitle: "Open verkoopfacturen (salesInvoices)", total: agingVal(b), rows: b.extern != null ? [{ label: "Extern", value: b.extern }, { label: "Intercompany", value: b.amount - b.extern }] : [], items: bucketItems(b), itemsCount: eliminateIC ? bucketItems(b).length : b.itemCount, note: "Grootste open facturen hieronder — ↗ opent de factuur in Business Central." }); } };
   const onForecastWeek = (p: EChartClick) => {
     const f = data.cashForecast; if (!f || typeof p.dataIndex !== "number") return; const w = f.weeks[p.dataIndex]; if (!w) return;
     setDrill({ title: `Cashflow ${w.label} — ${fmtDM(w.weekStart)}`, subtitle: weekRange(w.weekStart), total: w.closing, rows: [{ label: "Inkomend (klanten)", value: w.inflow }, { label: "Uitgaand (leveranciers + loon)", value: -w.outflow }, { label: "Netto", value: w.net }, { label: "Verwacht eindsaldo", value: w.closing }], note: "Projectie op basis van vervaldata." });
@@ -746,9 +750,9 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
   };
 
   const onEntity = (e: CfoEntityRow) => setDrill({
-    title: e.companyName, subtitle: `${e.code} · operationeel resultaat`, total: e.revenue,
+    title: e.companyName, subtitle: `${e.code} · bedrijfsopbrengsten (bruto, incl. IC)`, total: e.revenue,
     rows: [{ label: "Bedrijfsopbrengsten", value: e.revenue }, { label: "Bedrijfskosten", value: -e.costs }, { label: "Resultaat (EBIT)", value: e.result }],
-    note: `Operationele marge ${e.marginPct}%`,
+    note: `Operationele marge ${e.marginPct}% · resultaat ${formatCurrency(e.result)}. Bedragen bruto per vennootschap; geconsolideerd beeld op Business Units.`,
   });
 
   const apShown = eliminateIC ? k.apOpenExtern : k.apOpen;
@@ -782,27 +786,33 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
       total: kind === "ap" ? apShown : arShown,
       rows: buckets.map((b) => ({ label: b.label, value: agingValue(b, eliminateIC) })),
       items: items.slice(0, 15),
-      itemsCount: buckets.reduce((s, b) => s + (b.itemCount ?? b.items?.length ?? 0), 0),
+      itemsCount: eliminateIC ? items.length : buckets.reduce((s, b) => s + (b.itemCount ?? b.items?.length ?? 0), 0),
       note: `Grootste open posten hieronder — ↗ opent de post in Business Central. Alle posten: export '${kind === "ap" ? "Leveranciersaging" : "Klantenaging"}' of klik een bucket in de grafiek.`,
     });
     scrollToDrill();
   };
   // IC-schakelaar AAN → P&L-tegels tonen de geconsolideerde cijfers (regel-gebaseerde
   // eliminatie). ΔPY verbergen we dan (vorig jaar is bruto — appels met peren).
-  const icOn = eliminateIC && Boolean(cons);
-  const net63 = cons?.byClass.find((r) => r.cls === "63")?.net ?? 0;
-  const ebitNet = cons ? cons.totals.ebitdaNet - net63 : 0;
+  // LET OP (audit 04/08/2026): /api/cfo/units rekent ALTIJD YTD. Bij een afwijkende
+  // periode zouden de tegels YTD-cijfers onder een kwartaal-label tonen — daarom
+  // consolideren we alleen in de YTD-stand en zeggen we het eerlijk buiten YTD.
+  const isYtdPeriod = /\(YTD\)/.test(data.period.label);
+  const icOn = eliminateIC && Boolean(cons) && isYtdPeriod;
+  const ebitNetVal = cons ? cons.totals.ebitNet : 0;
   const netResultNet = cons ? k.netResult - cons.icSymmetry.delta : 0; // netto − operationeel IC-effect
-  const icSub = (bruto: string) => (eliminateIC && !cons ? `${bruto} · IC-eliminatie laadt…` : bruto);
-  const icNote = eliminateIC
-    ? " LET OP: de drill-bedragen hieronder zijn bruto — de geconsolideerde opbouw per klasse staat op Business Units."
+  const icSub = (bruto: string) =>
+    eliminateIC && !isYtdPeriod ? `${bruto} · bruto (IC-eliminatie enkel in YTD)`
+      : eliminateIC && !cons ? `${bruto} · IC-eliminatie laadt…`
+        : bruto;
+  const icNote = icOn
+    ? " LET OP: de drill-bedragen hieronder zijn BRUTO (incl. intercompany) — de geconsolideerde opbouw per klasse staat op Business Units."
     : "";
   const kpis: { label: string; value: string; sub: string; icon: typeof Wallet; accent: string; ring: string; glow: string; delta?: number | null; onClick?: () => void }[] = [
     { label: "Bedrijfsopbrengsten", value: formatCurrencyCompact(icOn ? cons!.totals.revenueNet : k.revenue), sub: icOn ? `geconsolideerd · IC −${formatCurrencyCompact(cons!.totals.revenueIc)} · excl. btw` : icSub(`${data.period.label} · excl. btw`), icon: ArrowUpCircle, accent: "text-primary", ring: "ring-primary/20", glow: "from-primary/15", delta: icOn ? null : pct(k.revenue, py?.revenue),
-      onClick: () => { const l = data.pnl.find((x) => x.key === "revenue"); if (l) { drillLine(l); scrollToDrill(); } } },
-    { label: "EBITDA", value: formatCurrencyCompact(icOn ? cons!.totals.ebitdaNet : k.ebitda), sub: icOn ? "geconsolideerd (operationeel)" : icSub(`${k.revenue ? Math.round((k.ebitda / k.revenue) * 1000) / 10 : 0}% van omzet`), icon: Activity, accent: "text-warning", ring: "ring-warning/20", glow: "from-warning/15", delta: icOn ? null : pct(k.ebitda, py?.ebitda),
+      onClick: () => { const l = data.pnl.find((x) => x.key === "revenue"); if (l) { drillLine(l, icNote); scrollToDrill(); } } },
+    { label: "EBITDA", value: formatCurrencyCompact(icOn ? cons!.totals.ebitdaNet : k.ebitda), sub: icOn ? "geconsolideerd · vóór afschrijvingen" : icSub(`${k.revenue ? Math.round((k.ebitda / k.revenue) * 1000) / 10 : 0}% van omzet`), icon: Activity, accent: "text-warning", ring: "ring-warning/20", glow: "from-warning/15", delta: icOn ? null : pct(k.ebitda, py?.ebitda),
       onClick: () => drillKpiPnl("EBITDA — opbouw", ["revenue", "c60", "c61", "c62", "c64"], "EBITDA = bedrijfsopbrengsten − klassen 60/61/62/64 (afschrijvingen 63 vallen erbuiten). Klik een regel voor de rekeningen erachter." + icNote) },
-    { label: "EBIT", value: formatCurrencyCompact(icOn ? ebitNet : k.operatingResult), sub: icOn ? "geconsolideerd (operationeel)" : icSub(`marge ${k.operatingMarginPct}%`), icon: TrendingUp, accent: "text-positive", ring: "ring-positive/20", glow: "from-positive/15", delta: icOn ? null : pct(k.operatingResult, py?.ebit),
+    { label: "EBIT", value: formatCurrencyCompact(icOn ? ebitNetVal : k.operatingResult), sub: icOn ? "geconsolideerd · ná afschrijvingen" : icSub(`marge ${k.operatingMarginPct}%`), icon: TrendingUp, accent: "text-positive", ring: "ring-positive/20", glow: "from-positive/15", delta: icOn ? null : pct(k.operatingResult, py?.ebit),
       onClick: () => drillKpiPnl("EBIT — opbouw", ["revenue", "c60", "c61", "c62", "c64", "c63"], "EBIT = EBITDA − afschrijvingen (klasse 63). Klik een regel voor de rekeningen erachter." + icNote) },
     { label: "Nettoresultaat", value: formatCurrencyCompact(icOn ? netResultNet : k.netResult), sub: icOn ? "geconsolideerd operationeel · financieel/belastingen bruto" : icSub("na financieel & belastingen"), icon: Landmark, accent: "text-positive", ring: "ring-positive/20", glow: "from-positive/15", delta: icOn ? null : pct(k.netResult, py?.netResult),
       onClick: () => drillKpiPnl("Nettoresultaat — opbouw", ["revenue", "c60", "c61", "c62", "c64", "c63", "fin", "exc", "tax"], "Alle P&L-regels t/m nettoresultaat. Klik een regel voor de rekeningen, dan een rekening voor de boekingen met BC-link." + icNote) },
@@ -853,8 +863,8 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
             <p className="text-sm text-muted-foreground">
               {data.company === "all"
                 ? data.scope?.excluded.length
-                  ? `${data.scope.all.length - data.scope.excluded.length} van ${data.scope.all.length} vennootschappen · ${eliminateIC ? "geconsolideerd (IC geëlimineerd)" : "bruto (som firma's, incl. IC)"} · excl. ${data.scope.excluded.join(", ")}`
-                  : `Alle vennootschappen · ${eliminateIC ? "geconsolideerd (IC geëlimineerd)" : "bruto (som firma's, incl. IC)"}`
+                  ? `${data.scope.all.length - data.scope.excluded.length} van ${data.scope.all.length} vennootschappen · ${icOn ? "kerncijfers geconsolideerd (IC geëlimineerd); grafieken/balans bruto" : "bruto (som firma's, incl. IC)"} · excl. ${data.scope.excluded.join(", ")}`
+                  : `Alle vennootschappen · ${icOn ? "kerncijfers geconsolideerd (IC geëlimineerd); grafieken/balans bruto" : "bruto (som firma's, incl. IC)"}`
                 : `Vennootschap ${data.company}`} · {data.period.label} · P&L excl. btw, open posten incl. btw
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">

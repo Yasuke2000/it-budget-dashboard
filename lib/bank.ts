@@ -50,7 +50,7 @@ function monthKeys(today: Date, n: number): string[] {
 interface CoBank { accounts: BankAccountRow[]; monthly: Record<string, Record<string, { in: number; out: number }>> }
 
 async function buildCompanyBank(co: { id: string; code: string }, months: string[], todayIso: string): Promise<CoBank> {
-  const key = `bank-co1-${co.code}-${months[months.length - 1]}`;
+  const key = `bank-co2-${co.code}-${months[months.length - 1]}`;
   const cached = getCache<CoBank>(key);
   if (cached) return cached;
   const token = await getBCToken();
@@ -72,7 +72,10 @@ async function buildCompanyBank(co: { id: string; code: string }, months: string
     const pd = String(e.Posting_Date || "").slice(0, 10);
     if (!pd || pd > todayIso) return;
     const acc = String(e.Bank_Account_No || "?");
-    const amt = (e.Amount as number) || 0;
+    // Amount_LCY (euro) heeft voorrang op Amount (valuta van de rekening): anders
+    // zou een GBP/USD-rekening vreemde valuta bij euro's optellen en kon het saldo
+    // nooit op GL-klasse 55 aansluiten (audit 04/08/2026).
+    const amt = ((e.Amount_LCY as number) ?? (e.Amount as number)) || 0;
     const a = agg.get(acc) || { balance: 0, in12: 0, out12: 0 };
     a.balance += amt;
     if (pd >= floor12) { if (amt > 0) a.in12 += amt; else a.out12 += -amt; }
@@ -85,11 +88,15 @@ async function buildCompanyBank(co: { id: string; code: string }, months: string
       if (amt > 0) b.in += amt; else b.out += -amt;
     }
   };
-  // $select met terugval: veldnamen konden niet vooraf geverifieerd worden (throttle).
+  // $select met terugval. KRITIEK (audit 04/08/2026): de accumulators MOETEN gewist
+  // worden vóór de tweede poging — `handle` muteert ze tijdens het pagineren, dus een
+  // fout halverwege liet de eerste pagina's dubbel tellen (saldo's tot 5× te hoog).
   const base = `${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(co.code)}')/BankAccountLedgerEntries`;
   try {
-    await pageAllOData(`${base}?$select=Posting_Date,Bank_Account_No,Amount`, handle, token);
+    await pageAllOData(`${base}?$select=Posting_Date,Bank_Account_No,Amount,Amount_LCY`, handle, token);
   } catch {
+    agg.clear();
+    for (const k of Object.keys(monthly)) delete monthly[k];
     await pageAllOData(base, handle, token);
   }
 
@@ -142,8 +149,9 @@ async function buildBank(exclude: string[]): Promise<CfoBank> {
       { label: "Bankmutaties", detail: "BankAccountLedgerEntries (ODataV4), alle vennootschappen — de werkelijke bewegingen per bankrekening, geen tegenboekings-heuristiek. Saldo = som van alle mutaties (hoort aan te sluiten op GL-klasse 55)." },
     ],
     notes: [
-      "In = som van positieve mutaties, uit = negatieve; interne overboekingen tussen eigen rekeningen tellen dus aan beide kanten mee (bruto).",
-      "Factor-rekeningen (naam bevat 'Factor'/'FACTORING') staan als aparte merkgroep 'Factor'.",
+      "In = som van positieve mutaties, uit = negatieve; interne overboekingen tussen eigen rekeningen tellen dus aan beide kanten mee (bruto). Bedragen in euro (Amount_LCY).",
+      "Merkindeling gebeurt op de RÉKENINGNAAM in BC: 'Factor'/'FACTORING' → groep Factor, anders KBC/Belfius/BNP/ING/bpost/Kas/Overig. Een factorrekening die dat woord niet in haar naam heeft, komt dus bij de gewone bank terecht — namen nakijken bij twijfel.",
+      "Saldo = som van álle mutaties op de rekening (dus het echte banksaldo). Aansluiting op GL-klasse 55 geldt alleen voor de eigenlijke bankrekeningen: factoring- en kredietrekeningen boeken via een eigen boekingsgroep naar een andere GL-rekening, en 'Kas' is geen bank. Het totaal 'cash nu' bevat álle rekeningen incl. Factor en Kas.",
     ],
   };
 }
@@ -169,4 +177,4 @@ function demoBank(): CfoBank {
   };
 }
 
-export const getBank = makePolledGetter<CfoBank>("bank-v1", buildBank, demoBank);
+export const getBank = makePolledGetter<CfoBank>("bank-v2", buildBank, demoBank);

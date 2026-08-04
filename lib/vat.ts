@@ -65,10 +65,11 @@ interface CompanyVatBundle {
   code: string;
   months: Record<string, { saleBase: number; saleVat: number; purchBase: number; purchVat: number; nonDed: number; icBase: number; allBase: number }>;
   paidByMonth: Record<string, number>; // 494000: bankbetalingen aan de overheid
+  paidOk: boolean;                     // false = de 494000-pull mislukte (paid is dan onbekend, niet 0)
 }
 
 async function buildCompanyVat(co: { id: string; code: string }, keys: string[], today: Date): Promise<CompanyVatBundle> {
-  const cacheKey = `vat-co1-${co.code}-${keys[keys.length - 1]}`;
+  const cacheKey = `vat-co2-${co.code}-${keys[keys.length - 1]}`;
   const cached = getCache<CompanyVatBundle>(cacheKey);
   if (cached) return cached;
 
@@ -95,18 +96,26 @@ async function buildCompanyVat(co: { id: string; code: string }, keys: string[],
   );
 
   // Echte betalingen: 494000-debets uit een bankdagboek (memoriaal-docs beginnen met "D").
+  // Werkelijke betalingen aan de overheid. LET OP (audit 04/08/2026): een mislukte pull
+  // mocht niet stil als "geen betalingen" gelden — dat zette `ytd.paid` te laag en ging
+  // 12u de cache in. `paidOk` maakt het zichtbaar.
   const paidByMonth: Record<string, number> = {};
+  let paidOk = true;
   try {
     const gl = await fetchBCLedgerByAccounts(co.id, floor, today.toISOString().slice(0, 10), ["494000"]);
     for (const g of gl) {
       const doc = String(g.documentNumber || "");
-      if (/^D/i.test(doc)) continue; // centralisatie/memoriaal — geen cash
+      const dt = String(g.documentType || "");
+      // Memoriaal-centralisaties ("D01-26-0120 BTW Centralisatie") zijn geen cash.
+      // Primair op documentType (Payment) wanneer BC dat vult; anders de D-heuristiek.
+      const isPayment = dt === "Payment";
+      if (!isPayment && /^D/i.test(doc)) continue;
       const k = String(g.postingDate || "").slice(0, 7);
       paidByMonth[k] = (paidByMonth[k] || 0) + (((g.debitAmount as number) || 0) - ((g.creditAmount as number) || 0));
     }
-  } catch { /* geen 494000 in deze firma */ }
+  } catch { paidOk = false; }
 
-  const bundle: CompanyVatBundle = { code: co.code, months, paidByMonth };
+  const bundle: CompanyVatBundle = { code: co.code, months, paidByMonth, paidOk };
   setCache(cacheKey, bundle, 720);
   return bundle;
 }
@@ -126,18 +135,27 @@ function combineVat(bundles: CompanyVatBundle[], keys: string[], today: Date): C
     };
   });
 
-  const ytdMonths = rows.filter((r) => r.month.startsWith(String(curYear)) && r.month <= lastFull);
-  const pyMonths = rows.filter((r) => {
-    const py = String(curYear - 1);
-    return r.month.startsWith(py) && r.month.slice(5) <= lastFull.slice(5);
-  });
+  // Rapportagejaar = het jaar van de laatste afgesloten aangiftemaand. In januari is
+  // dat het VORIGE jaar; anders zou de YTD-tabel leeg zijn (curYear-maanden ≤ "vorig
+  // jaar-12" bestaan niet) naast een volledige vorig-jaar-kolom. Audit 04/08/2026.
+  const repYear = Number(lastFull.slice(0, 4));
+  const ytdMonths = rows.filter((r) => r.month.startsWith(String(repYear)) && r.month <= lastFull);
+  // YoY alleen op maanden die ÉCHT in het venster zitten: het venster is 19 maanden,
+  // dus vanaf augustus valt januari van vorig jaar erbuiten. Vergelijk daarom alleen
+  // de overlappende kalendermaanden en zeg welke dat zijn — anders leest een halve
+  // vorig-jaar-periode als een daling van 50%.
+  const pyYear = String(repYear - 1);
+  const pyMonths = rows.filter((r) => r.month.startsWith(pyYear) && r.month.slice(5) <= lastFull.slice(5));
+  const pyMonthNums = new Set(pyMonths.map((r) => r.month.slice(5)));
+  const ytdMatched = ytdMonths.filter((r) => pyMonthNums.has(r.month.slice(5)));
   const paidYtd = bundles.reduce((s, b) =>
-    s + Object.entries(b.paidByMonth).filter(([k]) => k.startsWith(String(curYear))).reduce((x, [, v]) => x + v, 0), 0);
+    s + Object.entries(b.paidByMonth).filter(([k]) => k.startsWith(String(repYear)) && k <= lastFull).reduce((x, [, v]) => x + v, 0), 0);
+  const paidIncomplete = bundles.filter((b) => b.paidOk === false).map((b) => b.code);
 
   const perCompany = bundles.map((b) => {
     let net = 0, sale = 0, purch = 0;
     for (const [k, m] of Object.entries(b.months)) {
-      if (!k.startsWith(String(curYear)) || k > lastFull) continue;
+      if (!k.startsWith(String(repYear)) || k > lastFull) continue;
       net += m.saleVat - m.purchVat; sale += m.saleVat; purch += m.purchVat;
     }
     return { code: b.code, ytdNet: r0(net), ytdSaleVat: r0(sale), ytdPurchVat: r0(purch) };
@@ -147,7 +165,7 @@ function combineVat(bundles: CompanyVatBundle[], keys: string[], today: Date): C
   // relevant voor de vraag "wat zou een (actieve) btw-eenheid aan voorfinanciering schelen".
   let icBase = 0, allBase = 0;
   for (const b of bundles) for (const [k, m] of Object.entries(b.months)) {
-    if (!k.startsWith(String(curYear)) || k > lastFull) continue;
+    if (!k.startsWith(String(repYear)) || k > lastFull) continue;
     icBase += m.icBase; allBase += m.allBase;
   }
 
@@ -156,11 +174,14 @@ function combineVat(bundles: CompanyVatBundle[], keys: string[], today: Date): C
 
   const sources: CfoSource[] = [
     { label: "BTW-posten", detail: "Btw_posten_Excel per btw-aangifteperiode (VAT_Reporting_Date), alle vennootschappen. Verkoop-btw = verschuldigd, aankoop-btw = aftrekbaar; saldo per maand = verschuldigd − aftrekbaar (positief = te betalen)." },
-    { label: "Betalingen aan de overheid", detail: "GL 494000 'BTW R/C': debet-boekingen uit een bankdagboek (documenten die NIET met 'D' beginnen — de 'BTW Centralisatie'-memorialen wél). Dit is de werkelijke cash-out." },
+    { label: "Betalingen aan de overheid", detail: "GL 494000 'BTW R/C', nettobeweging (debet − credit) van posten die als betaling gelden: documenttype 'Payment', of — waar BC dat type niet vult — elk document dat NIET met 'D' begint (de 'BTW Centralisatie'-memorialen doen dat wél). Het grootboek-endpoint geeft geen dagboekcode terug, dus dit is een documentregel-benadering en geen echte dagboekfilter." },
     { label: "IC-aandeel", detail: "Aandeel van de btw-maatstaf (|Base|) waarvan de tegenpartij een eigen groeps-btw-nummer draagt (Enterprise_No-match op de 11 gekende nummers)." },
   ];
   const notes: string[] = [
     `Laatste volledige aangiftemaand: ${lastFull}. De lopende maand staat wel in de grafiek maar is onvolledig.`,
+    `Vergelijking met vorig jaar gebeurt op exact dezelfde kalendermaanden (${pyMonths.map((r) => r.month.slice(5)).sort().join("+") || "geen"}): het datavenster is 19 maanden, dus vroege maanden van vorig jaar vallen er later in het jaar buiten. Zonder die beperking zou een halve vorig-jaar-periode als een daling lezen.`,
+    ...(paidIncomplete.length ? [`LET OP: de betalingsgegevens (GL 494000) konden niet opgehaald worden voor ${paidIncomplete.join(", ")} — "betaald YTD" is daardoor onvolledig, niet nul.`] : []),
+    "'Verschuldigd YTD' loopt t/m de laatste afgesloten aangiftemaand; 'betaald YTD' is de cash die in datzelfde tijdvak wegging. Een aangifte wordt de maand ná de periode betaald, dus de twee lopen structureel één periode uit fase — vergelijk ze niet als saldo.",
     "De ESCJ-btw-eenheid-velden (pull naar eenheid) staan leeg op de posten — consolidatie/aangifte lijkt per vennootschap te lopen. Bevestigen met finance hoe de btw-eenheid in de praktijk afrekent.",
     "Niet-aftrekbare btw zit als kost in de P&L (rekening 640200 e.a.) en niet in het saldo hier.",
   ];
@@ -169,8 +190,13 @@ function combineVat(bundles: CompanyVatBundle[], keys: string[], today: Date): C
     asOf: new Date().toISOString(),
     isLive: true,
     months: rows,
-    ytd: { net: r0(ytdMonths.reduce((s, r) => s + r.net, 0)), paid: r0(paidYtd), recoverable: r0(recoverable), year: curYear },
-    prevYtd: { net: r0(pyMonths.reduce((s, r) => s + r.net, 0)), year: curYear - 1 },
+    ytd: { net: r0(ytdMonths.reduce((s, r) => s + r.net, 0)), paid: r0(paidYtd), recoverable: r0(recoverable), year: repYear },
+    // YoY op exact dezelfde kalendermaanden aan beide kanten (zie pyMonths hierboven).
+    prevYtd: {
+      net: r0(pyMonths.reduce((s, r) => s + r.net, 0)), year: repYear - 1,
+      matchedNet: r0(ytdMatched.reduce((s, r) => s + r.net, 0)),
+      monthsCompared: pyMonths.map((r) => r.month.slice(5)).sort().join("+"),
+    },
     perCompany,
     icVat: {
       basePct: allBase ? Math.round((icBase / allBase) * 1000) / 10 : 0,
@@ -230,7 +256,7 @@ export async function getVat(
 ): Promise<CfoVat | (VatState & { isLive: boolean })> {
   if (isDemoMode()) return demoVat();
   const excl = [...new Set(exclude.map((x) => x.trim().toUpperCase()).filter(Boolean))].sort();
-  const cacheKey = `vat-v1-x:${excl.join(",")}`;
+  const cacheKey = `vat-v2-x:${excl.join(",")}`;
   const cached = getCache<CfoVat>(cacheKey);
   if (cached && !force) return cached;
 

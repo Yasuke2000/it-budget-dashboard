@@ -64,12 +64,11 @@ async function buildCompanyAssets(co: { id: string; code: string }, year: number
     if (!seen.has(fa)) { seen.add(fa); row.count++; faSeen.set(k, seen); }
     agg.set(k, row);
   };
+  // Eén pull, geen stille terugval: een tweede poging op dezelfde accumulators liet de
+  // al verwerkte pagina's dubbel tellen (boekwaarde/CAPEX te hoog, terwijl `count`
+  // door de dedupe wél klopte — dus vrijwel onzichtbaar). Audit 04/08/2026.
   const base = `${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(co.code)}')/FALedgerEntries`;
-  try {
-    await pageAllOData(`${base}?$select=FA_No,FA_Posting_Type,Posting_Date,Amount`, handle, token);
-  } catch {
-    await pageAllOData(base, handle, token); // veldnamen niet vooraf verifieerbaar → volledige rijen
-  }
+  await pageAllOData(`${base}?$select=FA_No,FA_Posting_Type,Posting_Date,Amount`, handle, token);
   const bundle: CoAssets = { rows: [...agg.values()] };
   setCache(key, bundle, 720);
   return bundle;
@@ -106,8 +105,12 @@ async function buildAssets(exclude: string[]): Promise<CfoAssets> {
     sources: [
       { label: "Vaste activa", detail: "FALedgerEntries + fixedAssets (klasse/subklasse van de activakaart). Boekwaarde = som van alle FA-boekingen t/m vandaag; CAPEX = aanschaffingsboekingen dit jaar; afschrijving = afschrijvingsboekingen dit jaar. De subklasse volgt de balansrekening (bv. 210000)." },
     ],
-    notes: ["Activa zonder kaartkoppeling staan onder klasse '?'.",
-      "LET OP: afschrijvingen worden bij Gheeraert grotendeels op jaareinde geboekt — YTD-afschrijving kan dus laag ogen (zelfde caveat als de cockpit-P&L)."],
+    notes: [
+      "Activa zonder kaartkoppeling staan onder klasse '?' (als de activakaart-lijst niet geladen kon worden, valt álles daar in — dan is de indeling onbekend, niet leeg).",
+      "LET OP: afschrijvingen worden bij Gheeraert grotendeels op jaareinde geboekt — YTD-afschrijving kan dus laag ogen (zelfde caveat als de cockpit-P&L).",
+      "CAPEX en afschrijving zijn NETTO: correcties en tegenboekingen bij verkoop verlagen het cijfer, dus dit is geen bruto-investeringsbedrag. Boekwaarde = som van alle FA-boekingen, niet BC's eigen boekwaardeveld — desinvesteringen (Proceeds/Gain-Loss) zitten er dus in. Nog te verifiëren met finance: of er per vennootschap méér dan één afschrijvingsboek bestaat (commercieel + fiscaal); zo ja, dan tellen alle bedragen dubbel.",
+      "Aantal activa = elke activakaart met minstens één boeking, dus inclusief volledig afgeschreven en verkochte activa — geen maat voor de actieve vloot.",
+    ],
   };
 }
 

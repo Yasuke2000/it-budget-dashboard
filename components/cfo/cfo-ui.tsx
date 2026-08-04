@@ -45,6 +45,8 @@ export function usePolledData<T>(url: string): { data: T | null; building: boole
   const [tick, setTick] = useState(0);
   const [force, setForce] = useState(false);
 
+  // `force` geldt voor precies één ronde: anders zou elke volgende url-wijziging
+  // opnieuw een zware herbouw forceren (auditbevinding 04/08/2026).
   const reload = useCallback((f = false) => { setForce(f); setTick((t) => t + 1); }, []);
 
   useEffect(() => {
@@ -69,6 +71,7 @@ export function usePolledData<T>(url: string): { data: T | null; building: boole
       }
     }
     run(force);
+    if (force) setForce(false);
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [url, tick, force]);
 

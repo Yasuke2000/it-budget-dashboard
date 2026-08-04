@@ -50,11 +50,17 @@ export function ConsolidatedCard({ excluded }: { excluded: string[] }) {
                 <td className="px-2 py-1.5 text-right tabular-nums text-primary">− {formatCurrencyCompact(t.costsIc)}</td>
                 <td className="px-2 py-1.5 text-right font-bold tabular-nums">{formatCurrencyCompact(t.costsNet)}</td>
               </tr>
-              <tr>
-                <td className="px-2 py-1.5 font-bold text-foreground">EBITDA-benadering</td>
+              <tr className="border-b border-border/40">
+                <td className="px-2 py-1.5 font-bold text-foreground">EBITDA <span className="font-normal text-muted-foreground">(vóór afschr.)</span></td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrencyCompact(t.ebitdaGross)}</td>
                 <td className="px-2 py-1.5 text-right text-[10px] text-muted-foreground">Δ {formatCurrencyCompact(t.ebitdaNet - t.ebitdaGross)}</td>
                 <td className={`px-2 py-1.5 text-right font-bold tabular-nums ${t.ebitdaNet >= 0 ? "text-positive" : "text-negative"}`}>{formatCurrencyCompact(t.ebitdaNet)}</td>
+              </tr>
+              <tr>
+                <td className="px-2 py-1.5 font-bold text-foreground">EBIT <span className="font-normal text-muted-foreground">(ná afschr.)</span></td>
+                <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrencyCompact(t.ebitGross)}</td>
+                <td className="px-2 py-1.5 text-right text-[10px] text-muted-foreground">Δ {formatCurrencyCompact(t.ebitNet - t.ebitGross)}</td>
+                <td className={`px-2 py-1.5 text-right font-bold tabular-nums ${t.ebitNet >= 0 ? "text-positive" : "text-negative"}`}>{formatCurrencyCompact(t.ebitNet)}</td>
               </tr>
             </tbody>
           </table>
