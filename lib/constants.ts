@@ -62,13 +62,46 @@ export const IT_VENDOR_RULES: Record<string, string> = {
   // 2026-06 spend audit. Captured by name so their spend counts as IT without
   // mapping all of 613300 (which is dominated by intercompany + management fees).
   allphi: "External IT Services",         // outsourced dev/MSP partner (~€154k/yr)
-  "just-fix-it": "External IT Services",   // IT support (~€33k/yr, booked to 613300)
+  // "just-fix-it" IS HIER BEWUST WEGGEHAALD (05/08/2026, vraag Peter/Bert).
+  // De naam suggereert IT, maar de boekingen zeggen iets anders: alle facturen
+  // staan bij Warehouse BV op 613300 met dimensie DISTR en als omschrijving
+  // "02/26 > prestaties Julie", "04/2026", … — de maanduren van Julie De Rudder
+  // op Depot Kuurne, dus operationele kost. YTD 2026: €33.190 die onterecht in
+  // de IT-spend zat (5,2% van het totaal). Het énige echt-IT stuk van deze
+  // leverancier (AF26050200, "Herstelling 3 tablets", €585) staat op 611120
+  // "Onderhoud computer hardware" — een gemapte IT-rekening — en blijft dus
+  // gewoon meegeteld zonder dat de allowlist eraan te pas komt.
   "gmi group": "External IT Services",     // IT services (also booked to 611130)
   connectify: "Telecom",                   // 3CX telephony / IT-telecom (~€5.3k/yr, booked to 611110)
   ubiquiti: "Hardware (Purchases)",        // UniFi networking gear (booked to 611011)
   cybercontract: "Security",               // cyber-insurance / -compliance (booked to 614400)
   alpega: "Operational Software",          // freight/TMS software platform (booked to 612500)
 };
+
+// Rekeningen waarop een allowlist-leverancier NIET als IT telt. Nodig omdat de
+// allowlist op NAAM matcht en dus niet kan weten wát er geleverd is: een echte
+// IT-leverancier levert soms iets anders. Vastgesteld op de live boekingen
+// (05/08/2026): iDocta levert printers en toners (613300 — terecht IT) maar óók
+// "04/06 Pallet papier > Mortierhoek" en "Black Label Zero / 1 pallet" op 612300
+// Kantoorbenodigdheden — dat is papier, geen IT. Canon-printers op diezelfde 612300
+// blijven wél tellen, want die beperking geldt per leverancier.
+// Sleutel = genormaliseerd leverancierspatroon, waarde = rekeningen om te negeren.
+export const IT_VENDOR_ACCOUNT_EXCLUSIONS: Record<string, string[]> = {
+  idocta: ["612300"], // pallets papier / kantoorbenodigdheden — printers staan op 613300
+};
+
+/** True als deze allowlist-leverancier op déze rekening niet als IT mag tellen. */
+export function isVendorAccountExcluded(
+  vendorName: string,
+  accountNumber: string,
+  exclusions: Record<string, string[]> = IT_VENDOR_ACCOUNT_EXCLUSIONS,
+): boolean {
+  const v = normalizeVendor(vendorName);
+  for (const [pattern, accounts] of Object.entries(exclusions)) {
+    if (v.includes(normalizeVendor(pattern)) && accounts.includes(accountNumber)) return true;
+  }
+  return false;
+}
 
 // Group entities — when one of these is the *vendor* on an invoice it's an
 // intercompany recharge / self-billing, not third-party IT spend. Excluded from

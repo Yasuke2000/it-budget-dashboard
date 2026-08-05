@@ -33,7 +33,7 @@ import type {
   LicenseHarvest,
 } from "./types";
 import type { PeppolInvoice } from "./peppol-parser";
-import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, CONCENTRATION_WATCH_THRESHOLD, DEFAULT_GL_MAPPING, IT_VENDOR_RULES, UNCLASSIFIED_CATEGORY, ALLOWLIST_SCAN_ACCOUNTS, OPERATIONAL_SOFTWARE_VENDORS, OPERATIONAL_SOFTWARE_CATEGORY, isITCategory, isToolsSpendCategory, isIntercompanyVendor, isOperationalSoftwareVendor, normalizeVendor } from "./constants";
+import { CATEGORY_COLORS, CONCENTRATION_RISK_THRESHOLD, CONCENTRATION_WATCH_THRESHOLD, DEFAULT_GL_MAPPING, IT_VENDOR_RULES, UNCLASSIFIED_CATEGORY, ALLOWLIST_SCAN_ACCOUNTS, OPERATIONAL_SOFTWARE_VENDORS, OPERATIONAL_SOFTWARE_CATEGORY, isITCategory, isToolsSpendCategory, isIntercompanyVendor, isOperationalSoftwareVendor, normalizeVendor, isVendorAccountExcluded } from "./constants";
 import { generateAllInsights } from "./cost-insights";
 import type { CostInsight } from "./cost-insights";
 import { getCache, setCache } from "./sync-cache";
@@ -375,6 +375,10 @@ export async function getInvoices(
             const vnorm = normalizeVendor(vendorName);
             const matched = vendorPatterns.find((p) => p && vnorm.includes(normalizeVendor(p)));
             if (!matched) continue; // non-IT spend on a leak account — ignore
+            // Een allowlist-leverancier levert soms iets dat géén IT is (iDocta
+            // levert printers én pallets papier). Per leverancier kunnen rekeningen
+            // uitgesloten worden, anders telt de naam alleen al als bewijs.
+            if (isVendorAccountExcluded(vendorName, accountNumber)) continue;
             costCategory = vendorRules[matched] || "External IT Services";
           } else {
             continue;
