@@ -875,8 +875,56 @@ export interface RcvAgeBucket {
   amount: number; invoiceCount: number; customerCount: number;
   customers: RcvAgeCustomer[];
 }
+// === Cash-potentieel & target (vraag Peter/Laura 05/08/2026) ===
+// "Wat is de effectieve beschikbare cash t.o.v. de invorderingen, en hoeveel komt
+// er vrij als iedereen op 30 dagen betaalt?" — met het onderscheid dat bij
+// factoring 85% al voorgeschoten is (dus enkel de 15%-retentie nog moet komen)
+// terwijl je bij niet-factoring 100% zelf draagt.
+export interface RcvCashTarget {
+  normDays: number;          // het doel waarop gerekend wordt (30/45/60/90)
+  unlock: number;            // EENMALIGE vrijmaking bij dat doel
+  unlockFactored: number;    // waarvan enkel de retentie (85% had je al)
+  unlockNonFactored: number; // waarvan de volle 100%
+  invoices: number;
+}
+export interface RcvCashCustomer {
+  name: string; companies: string[];
+  open: number;              // openstaand incl. btw
+  alreadyAdvanced: number;   // wat de factor hierop al voorschoot (aanname)
+  toCollect: number;         // wat er nog écht moet binnenkomen
+  unlockAtNorm: number;      // vrijmaking als déze klant naar de norm gaat
+  maxDays: number; avgDays: number;
+  factored: boolean;
+  phone: string; email: string;
+  custNo: string; company: string; ledgerUrl: string; cardUrl: string;
+}
+export interface RcvCashPotential {
+  advancePct: number;        // AANNAME, niet uit BC afleidbaar
+  normDays: number;
+  ratePct: number;
+  // Stand vandaag
+  openTotal: number; openFactored: number; openNonFactored: number;
+  alreadyAdvanced: number;   // cash die de factor al betaalde
+  retentionDue: number;      // 15% die nog van de factor moet komen
+  effectiveOutstanding: number; // retentie + niet-factoring = de échte cashkloof
+  // Terugnamerisico: factoringposten ouder dan 90 dagen
+  recourseOver90Gross: number;  // bruto factuurwaarde >90d bij factoring-klanten
+  recourseOver90: number;       // het voorgeschoten deel dat de bank kan terugvragen
+  // Vrijmaking bij de norm
+  unlockAtNorm: number; unlockFactored: number; unlockNonFactored: number;
+  perBucket: { label: string; minDays: number; maxDays: number | null; open: number; unlock: number }[];
+  targets: RcvCashTarget[];  // traject: 30 / 45 / 60 / 90 dagen
+  // Onderscheid eenmalig vs terugkerend — hier gaat het vaakst mis
+  monthlyInterestSaved: number;  // rentewinst per maand op de vrijgemaakte cash
+  structuralRelease: number | null; // permanent lager werkkapitaal bij DSO → norm
+  dsoNow: number | null;
+  customers: RcvCashCustomer[];  // belijst met een €-target per klant
+  notes: string[];
+}
+
 export interface CfoBehaviour {
   ageing: RcvAgeBucket[];
+  cashPotential?: RcvCashPotential;
   ageingTotal: number;
   monthlyFloating: { month: string; open: number }[];   // "hoeveel geld zweeft er per maand"
   norm: number;                 // richtlijn in dagen (30)

@@ -448,6 +448,42 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
     };
   }, [d, p, ageBucket]);
 
+  // Openstaand naast vrij-te-maken cash per ouderdomsblok. Het verschil tussen de
+  // twee balken is precies wat de bank bij factoring al voorgeschoten heeft — zo
+  // ziet sales in één blik waar bellen écht cash oplevert.
+  const unlockChart = useMemo<echarts.EChartsOption | null>(() => {
+    const c = d?.behaviour?.cashPotential; if (!c?.perBucket?.length) return null;
+    return {
+      tooltip: {
+        trigger: "axis", axisPointer: { type: "shadow" },
+        formatter: (prs: unknown) => {
+          const i = (prs as { dataIndex: number }[])[0]?.dataIndex ?? 0;
+          const b = c.perBucket[i];
+          const held = b.open - b.unlock;
+          return `<b>${b.label}</b><br/>Openstaand: <b>${formatCurrency(b.open)}</b><br/>`
+            + `Komt vrij bij ${c.normDays} d: <b>${formatCurrency(b.unlock)}</b><br/>`
+            + `<span style="opacity:.7">reeds voorgeschoten of binnen de norm: ${formatCurrency(held)}</span>`;
+        },
+      },
+      legend: { data: ["Openstaand", `Vrij bij ${c.normDays} dagen`], textStyle: { color: p.text, fontSize: 10 }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+      grid: { top: 28, left: 6, right: 8, bottom: 22, containLabel: true },
+      xAxis: {
+        type: "category", data: c.perBucket.map((b) => b.label.replace(" dagen", "d").replace(" (binnen de norm)", "").replace(" (dossier)", "")),
+        axisLabel: { color: p.text, fontSize: 9 }, axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false },
+        name: "ouderdom van de factuur", nameLocation: "middle", nameGap: 24, nameTextStyle: { color: p.textMuted, fontSize: 9 },
+      },
+      yAxis: { type: "value", name: "€ incl. btw", nameTextStyle: { color: p.textMuted, fontSize: 9 }, axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
+      series: [
+        { name: "Openstaand", type: "bar", barMaxWidth: 26, itemStyle: { color: p.textMuted, opacity: 0.45, borderRadius: [3, 3, 0, 0] }, data: c.perBucket.map((b) => b.open) },
+        {
+          name: `Vrij bij ${c.normDays} dagen`, type: "bar", barMaxWidth: 26,
+          itemStyle: { color: p.positive, borderRadius: [3, 3, 0, 0] }, data: c.perBucket.map((b) => b.unlock),
+          label: { show: true, position: "top", color: p.text, fontSize: 9, formatter: (pl: LP) => (Number(pl.value) > 0 ? eurAxis(Number(pl.value)) : "") },
+        },
+      ],
+    };
+  }, [d, p]);
+
   // ---------- laad-/fouttoestanden ----------
   if (!d) {
     return (
@@ -526,6 +562,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
     ?? unitsData.data?.perCompany.map((c) => c.code)
     ?? Array.from(new Set(d.customers.flatMap((c) => c.companies)))
   ).slice().sort();
+  const cp = d.behaviour?.cashPotential;
   const vatMonths = vat.data?.months ?? [];
   const vatLastMonth =
     [...vatMonths].reverse().find((m) => m.saleVat !== 0 || m.purchVat !== 0)?.month
@@ -859,6 +896,169 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           </div>
         </Card>
       ) : null}
+
+      {/* ---- CASHPOTENTIEEL & TARGET (vraag Peter/Laura 05/08/2026) ---- */}
+      {cp && (
+        <Card
+          title="Cashpotentieel — wat komt vrij als iedereen op 30 dagen betaalt"
+          period={perNu}
+          hint={`Momentopname ${vandaag}. Van het openstaande bedrag heeft de bank bij factoring-klanten al ${cp.advancePct}% voorgeschoten (aanname), dus daar levert sneller innen enkel de ${100 - cp.advancePct}%-retentie op; bij niet-factoring-klanten de volle factuur. Norm ${cp.normDays} dagen.`}
+          onSource={() => setKpiSrc(src(
+            "Cashpotentieel bij betaling op de norm", formatCurrency(cp.unlockAtNorm), perNu,
+            `Het antwoord op "wat is de effectieve beschikbare cash t.o.v. de invorderingen": van alles wat vandaag open staat, hebben we bij factoring-klanten het voorschot al binnen en moet enkel de retentie nog komen; bij niet-factoring-klanten moet alles nog komen. De vrijmaking is wat er vandaag al op de rekening zou staan als niemand langer dan ${cp.normDays} dagen over de betaling deed.`,
+            `Open klantposten (Cust_LedgerEntries, Open = true, Document_Type = Invoice) van alle vennootschappen, intercompany uitgesloten, bedragen incl. btw. Ouderdom = dagen tussen factuurdatum en vandaag. Factoring-klant = minstens 40% van zijn betaald volume wikkelt af via een factor-dagboek (KBCF/BELF/BNPF/KBCC/KBC).`,
+            [
+              { naam: "Openstaand extern totaal", waarde: formatCurrency(cp.openTotal) },
+              { naam: `— bij factoring-klanten`, waarde: formatCurrency(cp.openFactored) },
+              { naam: `— bij niet-factoring-klanten`, waarde: formatCurrency(cp.openNonFactored) },
+              { naam: `Al voorgeschoten door de bank (${cp.advancePct}%, AANNAME)`, waarde: formatCurrency(cp.alreadyAdvanced) },
+              { naam: `Retentie nog te ontvangen (${100 - cp.advancePct}%)`, waarde: formatCurrency(cp.retentionDue) },
+              { naam: "= Effectief nog te innen cash", waarde: formatCurrency(cp.effectiveOutstanding) },
+              { naam: `Eenmalige vrijmaking bij ${cp.normDays} dagen`, waarde: formatCurrency(cp.unlockAtNorm) },
+              { naam: `— waarvan retentie bij factoring`, waarde: formatCurrency(cp.unlockFactored) },
+              { naam: `— waarvan volle facturen niet-factoring`, waarde: formatCurrency(cp.unlockNonFactored) },
+              { naam: `Rentewinst per maand daarna (${cp.ratePct.toFixed(1)}%/jaar)`, waarde: formatCurrency(cp.monthlyInterestSaved) },
+              { naam: `Kruiscontrole: structureel bij DSO ${cp.dsoNow ?? "—"} → ${cp.normDays} d`, waarde: cp.structuralRelease != null ? formatCurrency(cp.structuralRelease) : "n.b." },
+            ],
+            "Open posten",
+            cp.notes[0],
+          ))}
+        >
+          {/* Stand vandaag: wat is er al binnen, wat moet nog komen */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Kpi
+              label="Openstaand extern" value={formatCurrencyCompact(cp.openTotal)}
+              sub={`${perNu} · factoring ${formatCurrencyCompact(cp.openFactored)} · niet-factoring ${formatCurrencyCompact(cp.openNonFactored)}`}
+            />
+            <Kpi
+              label={`Al voorgeschoten (${cp.advancePct}%)`} value={formatCurrencyCompact(cp.alreadyAdvanced)}
+              sub="cash die we al van de bank hebben · AANNAME, niet uit BC" tone="pos"
+            />
+            <Kpi
+              label="Effectief nog te innen" value={formatCurrencyCompact(cp.effectiveOutstanding)}
+              sub={`retentie ${formatCurrencyCompact(cp.retentionDue)} + niet-factoring ${formatCurrencyCompact(cp.openNonFactored)}`}
+              tone="warn"
+            />
+            <Kpi
+              label={`Vrij bij ${cp.normDays} dagen`} value={formatCurrencyCompact(cp.unlockAtNorm)}
+              sub={`EENMALIG · daarna ${formatCurrency(cp.monthlyInterestSaved)}/maand rentewinst`}
+              tone="pos"
+            />
+          </div>
+
+          {/* Waar zit die vrijmaking, en wat is het traject naar het maximum */}
+          <div className="mt-4 grid gap-4 lg:grid-cols-5">
+            <div className="lg:col-span-3">
+              <p className="mb-1.5 text-[11px] font-semibold text-foreground">
+                Waar zweeft het geld — en wat komt daarvan vrij
+                <span className="ml-1 font-normal text-muted-foreground">(grijs = openstaand, groen = vrij te maken cash)</span>
+              </p>
+              {unlockChart && <EChart option={unlockChart} height={210} ariaLabel="Openstaand en vrij te maken cash per ouderdomsblok" />}
+            </div>
+            <div className="lg:col-span-2">
+              <p className="mb-1.5 text-[11px] font-semibold text-foreground">
+                Verbetertraject — wat levert elk doel op
+              </p>
+              <table className="w-full border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
+                    <th className="px-2 py-1 text-left">Doel</th>
+                    <th className="px-2 py-1 text-right">Vrij (eenmalig)</th>
+                    <th className="px-2 py-1 text-right">Facturen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...cp.targets].sort((a, b) => b.normDays - a.normDays).map((t) => (
+                    <tr key={t.normDays} className={`border-b border-border/40 ${t.normDays === cp.normDays ? "bg-primary/5" : ""}`}>
+                      <td className="px-2 py-1.5 font-semibold text-foreground">
+                        alles ≤ {t.normDays} d
+                        {t.normDays === cp.normDays && <span className="ml-1 rounded bg-primary/15 px-1 text-[9px] font-semibold text-primary">max target</span>}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-positive">{formatCurrency(t.unlock)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{t.invoices}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-2 space-y-1.5 rounded-lg bg-muted/60 p-2.5 text-[10px] leading-snug text-muted-foreground">
+                <p>
+                  <b className="text-foreground">Eenmalig, niet per maand.</b> De vrijmaking is cash die vandaag al binnen zou zijn.
+                  Het terugkerende voordeel is de rente die je daarna niet meer betaalt: <b className="text-foreground">{formatCurrency(cp.monthlyInterestSaved)} per maand</b> aan {cp.ratePct.toFixed(1)}%/jaar.
+                </p>
+                {cp.structuralRelease != null && cp.dsoNow != null && (
+                  <p>
+                    <b className="text-foreground">Kruiscontrole:</b> een DSO van {cp.dsoNow} d naar {cp.normDays} d brengen betekent structureel {formatCurrency(cp.structuralRelease)} minder
+                    uitstaand werkkapitaal. Dat is langs een andere weg gerekend (dagomzet × dagen) en hoort dezelfde grootteorde te geven als de {formatCurrency(cp.unlockAtNorm)} hiernaast.
+                  </p>
+                )}
+                {cp.recourseOver90 > 0 && (
+                  <p className="text-warning">
+                    <b>Terugnamerisico:</b> {formatCurrency(cp.recourseOver90Gross)} staat bij factoring-klanten langer dan 90 dagen open.
+                    Bij recourse kan de bank het voorschot terugvragen — dan verlaat er {formatCurrency(cp.recourseOver90)} cash het huis terwijl de vordering blijft staan.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Belijst met een €-target per klant */}
+          <div className="mt-4">
+            <p className="mb-1.5 text-[11px] font-semibold text-foreground">
+              Wie bellen, en wat het per klant oplevert
+              <span className="ml-1 font-normal text-muted-foreground">
+                — gesorteerd op vrij te maken cash, niet op openstaand bedrag: bij een factoring-klant heb je {cp.advancePct}% al binnen
+              </span>
+            </p>
+            <div className="max-h-[320px] overflow-y-auto overflow-x-auto">
+              <table className="w-full min-w-[760px] border-collapse text-xs">
+                <thead className="sticky top-0 bg-card">
+                  <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
+                    <th className="px-2 py-1 text-left">Klant</th>
+                    <th className="px-2 py-1 text-right">Openstaand</th>
+                    <th className="px-2 py-1 text-right" title={`Bij factoring-klanten al voorgeschoten door de bank (${cp.advancePct}%, aanname)`}>Al voorgeschoten</th>
+                    <th className="px-2 py-1 text-right" title="Cash die vrijkomt als deze klant naar de norm gaat">Target cash</th>
+                    <th className="px-2 py-1 text-right">Oudste</th>
+                    <th className="px-2 py-1 text-left">Telefoon</th>
+                    <th className="px-2 py-1 text-center">In BC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cp.customers.map((c) => (
+                    <tr key={c.name} className="border-b border-border/40">
+                      <td className="max-w-[220px] truncate px-2 py-1 font-medium text-foreground" title={`${c.name} · ${c.companies.join(", ")}`}>
+                        {c.name}
+                        {c.factored
+                          ? <span className="ml-1 rounded bg-primary/15 px-1 text-[9px] font-semibold text-primary" title={`${cp.advancePct}% al voorgeschoten — sneller betalen levert enkel de retentie op`}>factor</span>
+                          : <span className="ml-1 rounded bg-positive/15 px-1 text-[9px] font-semibold text-positive" title="Volle factuur komt vrij bij sneller betalen">100%</span>}
+                      </td>
+                      <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{formatCurrency(c.open)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{c.alreadyAdvanced ? formatCurrency(c.alreadyAdvanced) : "—"}</td>
+                      <td className="px-2 py-1 text-right font-semibold tabular-nums text-positive">{formatCurrency(c.unlockAtNorm)}</td>
+                      <td className="px-2 py-1 text-right font-semibold tabular-nums">{c.maxDays}d</td>
+                      <td className="px-2 py-1">{c.phone ? <a href={`tel:${c.phone.replace(/\s/g, "")}`} className="text-primary hover:underline">{c.phone}</a> : <span className="text-muted-foreground">—</span>}</td>
+                      <td className="whitespace-nowrap px-2 py-1 text-center">
+                        {c.ledgerUrl ? (
+                          <>
+                            <a href={c.ledgerUrl} target="_blank" rel="noreferrer" title={`Alle posten van ${c.name} in BC (${c.company})`} className="mr-1.5 inline-flex text-primary hover:opacity-80"><Receipt className="h-3.5 w-3.5" /></a>
+                            <a href={c.cardUrl} target="_blank" rel="noreferrer" title="Klantenkaart" className="inline-flex text-primary hover:opacity-80"><ExternalLink className="h-3.5 w-3.5" /></a>
+                          </>
+                        ) : <span className="text-[10px] text-muted-foreground">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <details className="mt-3">
+            <summary className="cursor-pointer text-[11px] font-semibold text-foreground">Aannames en beperkingen van dit model</summary>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-[10px] leading-snug text-muted-foreground">
+              {cp.notes.map((n, i) => <li key={i}>{n}</li>)}
+            </ul>
+          </details>
+        </Card>
+      )}
 
       {/* ---- DSO-verloop + YoY ---- */}
       <div className="grid gap-4 xl:grid-cols-2">

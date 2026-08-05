@@ -22,7 +22,7 @@
 import type {
   CfoReceivables, CfoSource, RcvCustomerRow, RcvDsoSeries, RcvFactorRow,
   RcvInvoiceItem, RcvSpeedBucket, RcvWeekFlow, RcvCashWeekExpectation, RcvCategory,
-  CfoBehaviour, RcvPayRow, RcvCustomerRisk, RcvFactorTiming,
+  CfoBehaviour, RcvPayRow, RcvCustomerRisk, RcvFactorTiming, RcvCashPotential,
 } from "./types";
 import { getBCToken, fetchBCCompanies } from "./bc-client";
 import { fetchWithRetry } from "./http";
@@ -915,8 +915,121 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     month: m, open: r0(arExt[win.keys.indexOf(m)]),
   }));
 
+  // ---- CASH-POTENTIEEL & TARGET (vraag Peter/Laura 05/08/2026) ----------------
+  // De kernvraag: "wat is de effectieve beschikbare cash t.o.v. de invorderingen,
+  // en hoeveel komt er vrij als iedereen op 30 dagen betaalt?"
+  //
+  // Het onderscheid dat alles bepaalt: bij een factoring-klant heeft de bank al
+  // ~85% voorgeschoten, dus sneller betalen levert ons alleen de 15%-retentie op.
+  // Bij een niet-factoring-klant dragen we 100% zelf en levert sneller betalen de
+  // volle factuur op. Precies de twee lijnen uit de schets van Peter.
+  //
+  // ADVANCE_PCT IS EEN AANNAME. Live gecontroleerd op 04/08/2026: BC wikkelt élke
+  // factuur in één keer op 100% af en rekening 499200 beweegt niet, dus het
+  // voorschotpercentage staat NERGENS in Business Central. 85% is de gangbare
+  // marktverhouding en het cijfer dat finance noemt; zodra de factorcontracten of
+  // de maandrapporten van KBC/Belfius/BNP het echte percentage geven, wordt dit
+  // één instelling. Alles wat eraan hangt, is daarom gelabeld als aanname.
+  const ADVANCE_PCT = 85;
+  const RECOURSE_DAYS = 90;
+  const cashPotential: RcvCashPotential = (() => {
+    let openTotal = 0, openFactored = 0, openNonFactored = 0;
+    let recourseGross = 0;
+    // Vrijmaking per doel-norm: hoeveel cash zou er al binnen zijn als niemand
+    // langer dan N dagen over de betaling deed.
+    const NORMS = [30, 45, 60, 90];
+    const perNorm = new Map<number, { unlock: number; f: number; nf: number; inv: number }>(
+      NORMS.map((n) => [n, { unlock: 0, f: 0, nf: 0, inv: 0 }]),
+    );
+    const perBucket = AGE.map(([label, minD, maxD]) => ({ label, minDays: minD, maxDays: maxD, open: 0, unlock: 0 }));
+    const perCust = new Map<string, {
+      open: number; adv: number; unlock: number; maxD: number; wD: number;
+      f: boolean; cos: Set<string>; custNo: string; co: string; top: number;
+    }>();
+
+    for (const b of bundles) for (const inv of b.invoices) {
+      if (inv.ic || !inv.open) continue;
+      const openAmt = inv.rem || inv.amt - inv.applied;
+      if (openAmt <= 0) continue;
+      const age = daysBetween(inv.invDate, todayIso);
+      const fact = isFactored(inv.cust);
+      // Wat hebben we van déze factuur al als cash? Bij factoring het voorschot,
+      // anders niets. Wat er nog moet komen, is het verschil.
+      const advanced = fact ? openAmt * (ADVANCE_PCT / 100) : 0;
+      const toCollect = openAmt - advanced;
+
+      openTotal += openAmt;
+      if (fact) openFactored += openAmt; else openNonFactored += openAmt;
+      if (fact && age > RECOURSE_DAYS) recourseGross += openAmt;
+
+      for (const n of NORMS) {
+        if (age <= n) continue;             // binnen het doel: geen vrijmaking
+        const p = perNorm.get(n)!;
+        p.unlock += toCollect; p.inv++;
+        if (fact) p.f += toCollect; else p.nf += toCollect;
+      }
+      const bk = perBucket.find((x) => age >= x.minDays && (x.maxDays == null || age < x.maxDays));
+      if (bk) { bk.open += openAmt; if (age > NORM) bk.unlock += toCollect; }
+
+      const c = perCust.get(inv.cust) || { open: 0, adv: 0, unlock: 0, maxD: 0, wD: 0, f: fact, cos: new Set<string>(), custNo: "", co: "", top: 0 };
+      c.open += openAmt; c.adv += advanced; c.maxD = Math.max(c.maxD, age); c.wD += age * openAmt; c.cos.add(inv.co);
+      if (age > NORM) c.unlock += toCollect;
+      if (inv.custNo && openAmt > c.top) { c.top = openAmt; c.custNo = inv.custNo; c.co = inv.co; }
+      perCust.set(inv.cust, c);
+    }
+
+    const alreadyAdvanced = openFactored * (ADVANCE_PCT / 100);
+    const retentionDue = openFactored - alreadyAdvanced;
+    const atNorm = perNorm.get(NORM)!;
+    // Structurele vrijmaking: als de DSO van vandaag naar de norm gaat, staat er
+    // permanent (DSO − norm) × dagomzet minder uit. Ander getal dan de eenmalige
+    // vrijmaking hierboven (die kijkt naar de posten zoals ze nu zijn), en een
+    // goede kruiscontrole: ze horen dezelfde grootteorde te geven.
+    const dailySales = daysMature > 0 ? salesMature / daysMature : 0;
+    const structuralRelease = dsoNow.total != null && dailySales > 0
+      ? r0(Math.max(0, dsoNow.total - NORM) * dailySales) : null;
+
+    return {
+      advancePct: ADVANCE_PCT, normDays: NORM, ratePct: RATE,
+      openTotal: r0(openTotal), openFactored: r0(openFactored), openNonFactored: r0(openNonFactored),
+      alreadyAdvanced: r0(alreadyAdvanced), retentionDue: r0(retentionDue),
+      effectiveOutstanding: r0(retentionDue + openNonFactored),
+      recourseOver90Gross: r0(recourseGross),
+      recourseOver90: r0(recourseGross * (ADVANCE_PCT / 100)),
+      unlockAtNorm: r0(atNorm.unlock), unlockFactored: r0(atNorm.f), unlockNonFactored: r0(atNorm.nf),
+      perBucket: perBucket.map((b) => ({ ...b, open: r0(b.open), unlock: r0(b.unlock) })),
+      targets: NORMS.map((n) => {
+        const p = perNorm.get(n)!;
+        return { normDays: n, unlock: r0(p.unlock), unlockFactored: r0(p.f), unlockNonFactored: r0(p.nf), invoices: p.inv };
+      }),
+      monthlyInterestSaved: r0((atNorm.unlock * (RATE / 100)) / 12),
+      structuralRelease, dsoNow: dsoNow.total,
+      customers: [...perCust.entries()]
+        .filter(([, c]) => c.unlock > 0)
+        .sort((a, b) => b[1].unlock - a[1].unlock)
+        .slice(0, 40)
+        .map(([name, c]) => ({
+          name, companies: [...c.cos].sort(),
+          open: r0(c.open), alreadyAdvanced: r0(c.adv), toCollect: r0(c.open - c.adv),
+          unlockAtNorm: r0(c.unlock), maxDays: c.maxD, avgDays: c.open ? r0(c.wD / c.open) : 0,
+          factored: c.f,
+          phone: contactMerged[name]?.phone || "", email: contactMerged[name]?.email || "",
+          custNo: c.custNo, company: c.co,
+          ledgerUrl: c.custNo && c.co ? custLedgerByCustomerLink(c.co, c.custNo) : "",
+          cardUrl: c.custNo && c.co ? customerCardLink(c.co, c.custNo) : "",
+        })),
+      notes: [
+        `HET 85%-VOORSCHOT IS EEN AANNAME, geen BC-cijfer. Live gecontroleerd 04/08/2026: de factor wikkelt elke factuur in BC in één keer op 100% af en rekening 499200 heeft geen beweging — het voorschotpercentage, de retentie en de terugname leven volledig binnen de factorrelatie. Alles op deze kaart dat "al voorgeschoten" of "retentie" heet, volgt uit ${ADVANCE_PCT}% en verandert mee zodra het echte percentage uit de contracten of de maandrapporten van KBC/Belfius/BNP komt.`,
+        `De vrijmaking is EENMALIG, geen maandelijkse instroom: het is de cash die vandaag al binnen zou zijn als niemand langer dan ${NORM} dagen over de betaling deed. Het terugkerende voordeel is de rente die je daarna niet meer betaalt op dat werkkapitaal — dat staat apart als "rentewinst per maand" en rekent aan ${RATE.toFixed(1)}% per jaar (aanname).`,
+        `Bij factoring-klanten telt alleen de ${100 - ADVANCE_PCT}%-retentie mee als vrijmaking: de andere ${ADVANCE_PCT}% heb je al van de bank. Bij niet-factoring-klanten telt de volle factuur. Daarom levert één euro sneller innen bij een niet-factoring-klant ruwweg ${Math.round(100 / (100 - ADVANCE_PCT))}× meer cash op dan bij een factoring-klant — dat bepaalt wie je eerst belt.`,
+        `Terugnamerisico: bij factoring-klanten staat ${r0(recourseGross).toLocaleString("nl-BE")} EUR langer dan ${RECOURSE_DAYS} dagen open. Bij recourse-factoring kan de bank het voorschot daarop terugvragen — dan verlaat er ${r0(recourseGross * (ADVANCE_PCT / 100)).toLocaleString("nl-BE")} EUR cash het huis terwijl de vordering blijft. Dit is een RISICO-inschatting op basis van de ouderdom, geen aangekondigde terugname.`,
+        "Bedragen incl. btw (dat is wat de klant overschrijft). Intercompany uitgesloten. Ouderdom = dagen sinds factuurdatum, momentopname van vandaag.",
+      ],
+    };
+  })();
+
   const behaviour: CfoBehaviour = {
-    ageing, ageingTotal: r0(ageing.reduce((s, a) => s + a.amount, 0)), monthlyFloating,
+    ageing, ageingTotal: r0(ageing.reduce((s, a) => s + a.amount, 0)), cashPotential, monthlyFloating,
     norm: NORM, ratePct: RATE, buckets: payBuckets, factorTiming, topCost, aboveLimit,
     // De 200 grootste/laatste facturen met volledige tijdlijn (rest via de Excel-export).
     invoices: payRows.sort((a, b) => b.amount - a.amount).slice(0, 200),

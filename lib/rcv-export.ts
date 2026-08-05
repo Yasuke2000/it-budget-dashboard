@@ -106,6 +106,61 @@ export async function buildRcvWorkbook(d: CfoReceivables, pulledAt: Date): Promi
   for (const w of d.weekFlow) s5.addRow([w.weekStart, w.factored, w.other, w.factored + w.other, w.count]);
   s5.columns.forEach((c, i) => { c.width = 24; if (i >= 1 && i <= 3) c.numFmt = EUR; });
 
+  // ---- 5b. Cashpotentieel & target (vraag Peter/Laura 05/08/2026) ----
+  // Finance moet hiermee zelf kunnen rekenen, dus het voorschotpercentage en de
+  // norm staan als losse cel bovenaan en niet verstopt in de formules.
+  const cp = d.behaviour?.cashPotential;
+  if (cp) {
+    const s5b = wb.addWorksheet("Cashpotentieel");
+    titleRow(s5b, `Cashpotentieel — wat komt vrij bij betaling op ${cp.normDays} dagen`, sub, 5);
+    s5b.addRow([]);
+    s5b.addRow(["AANNAME — voorschot factoring", cp.advancePct / 100]).font = { bold: true };
+    s5b.getCell(`B${s5b.rowCount}`).numFmt = "0%";
+    s5b.addRow(["AANNAME — jaarrente voor de rentewinst", cp.ratePct / 100]);
+    s5b.getCell(`B${s5b.rowCount}`).numFmt = "0.0%";
+    s5b.addRow(["Norm (dagen)", cp.normDays]);
+    s5b.addRow(["LET OP", "Het voorschotpercentage staat NIET in Business Central (elke factuur wordt daar in één keer op 100% afgewikkeld). Pas de cel hierboven aan zodra het echte percentage uit de factorcontracten of de maandrapporten van KBC/Belfius/BNP komt."]);
+    s5b.addRow([]);
+
+    header(s5b, s5b.rowCount + 1, ["Stand vandaag", "Bedrag (incl. btw)", "", "", ""]);
+    const stand: [string, number][] = [
+      ["Openstaand extern totaal", cp.openTotal],
+      ["— bij factoring-klanten", cp.openFactored],
+      ["— bij niet-factoring-klanten", cp.openNonFactored],
+      [`Al voorgeschoten door de bank (${cp.advancePct}%)`, cp.alreadyAdvanced],
+      [`Retentie nog te ontvangen (${100 - cp.advancePct}%)`, cp.retentionDue],
+      ["= Effectief nog te innen cash", cp.effectiveOutstanding],
+      [`Eenmalige vrijmaking bij ${cp.normDays} dagen`, cp.unlockAtNorm],
+      ["— waarvan retentie bij factoring-klanten", cp.unlockFactored],
+      ["— waarvan volle facturen bij niet-factoring", cp.unlockNonFactored],
+      ["Rentewinst per maand daarna", cp.monthlyInterestSaved],
+      ["Bruto >90 dagen bij factoring (terugnamerisico)", cp.recourseOver90Gross],
+      ["Voorschot dat de bank daarop kan terugvragen", cp.recourseOver90],
+    ];
+    for (const [k, v] of stand) s5b.addRow([k, v]);
+    if (cp.structuralRelease != null) s5b.addRow([`Kruiscontrole: structureel bij DSO ${cp.dsoNow} → ${cp.normDays} d`, cp.structuralRelease]);
+    s5b.addRow([]);
+
+    header(s5b, s5b.rowCount + 1, ["Verbetertraject", "Vrij (eenmalig)", "waarvan factoring-retentie", "waarvan niet-factoring", "Facturen"]);
+    for (const t of [...cp.targets].sort((a, b) => b.normDays - a.normDays)) {
+      s5b.addRow([`alles ≤ ${t.normDays} dagen`, t.unlock, t.unlockFactored, t.unlockNonFactored, t.invoices]);
+    }
+    s5b.addRow([]);
+
+    header(s5b, s5b.rowCount + 1, ["Ouderdomsblok", "Openstaand", "Vrij te maken", "", ""]);
+    for (const b of cp.perBucket) s5b.addRow([b.label, b.open, b.unlock]);
+    s5b.addRow([]);
+
+    header(s5b, s5b.rowCount + 1, ["Klant", "Openstaand", "Al voorgeschoten", "Target cash", "Oudste (dagen)"]);
+    for (const c of cp.customers) {
+      s5b.addRow([`${c.name}${c.factored ? " (factoring)" : ""}`, c.open, c.alreadyAdvanced, c.unlockAtNorm, c.maxDays]);
+    }
+    s5b.addRow([]);
+    s5b.addRow(["Aannames & beperkingen", ""]).font = { bold: true };
+    for (const n of cp.notes) s5b.addRow(["", n]);
+    s5b.columns.forEach((c, i) => { c.width = i === 0 ? 46 : 22; if (i >= 1 && i <= 3) c.numFmt = EUR; });
+  }
+
   // ---- 6. Methodiek ----
   const s6 = wb.addWorksheet("Methodiek & bronnen");
   titleRow(s6, "Hoe elk cijfer berekend is", sub, 2);
