@@ -935,6 +935,8 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   const cashPotential: RcvCashPotential = (() => {
     let openTotal = 0, openFactored = 0, openNonFactored = 0;
     let recourseGross = 0;
+    // Brug naar de structurele DSO-berekening + splitsing belwerk/dossierwerk.
+    let grossOverNorm = 0, dossier = 0, callable = 0;
     // Vrijmaking per doel-norm: hoeveel cash zou er al binnen zijn als niemand
     // langer dan N dagen over de betaling deed.
     const NORMS = [30, 45, 60, 90];
@@ -968,6 +970,10 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
         p.unlock += toCollect; p.inv++;
         if (fact) p.f += toCollect; else p.nf += toCollect;
       }
+      if (age > NORM) {
+        grossOverNorm += openAmt;           // brutowaarde, vóór aftrek voorschot
+        if (age > 180) dossier += toCollect; else callable += toCollect;
+      }
       const bk = perBucket.find((x) => age >= x.minDays && (x.maxDays == null || age < x.maxDays));
       if (bk) { bk.open += openAmt; if (age > NORM) bk.unlock += toCollect; }
 
@@ -997,6 +1003,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       recourseOver90Gross: r0(recourseGross),
       recourseOver90: r0(recourseGross * (ADVANCE_PCT / 100)),
       unlockAtNorm: r0(atNorm.unlock), unlockFactored: r0(atNorm.f), unlockNonFactored: r0(atNorm.nf),
+      unlockGrossAtNorm: r0(grossOverNorm), dossierOver180: r0(dossier), unlockCallable: r0(callable),
       perBucket: perBucket.map((b) => ({ ...b, open: r0(b.open), unlock: r0(b.unlock) })),
       targets: NORMS.map((n) => {
         const p = perNorm.get(n)!;
@@ -1021,6 +1028,8 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       notes: [
         `HET 85%-VOORSCHOT IS EEN AANNAME, geen BC-cijfer. Live gecontroleerd 04/08/2026: de factor wikkelt elke factuur in BC in één keer op 100% af en rekening 499200 heeft geen beweging — het voorschotpercentage, de retentie en de terugname leven volledig binnen de factorrelatie. Alles op deze kaart dat "al voorgeschoten" of "retentie" heet, volgt uit ${ADVANCE_PCT}% en verandert mee zodra het echte percentage uit de contracten of de maandrapporten van KBC/Belfius/BNP komt.`,
         `De vrijmaking is EENMALIG, geen maandelijkse instroom: het is de cash die vandaag al binnen zou zijn als niemand langer dan ${NORM} dagen over de betaling deed. Het terugkerende voordeel is de rente die je daarna niet meer betaalt op dat werkkapitaal — dat staat apart als "rentewinst per maand" en rekent aan ${RATE.toFixed(1)}% per jaar (aanname).`,
+        `WAAROM DE TWEE BEREKENINGEN VERSCHILLEN (${r0(atNorm.unlock).toLocaleString("nl-BE")} cash-vrijmaking vs ${structuralRelease != null ? structuralRelease.toLocaleString("nl-BE") : "n.b."} structureel): ze meten niet hetzelfde, en het verschil is volledig te verklaren. Bruto staat er ${r0(grossOverNorm).toLocaleString("nl-BE")} EUR langer dan ${NORM} dagen open; daarvan is bij factoring-klanten ${ADVANCE_PCT}% al gefinancierd, waardoor er ${r0(atNorm.unlock).toLocaleString("nl-BE")} EUR echte cash overblijft. De structurele berekening ((DSO − norm) × dagomzet) kijkt naar BRUTO vorderingen en kent het voorschot niet, én ze veronderstelt een normale omloop terwijl er hier ${r0(dossier).toLocaleString("nl-BE")} EUR in posten van meer dan 180 dagen zit — oude dossierschuld die niet meer met de DSO meebeweegt. Gebruik de cash-vrijmaking voor de vraag "hoeveel geld komt er binnen" en de structurele berekening voor "hoeveel korter staat onze balans uit".`,
+        `BELWERK VS DOSSIERWERK: van de ${r0(atNorm.unlock).toLocaleString("nl-BE")} EUR zit ${r0(callable).toLocaleString("nl-BE")} EUR in posten tot 180 dagen — dát is het realistische beltraject. De resterende ${r0(dossier).toLocaleString("nl-BE")} EUR staat langer dan 180 dagen open (posten tot 1.200+ dagen) en is dispuut-, aanmanings- of juristenwerk; die bedragen als beltarget presenteren maakt het target onhaalbaar. Let ook op niet-handelsposten in de lijst: het openstaande bedrag van ES Finance is de afrekening van de gebouwenverkoop bij GPR (rekening 705200), geen gewone klantvordering — bellen heeft daar geen zin, dat volgt de akte.`,
         `Bij factoring-klanten telt alleen de ${100 - ADVANCE_PCT}%-retentie mee als vrijmaking: de andere ${ADVANCE_PCT}% heb je al van de bank. Bij niet-factoring-klanten telt de volle factuur. Daarom levert één euro sneller innen bij een niet-factoring-klant ruwweg ${Math.round(100 / (100 - ADVANCE_PCT))}× meer cash op dan bij een factoring-klant — dat bepaalt wie je eerst belt.`,
         `Terugnamerisico: bij factoring-klanten staat ${r0(recourseGross).toLocaleString("nl-BE")} EUR langer dan ${RECOURSE_DAYS} dagen open. Bij recourse-factoring kan de bank het voorschot daarop terugvragen — dan verlaat er ${r0(recourseGross * (ADVANCE_PCT / 100)).toLocaleString("nl-BE")} EUR cash het huis terwijl de vordering blijft. Dit is een RISICO-inschatting op basis van de ouderdom, geen aangekondigde terugname.`,
         "Bedragen incl. btw (dat is wat de klant overschrijft). Intercompany uitgesloten. Ouderdom = dagen sinds factuurdatum, momentopname van vandaag.",

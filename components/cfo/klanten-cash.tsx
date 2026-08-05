@@ -941,7 +941,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
             />
             <Kpi
               label={`Vrij bij ${cp.normDays} dagen`} value={formatCurrencyCompact(cp.unlockAtNorm)}
-              sub={`EENMALIG · daarna ${formatCurrency(cp.monthlyInterestSaved)}/maand rentewinst`}
+              sub={`EENMALIG · beltarget ${formatCurrencyCompact(cp.unlockCallable)} (rest is 180+ dossier) · daarna ${formatCurrency(cp.monthlyInterestSaved)}/mnd rentewinst`}
               tone="pos"
             />
           </div>
@@ -985,12 +985,24 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                   <b className="text-foreground">Eenmalig, niet per maand.</b> De vrijmaking is cash die vandaag al binnen zou zijn.
                   Het terugkerende voordeel is de rente die je daarna niet meer betaalt: <b className="text-foreground">{formatCurrency(cp.monthlyInterestSaved)} per maand</b> aan {cp.ratePct.toFixed(1)}%/jaar.
                 </p>
+                <p>
+                  <b className="text-foreground">Van bruto naar cash.</b> Bruto staat er {formatCurrency(cp.unlockGrossAtNorm)} langer dan {cp.normDays} dagen
+                  open, maar daarvan is bij factoring-klanten {cp.advancePct}% al gefinancierd — er blijft {formatCurrency(cp.unlockAtNorm)} échte
+                  cash over. Dat verschil is geen fout in de meting, het is het voorschot van de bank.
+                </p>
                 {cp.structuralRelease != null && cp.dsoNow != null && (
                   <p>
-                    <b className="text-foreground">Kruiscontrole:</b> een DSO van {cp.dsoNow} d naar {cp.normDays} d brengen betekent structureel {formatCurrency(cp.structuralRelease)} minder
-                    uitstaand werkkapitaal. Dat is langs een andere weg gerekend (dagomzet × dagen) en hoort dezelfde grootteorde te geven als de {formatCurrency(cp.unlockAtNorm)} hiernaast.
+                    <b className="text-foreground">Andere weg, ander cijfer:</b> een DSO van {cp.dsoNow} d naar {cp.normDays} d betekent {formatCurrency(cp.structuralRelease)} minder
+                    uitstaand werkkapitaal. Dat is een BRUTO-balanseffect (dagomzet × dagen) en kent het voorschot niet; het veronderstelt ook een
+                    normale omloop, terwijl hier {formatCurrency(cp.dossierOver180)} in posten van 180+ dagen zit die niet meer met de DSO meebewegen.
+                    Gebruik de cash-vrijmaking voor &quot;hoeveel geld komt binnen&quot; en dit cijfer voor &quot;hoeveel korter staat de balans uit&quot;.
                   </p>
                 )}
+                <p>
+                  <b className="text-foreground">Realistisch beltarget: {formatCurrency(cp.unlockCallable)}.</b> De overige {formatCurrency(cp.dossierOver180)} staat
+                  langer dan 180 dagen open — dispuut-, aanmanings- of juristenwerk, geen belwerk. Wie dat bij het target optelt, geeft sales een
+                  onhaalbaar cijfer.
+                </p>
                 {cp.recourseOver90 > 0 && (
                   <p className="text-warning">
                     <b>Terugnamerisico:</b> {formatCurrency(cp.recourseOver90Gross)} staat bij factoring-klanten langer dan 90 dagen open.
@@ -1033,8 +1045,11 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                       </td>
                       <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{formatCurrency(c.open)}</td>
                       <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">{c.alreadyAdvanced ? formatCurrency(c.alreadyAdvanced) : "—"}</td>
-                      <td className="px-2 py-1 text-right font-semibold tabular-nums text-positive">{formatCurrency(c.unlockAtNorm)}</td>
-                      <td className="px-2 py-1 text-right font-semibold tabular-nums">{c.maxDays}d</td>
+                      <td className={`px-2 py-1 text-right font-semibold tabular-nums ${c.maxDays > 180 ? "text-muted-foreground" : "text-positive"}`}>{formatCurrency(c.unlockAtNorm)}</td>
+                      <td className={`px-2 py-1 text-right font-semibold tabular-nums ${c.maxDays > 180 ? "text-negative" : ""}`}>
+                        {c.maxDays}d
+                        {c.maxDays > 180 && <span className="ml-1 rounded bg-negative/15 px-1 text-[9px] font-semibold text-negative" title="Ouder dan 180 dagen — dossierwerk (dispuut, aanmaning, jurist), geen belwerk. Zit niet in het beltarget.">dossier</span>}
+                      </td>
                       <td className="px-2 py-1">{c.phone ? <a href={`tel:${c.phone.replace(/\s/g, "")}`} className="text-primary hover:underline">{c.phone}</a> : <span className="text-muted-foreground">—</span>}</td>
                       <td className="whitespace-nowrap px-2 py-1 text-center">
                         {c.ledgerUrl ? (

@@ -912,6 +912,13 @@ export interface RcvCashPotential {
   recourseOver90: number;       // het voorgeschoten deel dat de bank kan terugvragen
   // Vrijmaking bij de norm
   unlockAtNorm: number; unlockFactored: number; unlockNonFactored: number;
+  // Brug naar de structurele berekening: de BRUTO factuurwaarde boven de norm
+  // (vóór aftrek van het voorschot) en het deel dat in oude dossierschuld zit.
+  // Zonder deze twee lijken de cash-vrijmaking en de DSO-berekening elkaar tegen
+  // te spreken, terwijl ze simpelweg iets anders meten.
+  unlockGrossAtNorm: number;
+  dossierOver180: number;      // vrijmaking die in posten > 180 dagen zit
+  unlockCallable: number;      // vrijmaking ≤ 180 dagen = het realistische belwerk
   perBucket: { label: string; minDays: number; maxDays: number | null; open: number; unlock: number }[];
   targets: RcvCashTarget[];  // traject: 30 / 45 / 60 / 90 dagen
   // Onderscheid eenmalig vs terugkerend — hier gaat het vaakst mis
