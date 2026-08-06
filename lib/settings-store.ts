@@ -66,6 +66,13 @@ export interface AppSettings {
   // zijn eigen kiezer (?exclude=), zodat een IT-instelling nooit ongemerkt de
   // geconsolideerde cijfers wijzigt waar finance naar verwijst.
   excludedCompanies: string[];
+  // Financieringsrente (% per jaar) voor de kost van vastgezet kapitaal en de
+  // rentewinst op vrijgemaakte cash. AANNAME — niet meetbaar uit BC (rekening
+  // 650000 mengt rente met factorloon, provisies en afrekeningen). Default 3,5%
+  // volgt de marktrente voor nieuw kortlopend bedrijfskrediet; verlaagd van 5,0%
+  // na externe methodiekreview 05/08/2026. Zet hier de werkelijke voet zodra de
+  // bank die bevestigt.
+  cfoFinancingRatePct: number;
 }
 
 export interface LeasingConfig {
@@ -184,6 +191,7 @@ export async function getAppSettings(): Promise<AppSettings> {
   const cfoClassTargets = await getSetting<Record<string, number>>("cfoClassTargets");
   const leasing = await getSetting<LeasingConfig>("leasing");
   const excludedCompanies = await getSetting<string[]>("excludedCompanies");
+  const cfoFinancingRatePct = await getSetting<number>("cfoFinancingRatePct");
   // Merge stored GL overrides over defaults, then strip any forbidden account
   // (depreciation 63x / suspense 49x) so it can never leak into the spend total.
   const mergedGl: Record<string, string> = { ...DEFAULT_GL_MAPPING, ...(gl ?? {}) };
@@ -210,6 +218,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     cfoClassTargets: cfoClassTargets ?? {},
     leasing: { ...DEFAULT_LEASING, ...(leasing ?? {}) },
     excludedCompanies: excludedCompanies ?? [],
+    cfoFinancingRatePct: cfoFinancingRatePct ?? envNumber("CFO_FINANCING_RATE_PCT") ?? 3.5,
   };
 }
 
@@ -229,5 +238,6 @@ export async function saveAppSettings(settings: Partial<AppSettings>): Promise<A
   if (settings.cfoClassTargets !== undefined) await setSetting("cfoClassTargets", settings.cfoClassTargets);
   if (settings.leasing !== undefined) await setSetting("leasing", settings.leasing);
   if (settings.excludedCompanies !== undefined) await setSetting("excludedCompanies", settings.excludedCompanies);
+  if (settings.cfoFinancingRatePct !== undefined) await setSetting("cfoFinancingRatePct", settings.cfoFinancingRatePct);
   return getAppSettings();
 }

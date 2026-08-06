@@ -29,6 +29,7 @@ import { fetchWithRetry } from "./http";
 import { getCache, setCache } from "./sync-cache";
 import { isIcName } from "./cfo";
 import { custLedgerDocLink, custLedgerByCustomerLink, customerCardLink } from "./bc-links";
+import { getAppSettings } from "./settings-store";
 
 const ODATA_ROOT = `https://api.businesscentral.dynamics.com/v2.0/${process.env.BC_TENANT_ID}/${process.env.BC_ENVIRONMENT || "production"}`;
 
@@ -363,7 +364,7 @@ async function buildCompanyRcvBundle(
 // ============================================================
 // Combineren tot het CfoReceivables-payload
 // ============================================================
-function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, excluded: string[]): CfoReceivables {
+function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, excluded: string[], ratePctOverride?: number): CfoReceivables {
   const n = win.keys.length;
 
   // ---- klantclassificatie: factoring-klant = meerderheid betaald volume via factor ----
@@ -781,7 +782,21 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   // Norm = 30 dagen (richtlijn van de groep). Alles daarboven is uitstel dat kapitaal
   // vastzet; dat kwantificeren we per klant in euro's, in kostprijs en in DSO-dagen.
   const NORM = 30;
-  const RATE = 5.0;                       // % per jaar; expliciete aanname, staat in de noot
+  // Financieringsrente voor de kost van vastgezet kapitaal en de rentewinst op
+  // vrijgemaakte cash. AANNAME, geen gemeten cijfer — en dat is een bewuste keuze
+  // na een poging tot meten (05/08/2026, na externe review):
+  //   650000 "Intresten schulden" = €715.300 over 12 maanden, maar die rekening is
+  //   GEEN pure rente: het factorloon van GDI (~€57k), reserveringsprovisies,
+  //   afrekeningen en een afsluiting van −€13.751 zitten erin. Delen door de
+  //   gemiddelde financiële schuld gaf 6,9% en op leasing zelfs 34% — rekenkundig
+  //   onmogelijk als rentevoet. Bovendien zakte de straight loan bij BNP binnen het
+  //   jaar van €7,16M naar €0,46M, waardoor een saldo-gemiddelde op peildatums de
+  //   gemiddelde uitstaande schuld niet benadert.
+  // Tot de kredietschema's van de bank beschikbaar zijn blijft dit dus een aanname.
+  // 3,5% volgt de marktrente voor nieuw kortlopend bedrijfskrediet (Euribor ±2% +
+  // marge); het vorige 5,0% stamde uit de piek van 2023/24 en overschatte de kost
+  // met ~1,5 procentpunt. Instelbaar via Settings → cfoFinancingRatePct.
+  const RATE = ratePctOverride ?? 3.5;
   const salesMature = salesExt[nowIdx] || 0;
   const daysMature = win.daysIn[nowIdx];
 
@@ -1143,7 +1158,10 @@ async function buildLive(cacheKey: string, exclude: string[]): Promise<CfoReceiv
     const part = await Promise.all(companies.slice(i, i + 2).map((c) => buildCompanyRcvBundle(c, win, today)));
     bundles.push(...part);
   }
-  const result = combineRcv(bundles, win, today, exclude);
+  // Financieringsrente instelbaar: de aanname is na externe review verlaagd naar 3,5%
+  // en kan in Settings gezet worden zodra de bank de werkelijke voet bevestigt.
+  const ratePct = await getAppSettings().then((s) => s.cfoFinancingRatePct).catch(() => undefined);
+  const result = combineRcv(bundles, win, today, exclude, ratePct);
   setCache(cacheKey, result, 720); // 12h
   return result;
 }

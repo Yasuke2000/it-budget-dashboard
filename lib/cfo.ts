@@ -114,6 +114,12 @@ interface CompanyExtras {
   equity: number;        // class 1 net (credit-normal → typically negative)
   fixedAssets: number;   // class 2 net
   inventory: number;     // class 3 net
+  // Kortlopende financiële schulden (43x) en fiscale/sociale/loonschulden (45x).
+  // Toegevoegd na externe methodiekreview 05/08/2026: zonder deze twee stond enkel
+  // de handelsschuld (44x) in de noemer van de current/quick ratio, waardoor die
+  // ratio's systematisch te GUNSTIG waren.
+  shortFinDebt: number;  // class 43 net
+  taxSocDebt: number;    // class 45 net
   apRows: BCOpenAPRow[];
   arRows: BCOpenARRow[];
 }
@@ -377,8 +383,16 @@ function combine(
   const equityPos = -equity;
 
   const elapsed = daysElapsed(from, today);
+  // Kortlopende schulden: handelsschulden (44x, = apOpen) PLUS kortlopende
+  // financiële schulden (43x: straight loans, kaskrediet, rekening-courant) en
+  // fiscale/sociale/loonschulden (45x). Tot 05/08/2026 stond hier alleen apOpen,
+  // waardoor de current en quick ratio systematisch te gunstig uitkwamen — de
+  // externe methodiekreview wees daar terecht op. Klasse 43 en 45 zijn credit-
+  // normaal, dus het saldo komt negatief uit het grootboek: |saldo| nemen.
+  const shortFinDebt = Math.abs(aggs.reduce((s, a) => s + a.shortFinDebt, 0));
+  const taxSocDebt = Math.abs(aggs.reduce((s, a) => s + a.taxSocDebt, 0));
   const currentAssets = cash + arOpen + inventory;
-  const currentLiab = apOpen;
+  const currentLiab = apOpen + shortFinDebt + taxSocDebt;
   const totalAssetsApprox = fixedAssets + inventory + arOpen + cash;
   // DPO over inkopen (60/61/64) — bezoldigingen (62) en afschrijvingen (63) lopen
   // niet via leveranciers, meenemen zou DPO kunstmatig drukken.
@@ -404,8 +418,10 @@ function combine(
     claims: [
       { label: "Eigen vermogen (klasse 1)", amount: r0(equityPos), group: "equity" },
       { label: "Handelsschulden (leveranciers)", amount: r0(apOpen), group: "liability" },
+      { label: "Kortlopende financiële schulden (klasse 43)", amount: r0(shortFinDebt), group: "liability" },
+      { label: "Fiscale, sociale en loonschulden (klasse 45)", amount: r0(taxSocDebt), group: "liability" },
     ],
-    totalAssets: r0(totalAssetsApprox), totalClaims: r0(equityPos + apOpen), complete: false, asOf: to,
+    totalAssets: r0(totalAssetsApprox), totalClaims: r0(equityPos + currentLiab), complete: false, asOf: to,
   };
 
   const weeklyPayroll = cls("62") / Math.max(1, elapsed / 7);
@@ -478,7 +494,7 @@ async function buildCompanyBundle(
   const cached = getCache<CompanyBundle>(key);
   if (cached) return cached;
   const pyF = shiftYear(f, -1), pyT = shiftYear(t, -1);
-  const [rows, pyRows, nameMap, cash, ap, ar, equity, fixedAssets, inventory] = await Promise.all([
+  const [rows, pyRows, nameMap, cash, ap, ar, equity, fixedAssets, inventory, shortFinDebt, taxSocDebt] = await Promise.all([
     fetchBCPnlRows(c.id, f, t),
     fetchBCPnlRows(c.id, pyF, pyT).catch(() => [] as BCPnlRow[]),
     fetchBCAccountNames(c.id).catch(() => ({} as Record<string, string>)),
@@ -488,12 +504,14 @@ async function buildCompanyBundle(
     fetchBCClassNetBalance(c.id, "1").catch(() => 0),
     fetchBCClassNetBalance(c.id, "2").catch(() => 0),
     fetchBCClassNetBalance(c.id, "3").catch(() => 0),
+    fetchBCClassNetBalance(c.id, "43").catch(() => 0),
+    fetchBCClassNetBalance(c.id, "45").catch(() => 0),
   ]);
   // PY meteen tot 4 totalen reduceren — NOOIT alle rauwe PY-rijen bewaren of
   // spreiden (push(...100k rijen) = "Maximum call stack size exceeded").
   const pyTotals = computePnlTotals(pyRows.filter((r) => r.postingDate <= pyCutoff));
   const bundle: CompanyBundle = {
-    agg: aggregateCompany(c.code, c.name, rows, { cash, equity, fixedAssets, inventory, apRows: ap, arRows: ar }),
+    agg: aggregateCompany(c.code, c.name, rows, { cash, equity, fixedAssets, inventory, shortFinDebt, taxSocDebt, apRows: ap, arRows: ar }),
     pyTotals,
     names: nameMap,
   };
