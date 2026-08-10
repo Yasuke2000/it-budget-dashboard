@@ -62,12 +62,59 @@ export async function buildRcvWorkbook(d: CfoReceivables, pulledAt: Date): Promi
   const s2 = wb.addWorksheet("Klantbetaalgedrag");
   titleRow(s2, "Betaalgedrag per klant (laatste 12 maanden)", sub, 10);
   header(s2, 4, ["Klant", "Vennootschap(pen)", "Gefactureerd 12m", "Open nu", "Waarvan vervallen", "Betaalde facturen",
-    "Dagen tot betaling (gew.)", "Dagen vs vervaldag", "Factoring-aandeel %", "Kredietlimiet"]);
+    "Dagen tot betaling (gew.)", "Dagen vs vervaldag", "Factoring-aandeel % (>=40% = label factoring)", "Kredietlimiet"]);
   for (const c of d.customers) {
     s2.addRow([c.name + (c.ic ? " [IC]" : ""), c.companies.join(", "), c.invoiced12m, c.openNow, c.overdueNow, c.paidCount,
       c.avgDaysToPay, c.avgDaysVsDue, c.factoredSharePct, c.creditLimit ?? null]);
   }
   s2.columns.forEach((c, i) => { c.width = i === 0 ? 38 : 18; if ([2, 3, 4, 9].includes(i)) c.numFmt = EUR; });
+
+  // ---- 2b. Bellijst per ouderdomsblok (vraag Laura 05/08/2026) ----
+  // Exact dezelfde lijst als de bellijst op /cfo/klanten, met het FACTORING-label
+  // erbij. De pagina toont de 40 grootste per blok; dit blad bevat ze ALLE, want
+  // dat is wat de pagina belooft. Eén klant kan in meerdere blokken staan wanneer
+  // hij facturen van verschillende ouderdom open heeft — daarom staat het blok in
+  // de eerste kolom en niet als filter.
+  if (d.behaviour?.ageing?.length) {
+    const sb = wb.addWorksheet("Bellijst");
+    const totRows = d.behaviour.ageing.reduce((n, b) => n + b.customers.length, 0);
+    titleRow(
+      sb,
+      "Bellijst per ouderdomsblok — met factoring-label",
+      `${sub} · ${totRows} klantrijen over ${d.behaviour.ageing.length} blokken · ouderdom = dagen sinds FACTUURDATUM (niet sinds vervaldag) · bedragen INCL. btw, intercompany uitgesloten`,
+      11,
+    );
+    header(sb, 4, ["Ouderdomsblok", "Klant", "Op factoring?", "Openstaand", "Waarvan vervallen",
+      "Facturen", "Oudste (dagen)", "Gemiddeld (dagen)", "Telefoon", "E-mail", "Vennootschap(pen)"]);
+    for (const b of d.behaviour.ageing) {
+      for (const c of b.customers) {
+        sb.addRow([
+          b.label, c.name, c.factored ? "FACTORING" : "eigen risico",
+          c.amount, c.overdue, c.invoices, c.maxDays, c.avgDays,
+          c.phone || "", c.email || "", c.companies.join(", "),
+        ]);
+      }
+    }
+    sb.autoFilter = { from: { row: 4, column: 1 }, to: { row: sb.rowCount, column: 11 } };
+    sb.columns.forEach((c, i) => {
+      c.width = i === 1 ? 40 : i === 9 ? 34 : i === 0 ? 28 : 16;
+      if (i >= 3 && i <= 4) c.numFmt = EUR;
+    });
+    // Samenvatting per blok onderaan: hoeveel geld zit op factoring en hoeveel niet.
+    sb.addRow([]);
+    sb.addRow(["SAMENVATTING PER BLOK", "", "", "", "", "", "", "", "", "", ""]).font = { bold: true };
+    header(sb, sb.rowCount + 1, ["Ouderdomsblok", "Klanten", "waarvan op factoring", "Openstaand totaal",
+      "waarvan op factoring", "waarvan eigen risico", "", "", "", "", ""]);
+    for (const b of d.behaviour.ageing) {
+      const f = b.customers.filter((c) => c.factored);
+      const fAmt = f.reduce((n, c) => n + c.amount, 0);
+      sb.addRow([b.label, b.customers.length, f.length, b.amount, fAmt, b.amount - fAmt]);
+    }
+    // header() zet de bevroren rij; de tweede aanroep hierboven zou hem naar de
+    // samenvatting verplaatsen. Bij 2.000+ rijen wil je juist de kolomtitels
+    // bovenaan vast houden, dus die zetten we terug.
+    sb.views = [{ state: "frozen", ySplit: 4 }];
+  }
 
   // ---- 3. Open posten met BC-link ----
   const s3 = wb.addWorksheet("Open posten");

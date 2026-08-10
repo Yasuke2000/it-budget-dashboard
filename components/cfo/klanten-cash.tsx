@@ -858,7 +858,9 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {(d.behaviour.ageing[ageBucket]?.customers || []).map((c) => (
+                    {/* De API levert nu ALLE klanten per blok; hier tonen we de 40
+                        grootste, met de melding eronder dat de rest in de Excel staat. */}
+                    {(d.behaviour.ageing[ageBucket]?.customers || []).slice(0, 40).map((c) => (
                       <tr key={c.name} className="border-b border-border/40">
                         <td className="max-w-[210px] truncate px-2 py-1 font-medium text-foreground" title={`${c.name} · ${c.companies.join(", ")}`}>
                           {c.name}
@@ -887,9 +889,9 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                   </tbody>
                 </table>
               </div>
-              {(d.behaviour.ageing[ageBucket]?.customerCount || 0) > (d.behaviour.ageing[ageBucket]?.customers.length || 0) && (
+              {(d.behaviour.ageing[ageBucket]?.customerCount || 0) > 40 && (
                 <p className="mt-1 text-[10px] text-muted-foreground">
-                  {d.behaviour.ageing[ageBucket].customers.length} grootste van {d.behaviour.ageing[ageBucket].customerCount} klanten getoond — de volledige lijst staat in de Excel.
+                  40 grootste van {d.behaviour.ageing[ageBucket].customerCount} klanten getoond — de volledige lijst met het factoring-label staat in het Excel-blad <b>Bellijst</b>.
                 </p>
               )}
             </div>

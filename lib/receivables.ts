@@ -915,7 +915,12 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     }
     return {
       label, minDays: minD, maxDays: maxD, amount: r0(amount), invoiceCount, customerCount: perCust.size,
-      customers: [...perCust.entries()].sort((x, y) => y[1].amount - x[1].amount).slice(0, 40).map(([name, a]) => ({
+      // VOLLEDIGE lijst per blok, grootste eerst. Tot 05/08/2026 stond hier
+      // .slice(0, 40): de UI toonde dus 40 van bv. 414 klanten en zei "de volledige
+      // lijst staat in de Excel" — maar de Excel had de bellijst helemaal niet
+      // (vraag Laura 05/08). Nu levert de API alles; de UI slicet zelf voor de
+      // weergave en het Excel-blad "Bellijst" schrijft alle rijen weg.
+      customers: [...perCust.entries()].sort((x, y) => y[1].amount - x[1].amount).map(([name, a]) => ({
         name, companies: [...a.cos].sort(), amount: r0(a.amount), invoices: a.inv,
         maxDays: a.maxD, avgDays: a.amount ? r0(a.wD / a.amount) : 0,
         phone: contactMerged[name]?.phone || "", email: contactMerged[name]?.email || "",
