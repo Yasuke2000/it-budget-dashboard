@@ -590,6 +590,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
             <div className="flex items-center gap-2">
               <a href="/cfo" className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground ring-1 ring-border hover:text-foreground"><ArrowLeft className="h-3 w-3" />CFO-cockpit</a>
               <a href="/cfo/units" className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground ring-1 ring-border hover:text-foreground">Business Units →</a>
+              <a href="/cfo/formularium" title="Elk begrip: wat het betekent, de formule, de bron en waarop het gebaseerd is" className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary ring-1 ring-primary/30 hover:bg-primary/15">Formularium</a>
               <h1 className="text-lg font-bold text-foreground">Klanten & Cash</h1>
               {!d.isLive && <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase text-warning">demo</span>}
             </div>
