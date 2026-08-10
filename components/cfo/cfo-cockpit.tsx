@@ -1087,10 +1087,10 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
 
           {forecast && (
             <Card
-              title="13-weken cashflowprognose (directe methode)"
+              title="13 weken vooruit — afwikkeling van de bestaande posten"
               hint="as-labels = maandag van de week · klik een week"
               period={`VOORUITBLIK ${weekRange(data.cashForecast!.weeks[0]?.weekStart || "")} t/m ${weekRange(data.cashForecast!.weeks[data.cashForecast!.weeks.length - 1]?.weekStart || "").split(" t/m ")[1] || ""}`}
-              explain="Het enige cijfer op deze pagina dat naar de TOEKOMST kijkt, en dus níet meebeweegt met de periodekiezer bovenaan. We plannen elke openstaande klant- en leveranciersfactuur in op haar vervaldatum, tellen de loonkost per maand erbij, en rollen dat af vanaf het huidige kassaldo. Zo zie je waar het saldo het laagste punt raakt. Klik een week voor de facturen die er die week in vallen."
+              explain="Het enige cijfer op deze pagina dat naar de TOEKOMST kijkt, en dus níet meebeweegt met de periodekiezer bovenaan. We plannen elke openstaande klant- en leveranciersfactuur in op haar vervaldatum, tellen de loonkost erbij, en rollen dat af vanaf het huidige kassaldo. LET OP WAT ER NIET IN ZIT: toekomstige facturatie, nieuwe inkopen, btw-afdrachten, kredietaflossingen en leasingtermijnen. Dit is dus de AFWIKKELING VAN DE BESTAANDE POSTEN, geen volledige cashprognose — de lijn oogt daardoor structureel te gunstig naarmate je verder kijkt. Klik een week voor de facturen die er die week in vallen."
               source="Open klantposten en leveranciersposten (Cust_LedgerEntries en VendorLedgerEntries met Open = true) ingepland op hun vervaldatum, plus de loonkost, plus het huidige saldo van de bankrekeningen. Bedragen incl. btw, want dit is een geldstroomcijfer."
             >
               <EChart option={forecast} height={300} onSelect={onForecastWeek} ariaLabel="13-week cash forecast" />

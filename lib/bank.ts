@@ -23,7 +23,12 @@ export interface CfoBank {
   accounts: BankAccountRow[];
   months: string[];                                    // laatste 13 maanden
   byBrand: Record<string, { inflow: number[]; outflow: number[] }>;
-  totals: { cashNow: number; in12m: number; out12m: number };
+  // cashNow = ALLE rekeningen (incl. factor/krediet in debet). De splitsing eronder
+  // bestaat omdat de F&A-meeting van 10/08/2026 drie schijnbaar tegenstrijdige
+  // cashcijfers opleverde: klasse 55 zei +€583k terwijl "banken saldo nu" −€846k
+  // zei — het verschil was de KBC FACTORING-rekening van WHS op −€1,35M, en dat is
+  // het opgenomen factorvoorschot (een SCHULD, rekening 433), geen cash.
+  totals: { cashNow: number; cashOwn: number; factorCredit: number; in12m: number; out12m: number };
   sources: CfoSource[]; notes: string[];
   refreshing?: boolean;
 }
@@ -142,6 +147,10 @@ async function buildBank(exclude: string[]): Promise<CfoBank> {
     accounts, months, byBrand,
     totals: {
       cashNow: r0(accounts.reduce((s, a) => s + a.balance, 0)),
+      // Echte cash = alles behalve de factor-/kredietgroep; factorCredit = de
+      // factor-rekeningen apart (doorgaans negatief = opgenomen voorschot).
+      cashOwn: r0(accounts.filter((a) => a.brand !== "Factor").reduce((s, a) => s + a.balance, 0)),
+      factorCredit: r0(accounts.filter((a) => a.brand === "Factor").reduce((s, a) => s + a.balance, 0)),
       in12m: r0(accounts.reduce((s, a) => s + a.in12m, 0)),
       out12m: r0(accounts.reduce((s, a) => s + a.out12m, 0)),
     },
@@ -171,7 +180,7 @@ function demoBank(): CfoBank {
     ],
     months,
     byBrand: { KBC: mk(1_050_000, 0), Factor: mk(2_450_000, 1), BNP: mk(420_000, 2), ING: mk(240_000, 3) },
-    totals: { cashNow: 1_280_000, in12m: 44_600_000, out12m: 43_910_000 },
+    totals: { cashNow: 1_280_000, cashOwn: 566_000, factorCredit: 714_000, in12m: 44_600_000, out12m: 43_910_000 },
     sources: [{ label: "Bankmutaties", detail: "Demomodus — live uit BankAccountLedgerEntries." }],
     notes: ["Voorbeelddata (demomodus)."],
   };

@@ -1445,7 +1445,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       <Card
         title="Banken — werkelijke geldstromen"
         period={`saldo: ${perNu} · stromen: ${per12m}`}
-        hint={bank.data ? `Saldo op ${vandaag}: ${formatCurrency(bank.data.totals.cashNow)}. Geldstromen over ${per12m}: ${formatCurrency(bank.data.totals.in12m)} in, ${formatCurrency(bank.data.totals.out12m)} uit. Twee verschillende periodes — de saldokolom is een momentopname, de in/uit-kolommen zijn twaalf maanden.` : bank.building ? "Bankmutaties worden opgehaald uit BC…" : "Bankmutaties laden…"}
+        hint={bank.data ? `Op ${vandaag}: échte cash ${formatCurrency(bank.data.totals.cashOwn)} · factor-/kredietrekeningen ${formatCurrency(bank.data.totals.factorCredit)} (negatief = opgenomen voorschot, dat is SCHULD, geen cash) · samen ${formatCurrency(bank.data.totals.cashNow)}. Stromen over ${per12m}: ${formatCurrency(bank.data.totals.in12m)} in, ${formatCurrency(bank.data.totals.out12m)} uit.` : bank.building ? "Bankmutaties worden opgehaald uit BC…" : "Bankmutaties laden…"}
         onSource={() => setKpiSrc(src(
           "Banken — werkelijke geldstromen",
           bank.data ? formatCurrency(bank.data.totals.cashNow) : "—",
@@ -1453,13 +1453,15 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
           "De échte bewegingen op onze bankrekeningen, niet een schatting uit de resultatenrekening. Boven de as staat wat er binnenkwam, onder de as wat eruit ging, gestapeld per bankgroep zodat je ziet welke bank welk deel van het verkeer draagt. De tabel eronder geeft per individuele rekening het saldo van vandaag naast de stromen van twaalf maanden.",
           "BankAccountLedgerEntries (ODataV4) van alle 11 vennootschappen, met Amount_LCY zodat vreemde valuta correct in euro staat. Elke bankrekening wordt aan zijn bankgroep toegewezen op basis van de IBAN/rekeningnaam; factor-rekeningen krijgen bewust de eigen groep 'Factor' zodat het factoringverkeer niet als gewoon bankverkeer meetelt.",
           bank.data ? [
-            { naam: `Totaal saldo op ${vandaag}`, waarde: formatCurrency(bank.data.totals.cashNow) },
+            { naam: `Échte cash (bankrekeningen + kas) op ${vandaag}`, waarde: formatCurrency(bank.data.totals.cashOwn) },
+            { naam: "Factor-/kredietrekeningen (negatief = opgenomen voorschot = schuld)", waarde: formatCurrency(bank.data.totals.factorCredit) },
+            { naam: "= Totaal alle rekeningen", waarde: formatCurrency(bank.data.totals.cashNow) },
             { naam: `Inkomend over ${per12m}`, waarde: formatCurrency(bank.data.totals.in12m) },
             { naam: `Uitgaand over ${per12m}`, waarde: formatCurrency(bank.data.totals.out12m) },
             { naam: "Aantal rekeningen in scope", waarde: `${bank.data.accounts.length}` },
           ] : undefined,
           "Methodiek & bronnen",
-          "Interne overboekingen tussen onze eigen rekeningen tellen BRUTO mee aan beide kanten: ze verhogen dus zowel 'in' als 'uit' zonder dat er groepsgeld bijkomt of weggaat. Gebruik deze cijfers om het verkeer per bank te wegen, niet als netto-cashflow — die staat in de cashflow-export.",
+          "TWEE CASHCIJFERS DIE ELKAAR LIJKEN TEGEN TE SPREKEN, EN WAAROM DAT KLOPT: de balanspost 'Liquide middelen (klasse 55)' op de cockpit telt alleen de échte bankrekeningen; dit overzicht telt óók de factor- en kredietrekeningen mee, en die staan doorgaans negatief omdat het opgenomen voorschot van de factor er als debetstand op staat. Dat voorschot is boekhoudkundig een SCHULD (rekening 433), geen cash. Vergelijk dus 'échte cash' hierboven met klasse 55 — die twee horen samen te lopen. Interne overboekingen tellen bruto aan beide kanten mee; gebruik dit om verkeer per bank te wegen, niet als netto-cashflow.",
         ))}
       >
         {bank.error && <p className="py-4 text-center text-xs text-warning">Bankdata kon niet geladen worden: {bank.error}</p>}
