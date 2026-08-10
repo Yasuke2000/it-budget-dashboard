@@ -22,7 +22,24 @@ export async function GET(req: Request) {
     if ("building" in data && data.building) {
       return Response.json(data, { status: 202, headers: noStore });
     }
-    return Response.json(data, { headers: noStore });
+    // De server houdt de VOLLEDIGE bellijst in cache (2.200+ klantrijen) omdat het
+    // Excel-blad "Bellijst" die nodig heeft. De pagina toont er 40 per blok, dus
+    // sturen we niet meer dan dat mee: anders groeit deze respons van ±290 KB naar
+    // 1,3 MB voor rijen die nooit op het scherm komen. `customerCount` blijft het
+    // echte totaal, zodat de UI correct "40 grootste van 414" kan melden.
+    const UI_CAP = 40;
+    const lean = "behaviour" in data && data.behaviour?.ageing?.length
+      ? {
+          ...data,
+          behaviour: {
+            ...data.behaviour,
+            ageing: data.behaviour.ageing.map((b) => (
+              b.customers.length > UI_CAP ? { ...b, customers: b.customers.slice(0, UI_CAP) } : b
+            )),
+          },
+        }
+      : data;
+    return Response.json(lean, { headers: noStore });
   } catch (err) {
     console.error("receivables route failed:", err);
     return Response.json({ error: String(err).slice(0, 300) }, { status: 500, headers: noStore });
