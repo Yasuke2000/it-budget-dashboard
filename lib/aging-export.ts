@@ -40,6 +40,9 @@ export interface AgingRow {
   dueDate: string;        // "" when unknown
   amountEUR: number;      // payable/receivable in EUR (positive = owed)
   company: string;        // BC company code
+  // Btw-/ondernemingsnummer van de tegenpartij (vraag finance 10/08/2026), uit de
+  // klanten-/leveranciersstamdata (taxRegistrationNumber). Leeg = niet ingevuld in BC.
+  vatNo: string;
 }
 
 async function pageAll(url: string, token: string): Promise<Record<string, unknown>[]> {
@@ -71,18 +74,25 @@ function cleanDate(d: unknown): string {
 export async function fetchAgingAP(): Promise<AgingRow[]> {
   const token = await getBCToken();
   const companies = (await fetchBCCompanies())
-    .map((c) => String(c.name))
-    .filter(isOperatingCompany);
+    .filter((c) => isOperatingCompany(String(c.name)))
+    .map((c) => ({ id: String(c.id), code: String(c.name) }));
   const rows: AgingRow[] = [];
-  for (const co of companies) {
+  for (const c of companies) {
+    const co = c.code;
+    // Btw-nummer per leverancier uit de stamdata (taxRegistrationNumber).
+    const vatByNo: Record<string, string> = {};
+    for (const v of await pageAll(`${API_ROOT}/companies(${c.id})/vendors?$select=number,taxRegistrationNumber`, token)) {
+      if (v.taxRegistrationNumber) vatByNo[String(v.number)] = String(v.taxRegistrationNumber);
+    }
     // NO $top: it caps the TOTAL result set (a €776k lesson) — page via nextLink.
-    const url = `${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(co)}')/VendorLedgerEntries?$filter=Open eq true&$select=Vendor_Name,Document_Type,Document_No,Document_Date,Posting_Date,Due_Date,Currency_Code,Remaining_Amount,Remaining_Amt_LCY`;
+    const url = `${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(co)}')/VendorLedgerEntries?$filter=Open eq true&$select=Vendor_No,Vendor_Name,Document_Type,Document_No,Document_Date,Posting_Date,Due_Date,Currency_Code,Remaining_Amount,Remaining_Amt_LCY`;
     const raw = await pageAll(url, token);
     for (const e of raw) {
       const remLCY = (e.Remaining_Amt_LCY as number) || 0;
       const remDoc = (e.Remaining_Amount as number) || 0;
       if (remLCY === 0 && remDoc === 0) continue;
       rows.push({
+        vatNo: vatByNo[String(e.Vendor_No || "")] || "",
         party: String(e.Vendor_Name || "").trim() || "(zonder naam)",
         docNo: String(e.Document_No || ""),
         docType: DOCTYPE_NL[String(e.Document_Type ?? "")] ?? String(e.Document_Type || ""),
@@ -106,12 +116,18 @@ export async function fetchAgingAR(): Promise<AgingRow[]> {
     .map((c) => ({ id: String(c.id), code: String(c.name) }));
   const rows: AgingRow[] = [];
   for (const c of companies) {
-    const url = `${API_ROOT}/companies(${c.id})/salesInvoices?$filter=${encodeURIComponent("status eq 'Open'")}&$select=number,customerName,invoiceDate,dueDate,currencyCode,remainingAmount`;
+    // Btw-nummer per klant uit de stamdata (taxRegistrationNumber).
+    const vatByNo: Record<string, string> = {};
+    for (const v of await pageAll(`${API_ROOT}/companies(${c.id})/customers?$select=number,taxRegistrationNumber`, token)) {
+      if (v.taxRegistrationNumber) vatByNo[String(v.number)] = String(v.taxRegistrationNumber);
+    }
+    const url = `${API_ROOT}/companies(${c.id})/salesInvoices?$filter=${encodeURIComponent("status eq 'Open'")}&$select=number,customerNumber,customerName,invoiceDate,dueDate,currencyCode,remainingAmount`;
     const raw = await pageAll(url, token);
     for (const e of raw) {
       const rem = (e.remainingAmount as number) || 0;
       if (!rem) continue;
       rows.push({
+        vatNo: vatByNo[String(e.customerNumber || "")] || "",
         party: String(e.customerName || "").trim() || "(zonder naam)",
         docNo: String(e.number || ""),
         docType: "Factuur",
@@ -179,7 +195,7 @@ export async function buildAgingWorkbook(
 
   // ---- sheet 1: detail grouped ----
   const ws = wb.addWorksheet("Aging");
-  const headers = [partyLabel, "Factuurnummer", "Totaalbedrag", "Munt", "Factuurdatum", "Vervaldatum", ...BUCKETS, "Soort", "Vennootschap"];
+  const headers = [partyLabel, "Factuurnummer", "Totaalbedrag", "Munt", "Factuurdatum", "Vervaldatum", ...BUCKETS, "Soort", "Vennootschap", "Btw-nummer"];
   const NC = headers.length;
   ws.getCell(1, 1).value = `${title} — GHEERAERT GROEP — data getrokken op ${stamp}`;
   ws.getCell(1, 1).font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
@@ -187,7 +203,7 @@ export async function buildAgingWorkbook(
   ws.getRow(3).values = headers;
   ws.getRow(3).font = { bold: true, color: { argb: "FFFFFFFF" } };
   fill(ws, 3, NC, BLUE);
-  const widths = [34, 16, 14, 7, 12, 12, 13, 12, 12, 12, 13, 12, 9, 26];
+  const widths = [34, 16, 14, 7, 12, 12, 13, 12, 12, 12, 13, 12, 9, 26, 15];
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w));
 
   const grand = bucketSums(rows);
@@ -210,6 +226,7 @@ export async function buildAgingWorkbook(
     ws.getCell(r, 3).numFmt = EUR_FMT;
     BUCKETS.forEach((b, i) => { const v = Math.round(sums[b] * 100) / 100; if (v) { const c = ws.getCell(r, 7 + i); c.value = v; c.numFmt = EUR_FMT; } });
     ws.getCell(r, 13).value = ic ? "IC" : "Extern";
+    ws.getCell(r, 15).value = g.rows.find((x) => x.vatNo)?.vatNo || "";
     ws.getRow(r).font = { bold: true, color: { argb: "FFFFFFFF" } };
     fill(ws, r, NC, ic ? ICCLR : BLUEROW);
     r++;
@@ -238,6 +255,7 @@ export async function buildAgingWorkbook(
       ws.getCell(r, ci).value = x.amountEUR; ws.getCell(r, ci).numFmt = EUR_FMT;
       if (b === "> 90d") ws.getCell(r, ci).font = { color: { argb: "FFB4342A" } };
       ws.getCell(r, 14).value = x.company;
+      ws.getCell(r, 15).value = x.vatNo;
       r++;
     }
   }
@@ -247,12 +265,13 @@ export async function buildAgingWorkbook(
   const ws2 = wb.addWorksheet("Samenvatting");
   ws2.getCell(1, 1).value = `SAMENVATTING PER ${isAP ? "LEVERANCIER" : "KLANT"} — data getrokken op ${stamp}`;
   ws2.getCell(1, 1).font = { bold: true, size: 12 };
-  const h2 = [partyLabel, "Soort", "Totaal openstaand", ...BUCKETS, "# posten", "# venn."];
+  const h2 = [partyLabel, "Soort", "Totaal openstaand", ...BUCKETS, "# posten", "# venn.", "Btw-nummer"];
   ws2.getRow(3).values = h2;
   ws2.getRow(3).font = { bold: true, color: { argb: "FFFFFFFF" } };
   fill(ws2, 3, h2.length, BLUE);
   ws2.getColumn(1).width = 36;
   for (let i = 3; i <= 9; i++) ws2.getColumn(i).width = 14;
+  ws2.getColumn(12).width = 15;
   let r2 = 4;
   for (const g of order) {
     const sums = bucketSums(g.rows);
@@ -263,6 +282,7 @@ export async function buildAgingWorkbook(
     BUCKETS.forEach((b, i) => { const c = ws2.getCell(r2, 4 + i); c.value = Math.round(sums[b] * 100) / 100; c.numFmt = EUR_FMT; });
     ws2.getCell(r2, 10).value = g.rows.length;
     ws2.getCell(r2, 11).value = new Set(g.rows.map((x) => x.company)).size;
+    ws2.getCell(r2, 12).value = g.rows.find((x) => x.vatNo)?.vatNo || "";
     r2++;
   }
   ws2.autoFilter = { from: { row: 3, column: 1 }, to: { row: r2 - 1, column: h2.length } };
@@ -281,6 +301,7 @@ export async function buildAgingWorkbook(
     "Groepering per naam over alle vennootschappen (firmacode-prefix en rechtsvormen genegeerd bij het matchen).",
     "Soort: IC = intercompany (eigen groepsvennootschap als tegenpartij, naam-gebaseerd).",
     "DOORKLIKKEN: het factuurnummer op het Aging-blad is een link die de post rechtstreeks in Business Central opent (BC-login vereist).",
+    "BTW-NUMMER: uit de klanten-/leveranciersstamdata in BC (veld Ondernemingsnr./btw). Leeg = niet ingevuld in BC; bij een naam-groep over meerdere vennootschappen wordt het eerste ingevulde nummer getoond.",
     `Groepstotaal: € ${grandTotal.toLocaleString("nl-BE")} over ${rows.length} posten en ${groups.size} ${isAP ? "leveranciers" : "klanten"}.`,
   ];
   notes.forEach((t, i) => {
