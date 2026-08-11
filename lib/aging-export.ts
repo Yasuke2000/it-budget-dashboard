@@ -13,6 +13,7 @@ import ExcelJS from "exceljs";
 import { getBCToken, fetchBCCompanies } from "./bc-client";
 import { fetchWithRetry } from "./http";
 import { vendorLedgerDocLink, custLedgerDocLink } from "./bc-links";
+import { isIcName } from "./cfo";
 
 const ODATA_ROOT = `https://api.businesscentral.dynamics.com/v2.0/${process.env.BC_TENANT_ID}/${process.env.BC_ENVIRONMENT || "production"}`;
 const API_ROOT = `${ODATA_ROOT}/api/v2.0`;
@@ -21,10 +22,9 @@ function isOperatingCompany(name: string): boolean {
   return !/^_/.test(name) && !/test|copie|fleetmate/i.test(name);
 }
 
-// Intercompany counterparty (own group entity) — same heuristic as the validated
-// exports. "lamberts (en|&) zonen": BC gebruikt beide schrijfwijzen voor de
-// groepsfirma (les uit de leasing-verificatie 24/07 — de &-variant miste).
-const IC_RX = /gheeraert|\bde\s*rudder\b|dr logistics|\brudder\b|marcel lamberts|lamberts\s*(?:en|&)\s*zonen|trans[\s-]?form|\bwarehouse\b|m[\s-]?express/i;
+// Intercompany-detectie centraal uit lib/cfo.ts (audit 11/08/2026): een lokale
+// kopie van de regex driftte eerder al eens (de Lamberts-&-les) — één bron van
+// waarheid; zie isIcName-import bovenaan.
 // Merge name variants: strip company-code prefixes ("GTG - ") and legal forms.
 const PREFIX_RX = /^(GTR|GTG|GSS|GPR|TFO|GDI|GRE|WHS|TDR|LMB|GEX)\s*-\s*/i;
 const LEGAL_RX = /\b(NV\/SA|NV|SA|BVBA|BV|VOF|GMBH|LTD|INC|SPRL|SCRL|CVBA|COMM\.?\s*V|SRL|SARL|GCV)\b\.?/gi;
@@ -66,6 +66,7 @@ async function pageAll(url: string, token: string): Promise<Record<string, unkno
     next = data["@odata.nextLink"] || null;
     page++;
   }
+  if (next) throw new Error("BC-paging (aging): 400-paginalimiet bereikt, dataset onvolledig");
   return out;
 }
 
@@ -181,11 +182,14 @@ export async function fetchAgingAR(): Promise<AgingRow[]> {
 // vervaldag blijft als aparte kolom staan; het "vervallen"-deel (vervaldag ≤ vandaag,
 // = BC-rapport "Vervallen posten") staat apart op de bladen.
 const BUCKETS = ["0 – 30d", "31 – 60d", "61 – 90d", "> 90d", "Onbekend"] as const;
-function bucketOf(invDate: string, snapshot: Date): (typeof BUCKETS)[number] {
+// Audit 11/08/2026: leeftijd op KALENDERDAG Brussel (snapIso), niet op het
+// milliseconden-verschil met het pull-moment — een pull om 01:00 schoof anders
+// alle grensfacturen één bucket te jong t.o.v. het dashboard.
+function bucketOf(invDate: string, snapIso: string): (typeof BUCKETS)[number] {
   if (!invDate) return "Onbekend";
-  const d = new Date(`${invDate}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return "Onbekend";
-  const days = Math.floor((snapshot.getTime() - d.getTime()) / 86400000);
+  const d = Date.parse(`${invDate}T00:00:00Z`);
+  if (Number.isNaN(d)) return "Onbekend";
+  const days = Math.floor((Date.parse(`${snapIso}T00:00:00Z`) - d) / 86400000);
   if (days <= 30) return "0 – 30d";
   if (days <= 60) return "31 – 60d";
   if (days <= 90) return "61 – 90d";
@@ -223,7 +227,7 @@ export async function buildAgingWorkbook(
   const bucketSums = (rs: AgingRow[]) => {
     const s: Record<string, number> = {};
     for (const b of BUCKETS) s[b] = 0;
-    for (const r of rs) s[bucketOf(r.invoiceDate, pulledAt)] += r.amountEUR;
+    for (const r of rs) s[bucketOf(r.invoiceDate, snapIso)] += r.amountEUR;
     return s;
   };
 
@@ -266,7 +270,7 @@ export async function buildAgingWorkbook(
   for (const g of order) {
     const sums = bucketSums(g.rows);
     const net = r2c(BUCKETS.reduce((s, b) => s + sums[b], 0));
-    const ic = IC_RX.test(g.display);
+    const ic = isIcName(g.display);
     ws.getCell(r, 1).value = g.display;
     ws.getCell(r, 3).value = net;
     ws.getCell(r, 3).numFmt = EUR_FMT;
@@ -298,7 +302,7 @@ export async function buildAgingWorkbook(
       ws.getCell(r, 5).value = x.invoiceDate;
       ws.getCell(r, 6).value = x.dueDate;
       if (isOverdue(x)) ws.getCell(r, 6).font = { color: { argb: "FFB4342A" } };
-      const b = bucketOf(x.invoiceDate, pulledAt);
+      const b = bucketOf(x.invoiceDate, snapIso);
       const ci = B0 + BUCKETS.indexOf(b);
       ws.getCell(r, ci).value = x.amountEUR; ws.getCell(r, ci).numFmt = EUR_FMT;
       if (b === "> 90d") ws.getCell(r, ci).font = { color: { argb: "FFB4342A" } };
@@ -373,7 +377,7 @@ export async function buildAgingWorkbook(
     const net = r2c(BUCKETS.reduce((s, b) => s + sums[b], 0));
     const overdue = r2c(g.rows.filter(isOverdue).reduce((s, x) => s + x.amountEUR, 0));
     ws2.getCell(r2, 1).value = g.display;
-    ws2.getCell(r2, 2).value = IC_RX.test(g.display) ? "IC" : "Extern";
+    ws2.getCell(r2, 2).value = isIcName(g.display) ? "IC" : "Extern";
     ws2.getCell(r2, 3).value = net; ws2.getCell(r2, 3).numFmt = EUR_FMT; ws2.getCell(r2, 3).font = { bold: true };
     ws2.getCell(r2, 4).value = overdue; ws2.getCell(r2, 4).numFmt = EUR_FMT;
     BUCKETS.forEach((b, i) => { const c = ws2.getCell(r2, 5 + i); c.value = r2c(sums[b]); c.numFmt = EUR_FMT; });

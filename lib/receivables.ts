@@ -165,6 +165,7 @@ interface CompanyRcvBundle {
   dimOk: boolean;                                   // false = dimensiepull mislukte (geen "AFDELING ontbreekt"-claim doen)
   degraded: boolean;                                // true = fallback-veldenset gebruikt (open bedragen bruto benaderd)
   earliestEntry: string;                            // vroegste klantpost (beginbalans-check)
+  builtAt?: string;                                 // wanneer deze bundel echt uit BC getrokken is (asOf = oudste)
 }
 
 async function buildCompanyRcvBundle(
@@ -355,7 +356,7 @@ async function buildCompanyRcvBundle(
   const bundle: CompanyRcvBundle = {
     code: co.code, arRows, apMonthly: { end: apEnd.map(r2), purch: apPurch.map(r2) },
     invoices, factorVolumeByCust, paidVolumeByCust, unapplied, factoringCost, factoringInterest, creditByCust, contactByCust, earliestEntry,
-    dimOk, degraded,
+    dimOk, degraded, builtAt: new Date().toISOString(),
   };
   setCache(key, bundle, 720);
   return bundle;
@@ -553,7 +554,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   }
   const creditMerged: Record<string, number> = {};
   for (const b of bundles) for (const [c, v] of Object.entries(b.creditByCust)) creditMerged[c] = (creditMerged[c] || 0) + v;
-  const customers: RcvCustomerRow[] = [...custAgg.entries()]
+  const customersAll: RcvCustomerRow[] = [...custAgg.entries()]
     .filter(([, a]) => a.invoiced12m > 0 || a.openNow > 500)
     .map(([name, a]) => {
       const lim = creditMerged[name] || 0;
@@ -569,8 +570,10 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
         creditUsedPct: lim > 0 ? Math.round((a.openNow / lim) * 1000) / 10 : null,
       };
     })
-    .sort((a, b) => b.invoiced12m - a.invoiced12m)
-    .slice(0, 60);
+    .sort((a, b) => b.invoiced12m - a.invoiced12m);
+  // Audit 11/08/2026: risico-totalen (vastgezet kapitaal, kost, DSO-if-norm) worden
+  // over ALLE klanten gerekend; alleen de UI-lijst is de top-60.
+  const customers = customersAll.slice(0, 60);
 
   // ---- business units (dimensie AFDELING op de factuur) ----
   interface BuAgg { invoiced12m: number; openNow: number; wAmt: number; wDays: number; count: number }
@@ -864,7 +867,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       factoredSharePct: c.factoredSharePct,
     };
   };
-  const risks = customers.filter((c) => !c.ic).map(riskOf);
+  const risks = customersAll.filter((c) => !c.ic).map(riskOf);
   const topCost = [...risks].filter((r) => r.tiedUp > 0).sort((a, b) => b.tiedUp - a.tiedUp).slice(0, 25);
   const aboveLimit = [...risks].filter((r) => r.aboveLimit > 0).sort((a, b) => b.aboveLimit - a.aboveLimit).slice(0, 25);
   const tiedUpTotal = r0(risks.reduce((s, r) => s + r.tiedUp, 0));
@@ -1168,7 +1171,9 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   ];
 
   return {
-    asOf: new Date().toISOString(),
+    // Oudste firmabundel-stempel i.p.v. combineermoment — de Excel-export drukt deze
+    // stempel op elk blad, dus hij moet de échte pull-tijd zijn (audit 11/08/2026).
+    asOf: bundles.reduce<string | null>((m, b) => (b.builtAt && (!m || b.builtAt < m) ? b.builtAt : m), null) || new Date().toISOString(),
     periodNote: `betaalgedrag gemeten op betalingen sinds ${win.keys[0]}-01; facturatieflow laatste 26 weken`,
     isLive: true,
     dso, dsoNow, dsoInvoiceLevel, crfKpis, speedBuckets, customers, businessUnits, weekFlow, factors, factoringCost,
@@ -1185,7 +1190,8 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
 // ============================================================
 // Publieke getter — zelfde cache/inflight-patroon als lib/cfo.ts
 // ============================================================
-const inflight = new Map<string, Promise<CfoReceivables>>();
+const _gRcv = globalThis as unknown as { __inflightRcv?: Map<string, Promise<CfoReceivables>> };
+const inflight = (_gRcv.__inflightRcv ??= new Map<string, Promise<CfoReceivables>>());
 
 async function buildLive(cacheKey: string, exclude: string[]): Promise<CfoReceivables> {
   const today = new Date();

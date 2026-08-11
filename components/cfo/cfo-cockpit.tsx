@@ -1409,7 +1409,9 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
 // Default-periode voor de uitgaven-export: 1 januari t/m de laatste VOLLEDIGE maand
 // (lonen van de lopende maand zijn nog niet geboekt).
 function uitgavenDefaultRange(): { from: string; to: string } {
-  const now = new Date();
+  // Audit 11/08/2026: op BRUSSELSE kalender, niet de browser-tijdzone — anders krijgt
+  // een reiziger/nachtuil rond maandwissel een andere default dan de server bedoelt.
+  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Brussels" }));
   const end = new Date(now.getFullYear(), now.getMonth(), 0); // laatste dag vorige maand
   const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   return { from: `${end.getFullYear()}-01-01`, to: iso(end) };
@@ -1458,8 +1460,8 @@ function ExportButton({ kind, label, withRange }: { kind: "ap" | "ar" | "leasing
   };
 
   // presets voor de datumprompt (boekjaar = kalenderjaar)
-  const year = new Date().getFullYear();
-  const presets: { label: string; from: string; to: string }[] = [
+  const year = Number(def.to.slice(0, 4)); // jaar van de laatste volledige maand (Brussel)
+  const presetsRaw: { label: string; from: string; to: string }[] = [
     { label: "Vorige maand", from: `${uitgavenDefaultRange().to.slice(0, 8)}01`, to: uitgavenDefaultRange().to },
     { label: "Q1", from: `${year}-01-01`, to: `${year}-03-31` },
     { label: "Q2", from: `${year}-04-01`, to: `${year}-06-30` },
@@ -1467,6 +1469,10 @@ function ExportButton({ kind, label, withRange }: { kind: "ap" | "ar" | "leasing
     { label: "Dit jaar t/m vorige maand", from: def.from, to: def.to },
     { label: `Heel ${year - 1}`, from: `${year - 1}-01-01`, to: `${year - 1}-12-31` },
   ];
+  // In januari vallen "Dit jaar t/m vorige maand" en "Heel vorig jaar" samen —
+  // dubbele chips (allebei actief gemarkeerd) wegfilteren op identieke periode.
+  const seen = new Set<string>();
+  const presets = presetsRaw.filter((p) => { const k = `${p.from}|${p.to}`; if (seen.has(k)) return false; seen.add(k); return true; });
 
   return (
     <div>

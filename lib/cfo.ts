@@ -460,7 +460,7 @@ function combine(
   if (isLive && Math.abs(cls("67") - cls("77")) < 1000) {
     notes.push("LET OP: belastingen (klasse 67) zijn nog niet geboekt (jaareinde) — nettoresultaat is vóór effectieve belastingdruk.");
   }
-  notes.push("Ratio's: vlottende schulden ≈ handelsschulden (geen volledige korte-termijnschuld-split); balans condensed tot betrouwbare posten.");
+  notes.push("Ratio's: vlottende schulden = handelsschulden + financiële schulden ≤ 1j (klasse 43) + sociale/fiscale schulden (klasse 45) — externe review 05/08/2026; balans condensed tot betrouwbare posten.");
   notes.push("DSO/DPO: open posten zijn incl. btw, omzet/inkopen excl. btw — dagenwaarden zijn daardoor licht overschat (btw-mix transport deels 0%/verlegd). DPO = op inkopen (60/61/64).");
   notes.push("Bedragen bruto per vennootschap — intercompany-eliminatie via de IC-schakelaar (naam-gebaseerd op AP/AR; P&L-IC vereist dimensies).");
 
@@ -477,13 +477,19 @@ function combine(
 
 // One in-flight build per cache key: dedupes concurrent cold loads AND backs the
 // fire-and-forget background refresh (?refresh=1 on a warm cache).
-const inflightCfo = new Map<string, Promise<CfoFinancials>>();
+const _gCfo = globalThis as unknown as { __inflightCfo?: Map<string, Promise<CfoFinancials>> };
+const inflightCfo = (_gCfo.__inflightCfo ??= new Map<string, Promise<CfoFinancials>>());
 
 // Per-company bundle (aggregate + PY totals + account names), individually cached.
 // The combine step is pure/instant, so any consolidation SCOPE (exclude one or more
 // entities) is served from these bundles without re-pulling BC — a scope change on a
 // warm cache costs ~0s instead of a 2-minute rebuild that Cloudflare would kill.
-interface CompanyBundle { agg: CompanyAgg; pyTotals: CfoPrevYear; names: Record<string, string> }
+interface CompanyBundle {
+  agg: CompanyAgg; pyTotals: CfoPrevYear; names: Record<string, string>;
+  // Audit 11/08/2026: welke BC-sub-fetches faalden (cash/AP/AR/klasse X) — een
+  // stil op 0 gezette post las als feit; nu wordt het gemeld en kort gecachet.
+  fails?: string[];
+}
 
 async function buildCompanyBundle(
   c: { id: string; code: string; name: string }, f: string, t: string, pyCutoff: string
@@ -494,18 +500,21 @@ async function buildCompanyBundle(
   const cached = getCache<CompanyBundle>(key);
   if (cached) return cached;
   const pyF = shiftYear(f, -1), pyT = shiftYear(t, -1);
+  const fails: string[] = [];
+  const rec = <T,>(p: Promise<T>, fallback: T, what: string): Promise<T> =>
+    p.catch(() => { fails.push(what); return fallback; });
   const [rows, pyRows, nameMap, cash, ap, ar, equity, fixedAssets, inventory, shortFinDebt, taxSocDebt] = await Promise.all([
     fetchBCPnlRows(c.id, f, t),
-    fetchBCPnlRows(c.id, pyF, pyT).catch(() => [] as BCPnlRow[]),
-    fetchBCAccountNames(c.id).catch(() => ({} as Record<string, string>)),
-    fetchBCCashBalance(c.id).catch(() => 0),
-    fetchBCOpenAP(c.code).catch(() => [] as BCOpenAPRow[]),
-    fetchBCOpenAR(c.id).catch(() => [] as BCOpenARRow[]),
-    fetchBCClassNetBalance(c.id, "1").catch(() => 0),
-    fetchBCClassNetBalance(c.id, "2").catch(() => 0),
-    fetchBCClassNetBalance(c.id, "3").catch(() => 0),
-    fetchBCClassNetBalance(c.id, "43").catch(() => 0),
-    fetchBCClassNetBalance(c.id, "45").catch(() => 0),
+    rec(fetchBCPnlRows(c.id, pyF, pyT), [] as BCPnlRow[], "P&L vorig jaar"),
+    rec(fetchBCAccountNames(c.id), {} as Record<string, string>, "rekeningnamen"),
+    rec(fetchBCCashBalance(c.id), 0, "cash (55)"),
+    rec(fetchBCOpenAP(c.code), [] as BCOpenAPRow[], "open leveranciersposten"),
+    rec(fetchBCOpenAR(c.id), [] as BCOpenARRow[], "open klantenposten"),
+    rec(fetchBCClassNetBalance(c.id, "1"), 0, "klasse 1"),
+    rec(fetchBCClassNetBalance(c.id, "2"), 0, "klasse 2"),
+    rec(fetchBCClassNetBalance(c.id, "3"), 0, "klasse 3"),
+    rec(fetchBCClassNetBalance(c.id, "43"), 0, "klasse 43"),
+    rec(fetchBCClassNetBalance(c.id, "45"), 0, "klasse 45"),
   ]);
   // PY meteen tot 4 totalen reduceren — NOOIT alle rauwe PY-rijen bewaren of
   // spreiden (push(...100k rijen) = "Maximum call stack size exceeded").
@@ -514,8 +523,11 @@ async function buildCompanyBundle(
     agg: aggregateCompany(c.code, c.name, rows, { cash, equity, fixedAssets, inventory, shortFinDebt, taxSocDebt, apRows: ap, arRows: ar }),
     pyTotals,
     names: nameMap,
+    fails: fails.length ? fails : undefined,
   };
-  setCache(key, bundle, 720); // 12h, zelfde levensduur als het gecombineerde resultaat
+  // Onvolledige bundel maar 15 min cachen: de fout wordt gemeld én snel hersteld,
+  // i.p.v. 12 uur lang stil te lage cijfers te serveren.
+  setCache(key, bundle, fails.length ? 15 : 720);
   return bundle;
 }
 
@@ -549,15 +561,17 @@ async function buildLiveCfo(
   // Process companies in small batches: 11 × 9 concurrent BC calls at once holds two
   // full-year GL datasets in RAM simultaneously (the earlier stack/memory blow-up).
   const aggs: CompanyAgg[] = [];
+  const bundleFails: string[] = [];
   const CHUNK = 3;
   for (let i = 0; i < targets.length; i += CHUNK) {
     const batch = targets.slice(i, i + CHUNK);
     const part = await Promise.all(batch.map((c) => buildCompanyBundle(c, f, t, pyCutoff)));
-    for (const b of part) {
+    for (const [bi, b] of part.entries()) {
       Object.assign(names, b.names);
       pyAcc.revenue += b.pyTotals.revenue; pyAcc.ebitda += b.pyTotals.ebitda;
       pyAcc.ebit += b.pyTotals.ebit; pyAcc.netResult += b.pyTotals.netResult;
       aggs.push(b.agg);
+      if (b.fails?.length) bundleFails.push(`${batch[bi].code} (${b.fails.join(", ")})`);
     }
   }
 
@@ -569,6 +583,9 @@ async function buildLiveCfo(
   const pyReliable = pyAcc.revenue >= 0.5 * curIncome;
   const result = combine(aggs, names, company, f, t, label, true, today, budgetTargets, pyReliable ? pyAcc : undefined);
   result.scope = { all: companies.map((c) => ({ code: c.code, name: c.name })), excluded };
+  if (bundleFails.length) {
+    result.notes.unshift(`LET OP — ONVOLLEDIGE DATA: Business Central gaf geen antwoord voor ${bundleFails.join("; ")}. Die posten staan nu te laag (niet nul-als-feit); over ±15 minuten wordt het automatisch opnieuw geprobeerd.`);
+  }
   if (excluded.length) {
     result.notes.push(`Consolidatiescope: ${excluded.join(", ")} uitgesloten — alle cijfers (P&L, cash, AP/AR, ratio's) volgen de scope.`);
   }

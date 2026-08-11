@@ -86,6 +86,7 @@ async function pageAll(url: string, token: string): Promise<Record<string, unkno
     next = data["@odata.nextLink"] || null;
     page++;
   }
+  if (next) throw new Error("BC-paging (uitgaven): 400-paginalimiet bereikt, dataset onvolledig");
   return out;
 }
 

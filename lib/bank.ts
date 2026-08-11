@@ -52,7 +52,7 @@ function monthKeys(today: Date, n: number): string[] {
   return keys;
 }
 
-interface CoBank { accounts: BankAccountRow[]; monthly: Record<string, Record<string, { in: number; out: number }>> }
+interface CoBank { accounts: BankAccountRow[]; monthly: Record<string, Record<string, { in: number; out: number }>>; builtAt?: string }
 
 async function buildCompanyBank(co: { id: string; code: string }, months: string[], todayIso: string): Promise<CoBank> {
   const key = `bank-co2-${co.code}-${months[months.length - 1]}`;
@@ -65,7 +65,10 @@ async function buildCompanyBank(co: { id: string; code: string }, months: string
   const res = await fetchWithRetry(`${API_ROOT}/companies(${co.id})/bankAccounts`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
-  if (res.ok) {
+  // Audit 11/08/2026: een mislukte naamlijst maakte de Factor/eigen-cash-splitsing
+  // stil fout (factorrekening als gewone cash geteld) — hard falen i.p.v. raden.
+  if (!res.ok) throw new Error(`bankAccounts-naamlijst niet beschikbaar voor ${co.code} (HTTP ${res.status})`);
+  {
     const d = await res.json() as { value?: { number?: string; displayName?: string }[] };
     for (const b of d.value || []) nameByCode[String(b.number || "")] = String(b.displayName || b.number || "");
   }
@@ -106,6 +109,7 @@ async function buildCompanyBank(co: { id: string; code: string }, months: string
   }
 
   const bundle: CoBank = {
+    builtAt: new Date().toISOString(),
     accounts: [...agg.entries()].map(([code, a]) => ({
       company: co.code, code, name: nameByCode[code] || code, brand: brandOf(nameByCode[code] || code),
       balance: r0(a.balance), in12m: r0(a.in12), out12m: r0(a.out12),
@@ -143,7 +147,9 @@ async function buildBank(exclude: string[]): Promise<CfoBank> {
     byBrand[br].outflow = byBrand[br].outflow.map(r0);
   }
   return {
-    asOf: new Date().toISOString(), isLive: true,
+    // Oudste firmabundel-stempel i.p.v. combineermoment (zelfde fix als units.ts).
+    asOf: cos.reduce<string | null>((m, c) => (c.builtAt && (!m || c.builtAt < m) ? c.builtAt : m), null) || new Date().toISOString(),
+    isLive: true,
     accounts, months, byBrand,
     totals: {
       cashNow: r0(accounts.reduce((s, a) => s + a.balance, 0)),

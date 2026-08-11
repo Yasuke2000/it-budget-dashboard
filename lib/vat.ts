@@ -59,6 +59,7 @@ async function pageAll(url: string, token: string, cb: (row: Record<string, unkn
     next = data["@odata.nextLink"] || null;
     page++;
   }
+  if (next) throw new Error("BC-paging (btw): 800-paginalimiet bereikt, dataset onvolledig");
 }
 
 interface CompanyVatBundle {
@@ -66,6 +67,7 @@ interface CompanyVatBundle {
   months: Record<string, { saleBase: number; saleVat: number; purchBase: number; purchVat: number; nonDed: number; icBase: number; allBase: number }>;
   paidByMonth: Record<string, number>; // 494000: bankbetalingen aan de overheid
   paidOk: boolean;                     // false = de 494000-pull mislukte (paid is dan onbekend, niet 0)
+  builtAt?: string;                    // wanneer deze firmabundel echt uit BC getrokken is
 }
 
 async function buildCompanyVat(co: { id: string; code: string }, keys: string[], today: Date): Promise<CompanyVatBundle> {
@@ -115,7 +117,7 @@ async function buildCompanyVat(co: { id: string; code: string }, keys: string[],
     }
   } catch { paidOk = false; }
 
-  const bundle: CompanyVatBundle = { code: co.code, months, paidByMonth, paidOk };
+  const bundle: CompanyVatBundle = { code: co.code, months, paidByMonth, paidOk, builtAt: new Date().toISOString() };
   setCache(cacheKey, bundle, 720);
   return bundle;
 }
@@ -187,7 +189,9 @@ function combineVat(bundles: CompanyVatBundle[], keys: string[], today: Date): C
   ];
 
   return {
-    asOf: new Date().toISOString(),
+    // Oudste firmabundel-stempel, niet het combineermoment — anders lijkt 12u oude
+    // cache vers (zelfde fix als units.ts, audit 11/08/2026).
+    asOf: bundles.reduce<string | null>((m, b) => (b.builtAt && (!m || b.builtAt < m) ? b.builtAt : m), null) || new Date().toISOString(),
     isLive: true,
     months: rows,
     ytd: { net: r0(ytdMonths.reduce((s, r) => s + r.net, 0)), paid: r0(paidYtd), recoverable: r0(recoverable), year: repYear },
@@ -234,7 +238,7 @@ async function buildLiveVat(cacheKey: string, exclude: string[]): Promise<CfoVat
     let submissions = 0;
     for (const c of companies.slice(0, 3)) {
       const res = await fetchWithRetry(
-        `${ODATA_ROOT}/api/microsoft/vatGroup/v1.0/companies(${c.id})/vatGroupSubmissions?$top=5`,
+        `${ODATA_ROOT}/api/microsoft/vatGroup/v1.0/companies(${c.id})/vatGroupSubmissions`,
         { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
         { timeoutMs: 30_000, maxAttempts: 1 }
       );

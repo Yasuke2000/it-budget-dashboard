@@ -928,13 +928,13 @@ export interface RcvCashPotential {
   // Terugname-buffer (meeting F&A 11/08/2026): gefactureerde facturen die de
   // 85-dagen-drempel passeren — het voorschot daarop kan de bank bij recourse
   // (90 d) terugvragen, dus dat bedrag hoort klaar te staan als buffer.
-  buffer85: {
+  buffer85?: {
     thresholdDays: number; gross: number; advance: number; invoices: number;
     customers: { name: string; open: number; advance: number; maxDays: number }[];
   };
   // Prioriteits-opvolging: posten 60–80 dagen oud — bellen is daar nog goedkoop
   // en voorkomt terugname én dossierwerk.
-  prio6080: {
+  prio6080?: {
     minDays: number; maxDays: number; amount: number; invoices: number;
     customers: { name: string; open: number; maxDays: number; factored: boolean; phone: string; email: string }[];
   };

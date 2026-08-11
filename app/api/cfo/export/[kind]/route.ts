@@ -43,9 +43,12 @@ export async function GET(
       const iso = /^\d{4}-\d{2}-\d{2}$/;
       const from = iso.test(url.searchParams.get("from") || "") ? url.searchParams.get("from")! : def.from;
       const to = iso.test(url.searchParams.get("to") || "") ? url.searchParams.get("to")! : def.to;
+      if (from > to) {
+        return Response.json({ error: `Ongeldige periode: van-datum (${from}) ligt na tot-datum (${to}).` }, { status: 400 });
+      }
       const data = await fetchUitgaven(from, to);
       if (!data.rows) {
-        return Response.json({ error: "Geen boekingen gevonden in de periode — is de BC-verbinding actief (geen demomodus)?" }, { status: 503 });
+        return Response.json({ error: `Geen boekingen gevonden in ${from} t/m ${to} — ligt de periode (deels) in de toekomst, of is de BC-verbinding inactief (demomodus)?` }, { status: 503 });
       }
       const { buffer, filename } = await buildUitgavenWorkbook(data, from, to, pulledAt);
       return xlsxResponse(buffer, filename, pulledAt);
@@ -65,8 +68,11 @@ export async function GET(
         return Response.json({ error: "Geen data beschikbaar om te exporteren." }, { status: 503 });
       }
       const { buildRcvWorkbook } = await import("@/lib/rcv-export");
-      const { buffer, filename } = await buildRcvWorkbook(data, pulledAt);
-      return xlsxResponse(buffer, filename, pulledAt);
+      // Stempel = de échte pull-tijd van de data (asOf, oudste firmabundel) — niet het
+      // downloadmoment: het bestand claimt anders een verse pull op 12u oude cache.
+      const stampAt = "asOf" in data && data.asOf ? new Date(data.asOf) : pulledAt;
+      const { buffer, filename } = await buildRcvWorkbook(data, stampAt);
+      return xlsxResponse(buffer, filename, stampAt);
     }
 
     if (kind === "leasing") {

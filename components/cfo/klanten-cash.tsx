@@ -1585,7 +1585,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
       <Card
         title="BTW-positie per maand"
         period={vat.data ? `YTD 01/01/${vat.data.ytd.year} t/m ${mEnd(vatLastMonth)} · YoY vs ${vat.data.prevYtd.year}` : "YTD"}
-        hint={vat.data ? `Volledig afgesloten btw-aangifteperiodes van 01/01/${vat.data.ytd.year} tot en met ${mEnd(vatLastMonth)}: saldo ${formatCurrency(Math.abs(vat.data.ytd.net))} ${vat.data.ytd.net >= 0 ? "te betalen" : "te vorderen"}. Vergeleken met exact dezelfde maanden van ${vat.data.prevYtd.year}${vat.data.prevYtd.monthsCompared ? ` (${vat.data.prevYtd.monthsCompared})` : ""}: ${formatCurrency(Math.abs(vat.data.prevYtd.net))} ${vat.data.prevYtd.net >= 0 ? "te betalen" : "te vorderen"}.` : "BTW-posten worden geladen…"}
+        hint={vat.data ? `Volledig afgesloten btw-aangifteperiodes van 01/01/${vat.data.ytd.year} tot en met ${mEnd(vatLastMonth)}: saldo ${formatCurrency(Math.abs(vat.data.ytd.net))} ${vat.data.ytd.net >= 0 ? "te betalen" : "te vorderen"}. Vergeleken op exact dezelfde maanden${vat.data.prevYtd.monthsCompared ? ` (${vat.data.prevYtd.monthsCompared})` : ""}: dit jaar ${formatCurrency(Math.abs(vat.data.prevYtd.matchedNet ?? vat.data.ytd.net))} vs ${formatCurrency(Math.abs(vat.data.prevYtd.net))} in ${vat.data.prevYtd.year}.` : "BTW-posten worden geladen…"}
         onSource={() => setKpiSrc(src(
           "BTW-positie", vat.data ? formatCurrency(vat.data.ytd.net) : "—",
           vat.data ? `01/01/${vat.data.ytd.year} tot en met ${mEnd(vatLastMonth)} — enkel VOLLEDIG afgesloten aangifteperiodes` : "year-to-date",
@@ -1596,7 +1596,8 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
             { naam: "Aftrekbaar op aankopen YTD", waarde: formatCurrency(vat.data.perCompany.reduce((s, c) => s + c.ytdPurchVat, 0)) },
             { naam: "= Saldo YTD (te betalen aan de Staat)", waarde: formatCurrency(vat.data.ytd.net) },
             { naam: "Waarvan al betaald YTD", waarde: formatCurrency(vat.data.ytd.paid) },
-            { naam: `Zelfde maanden van ${vat.data.prevYtd.year}${vat.data.prevYtd.monthsCompared ? ` (${vat.data.prevYtd.monthsCompared})` : ""}`, waarde: formatCurrency(vat.data.prevYtd.net) },
+            { naam: `Dit jaar, zelfde maanden${vat.data.prevYtd.monthsCompared ? ` (${vat.data.prevYtd.monthsCompared})` : ""}`, waarde: formatCurrency(vat.data.prevYtd.matchedNet ?? vat.data.ytd.net) },
+            { naam: `Zelfde maanden van ${vat.data.prevYtd.year}`, waarde: formatCurrency(vat.data.prevYtd.net) },
           ] : undefined,
           "Methodiek & bronnen",
           `De YoY-vergelijking gebruikt uitsluitend de kalendermaanden die in BEIDE jaren volledig zijn${vat.data?.prevYtd.monthsCompared ? ` (${vat.data.prevYtd.monthsCompared})` : ""} — anders zou je een half jaar tegen een vol jaar afzetten. Het saldo per vennootschap in de tabel is informatief: door de btw-eenheid wordt er op groepsniveau afgerekend, niet per firma.`,
@@ -1643,7 +1644,7 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
             <Kpi
               label="Gem. voorfinanciering/mnd"
               value={formatCurrencyCompact(vat.data.prefinance.avgMonthlyNet)}
-              sub={`gemiddeld per maand over 01/01/${vat.data.ytd.year} t/m ${mEnd(vatLastMonth)}`}
+              sub={`gemiddelde van de te-betalen-maanden — laatste 12 volledige aangifteperiodes t/m ${mEnd(vatLastMonth)}`}
               tone="warn"
               onClick={() => setKpiSrc(src(
                 "Gemiddelde btw-voorfinanciering per maand", formatCurrency(vat.data!.prefinance.avgMonthlyNet),

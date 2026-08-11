@@ -29,6 +29,7 @@ interface GlDrillResponse {
   accountLinks: { company: string; url: string }[]; // "alle posten van deze rekening in BC"
   demo?: boolean;
   note?: string;
+  warning?: string;     // audit 11/08/2026: gezet als een firma-pull faalde (total onvolledig)
 }
 
 const CAP = 300;
@@ -82,11 +83,14 @@ export async function GET(req: NextRequest) {
     // 7x is credit-normaal (opbrengsten), al de rest debet-normaal.
     const sign = account.startsWith("7") ? -1 : 1;
     const all: GlDrillEntry[] = [];
+    const failed: string[] = [];
     const CHUNK = 3;
     for (let i = 0; i < companies.length; i += CHUNK) {
       const batch = companies.slice(i, i + CHUNK);
       const parts = await Promise.all(batch.map(async (c) => {
-        const rows = await fetchBCGlEntriesForAccount(c.id, account, from, to).catch(() => []);
+        // Audit 11/08/2026: een gefaalde firma niet stil weglaten — registreren,
+        // zodat "total = som over ALLE posten" geen fantoomverschil oplevert.
+        const rows = await fetchBCGlEntriesForAccount(c.id, account, from, to).catch(() => { failed.push(c.code); return []; });
         return rows.map((r) => ({
           company: c.code,
           date: r.postingDate,
@@ -110,8 +114,10 @@ export async function GET(req: NextRequest) {
       accountLinks: companies
         .filter((c) => all.some((e) => e.company === c.code))
         .map((c) => ({ company: c.code, url: glAccountLink(c.code, account) })),
+      ...(failed.length ? { warning: `Onvolledig: BC gaf geen antwoord voor ${failed.join(", ")} — het totaal mist die firma('s).` } : {}),
     };
-    setCache(cacheKey, result, 30); // 30 min — drill is een leesvenster, geen rapport
+    // Onvolledig resultaat maar 2 min cachen; volledig 30 min (drill = leesvenster).
+    setCache(cacheKey, result, failed.length ? 2 : 30);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json({ error: String(err).slice(0, 200) }, { status: 502 });

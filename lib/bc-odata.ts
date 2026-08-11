@@ -25,6 +25,8 @@ export async function pageAllOData(url: string, cb: (row: Record<string, unknown
     next = data["@odata.nextLink"] || null;
     page++;
   }
+  // Audit 11/08/2026: NOOIT stil afkappen — zelfde foutklasse als de $top-bug.
+  if (next) throw new Error("BC-paging: 800-paginalimiet bereikt, dataset onvolledig — limiet verhogen i.p.v. stil afkappen");
 }
 
 export interface BuildingState { building: true; isLive: boolean }
