@@ -1016,6 +1016,58 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
             </div>
           </div>
 
+          {/* Meeting F&A 11/08/2026: buffer vóór de 90d-recoursegrens + prio-venster 60–80d */}
+          {(cp.buffer85 || cp.prio6080) && (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {cp.buffer85 && (
+                <div className="rounded-xl border border-warning/30 bg-warning/5 p-3">
+                  <p className="text-[11px] font-semibold text-foreground">
+                    Terugname-buffer — facturen ≥ {cp.buffer85.thresholdDays} d bij factoring-klanten
+                  </p>
+                  <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                    Deze facturen passeren zo de 90-dagengrens waarop de bank het voorschot kan terugvragen.
+                    Zet <b className="text-warning">{formatCurrency(cp.buffer85.advance)}</b> klaar als buffer
+                    ({cp.buffer85.invoices} facturen, bruto {formatCurrency(cp.buffer85.gross)} × {cp.advancePct}%-voorschot, aanname).
+                  </p>
+                  {cp.buffer85.customers.length > 0 && (
+                    <ul className="mt-1.5 space-y-0.5 text-[10px]">
+                      {cp.buffer85.customers.slice(0, 6).map((c) => (
+                        <li key={c.name} className="flex justify-between gap-2">
+                          <span className="truncate text-foreground">{c.name} <span className="text-muted-foreground">({c.maxDays}d)</span></span>
+                          <span className="shrink-0 tabular-nums font-semibold text-warning">{formatCurrency(c.advance)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+              {cp.prio6080 && (
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+                  <p className="text-[11px] font-semibold text-foreground">
+                    Prio-opvolging — posten {cp.prio6080.minDays} – {cp.prio6080.maxDays} dagen
+                  </p>
+                  <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                    <b className="text-primary">{formatCurrency(cp.prio6080.amount)}</b> in {cp.prio6080.invoices} facturen zit in het venster
+                    waar bellen nog goedkoop is: vóór de terugnamegrens (90d) en vóór het dossierwerk (180d). Dit is de opvolglijst van deze week.
+                  </p>
+                  {cp.prio6080.customers.length > 0 && (
+                    <ul className="mt-1.5 space-y-0.5 text-[10px]">
+                      {cp.prio6080.customers.slice(0, 6).map((c) => (
+                        <li key={c.name} className="flex justify-between gap-2">
+                          <span className="truncate text-foreground">
+                            {c.name} <span className="text-muted-foreground">({c.maxDays}d)</span>
+                            {c.phone && <a href={`tel:${c.phone.replace(/\s/g, "")}`} className="ml-1 text-primary hover:underline">{c.phone}</a>}
+                          </span>
+                          <span className="shrink-0 tabular-nums font-semibold text-foreground">{formatCurrency(c.open)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Belijst met een €-target per klant */}
           <div className="mt-4">
             <p className="mb-1.5 text-[11px] font-semibold text-foreground">
@@ -1492,6 +1544,37 @@ export function KlantenCash({ exclude }: { exclude: string[] }) {
                     <td className="px-2 py-1 text-right tabular-nums">{formatCurrencyCompact(a.out12m)}</td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+            {/* Per vennootschap (meeting F&A 11/08/2026): cash en stromen per firma —
+                puur een hergroepering van dezelfde rekeningen hierboven. */}
+            <p className="mb-1 mt-3 text-[11px] font-semibold text-foreground">Per vennootschap <span className="font-normal text-muted-foreground">— saldo {vandaag} · stromen {per12m} · incl. factor-/kredietrekeningen</span></p>
+            <table className="w-full min-w-[420px] border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <th className="px-2 py-1 text-left">Firma</th>
+                  <th className="px-2 py-1 text-right">Saldo nu</th>
+                  <th className="px-2 py-1 text-right">In {per12m.length > 20 ? "12m" : per12m}</th>
+                  <th className="px-2 py-1 text-right">Uit {per12m.length > 20 ? "12m" : per12m}</th>
+                  <th className="px-2 py-1 text-right" title="in min uit over dezelfde periode">Netto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(bank.data.accounts.reduce((m, a) => {
+                  const x = m[a.company] || { bal: 0, inV: 0, outV: 0 };
+                  x.bal += a.balance; x.inV += a.in12m; x.outV += a.out12m; m[a.company] = x;
+                  return m;
+                }, {} as Record<string, { bal: number; inV: number; outV: number }>))
+                  .sort((a, b) => b[1].bal - a[1].bal)
+                  .map(([co, x]) => (
+                    <tr key={co} className="border-b border-border/40">
+                      <td className="px-2 py-1 font-medium text-foreground">{co}</td>
+                      <td className={`px-2 py-1 text-right font-semibold tabular-nums ${x.bal < 0 ? "text-negative" : "text-foreground"}`}>{formatCurrency(x.bal)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{formatCurrencyCompact(x.inV)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{formatCurrencyCompact(x.outV)}</td>
+                      <td className={`px-2 py-1 text-right tabular-nums ${x.inV - x.outV < 0 ? "text-negative" : "text-positive"}`}>{formatCurrencyCompact(x.inV - x.outV)}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>

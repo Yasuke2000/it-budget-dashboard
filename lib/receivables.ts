@@ -952,6 +952,14 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   // één instelling. Alles wat eraan hangt, is daarom gelabeld als aanname.
   const ADVANCE_PCT = 85;
   const RECOURSE_DAYS = 90;
+  // Meeting F&A 11/08/2026 (Silvio): (a) op 85 dagen na factuurdatum een BUFFER
+  // opzetten voor het voorschot dat de bank bij recourse (90 d) kan terugvragen —
+  // 5 dagen vooruitkijken zodat de terugname nooit rauw op de rekening valt;
+  // (b) klanten met posten tussen 60 en 80 dagen krijgen PRIORITEIT in de
+  // opvolging: daar is bellen nog goedkoop en voorkomt het én de terugname én
+  // het dossierwerk.
+  const BUFFER_DAYS = 85;
+  const PRIO_MIN = 60, PRIO_MAX = 80;
   const cashPotential: RcvCashPotential = (() => {
     let openTotal = 0, openFactored = 0, openNonFactored = 0;
     let recourseGross = 0;
@@ -968,6 +976,10 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       open: number; adv: number; unlock: number; maxD: number; wD: number;
       f: boolean; cos: Set<string>; custNo: string; co: string; top: number;
     }>();
+    let bufGross = 0, bufAdvance = 0, bufInv = 0;
+    const bufCust = new Map<string, { open: number; adv: number; maxD: number }>();
+    let prioAmt = 0, prioInv = 0;
+    const prioCust = new Map<string, { open: number; maxD: number; f: boolean }>();
 
     for (const b of bundles) for (const inv of b.invoices) {
       if (inv.ic || !inv.open) continue;
@@ -983,6 +995,18 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       openTotal += openAmt;
       if (fact) openFactored += openAmt; else openNonFactored += openAmt;
       if (fact && age > RECOURSE_DAYS) recourseGross += openAmt;
+      if (fact && age >= BUFFER_DAYS) {
+        bufGross += openAmt; bufAdvance += openAmt * (ADVANCE_PCT / 100); bufInv++;
+        const bc = bufCust.get(inv.cust) || { open: 0, adv: 0, maxD: 0 };
+        bc.open += openAmt; bc.adv += openAmt * (ADVANCE_PCT / 100); bc.maxD = Math.max(bc.maxD, age);
+        bufCust.set(inv.cust, bc);
+      }
+      if (age >= PRIO_MIN && age <= PRIO_MAX) {
+        prioAmt += openAmt; prioInv++;
+        const pc = prioCust.get(inv.cust) || { open: 0, maxD: 0, f: fact };
+        pc.open += openAmt; pc.maxD = Math.max(pc.maxD, age);
+        prioCust.set(inv.cust, pc);
+      }
 
       for (const n of NORMS) {
         if (age <= n) continue;             // binnen het doel: geen vrijmaking
@@ -1031,6 +1055,19 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       }),
       monthlyInterestSaved: r0((atNorm.unlock * (RATE / 100)) / 12),
       structuralRelease, dsoNow: dsoNow.total,
+      buffer85: {
+        thresholdDays: BUFFER_DAYS, gross: r0(bufGross), advance: r0(bufAdvance), invoices: bufInv,
+        customers: [...bufCust.entries()].sort((a, b) => b[1].adv - a[1].adv).slice(0, 25)
+          .map(([name, c]) => ({ name, open: r0(c.open), advance: r0(c.adv), maxDays: c.maxD })),
+      },
+      prio6080: {
+        minDays: PRIO_MIN, maxDays: PRIO_MAX, amount: r0(prioAmt), invoices: prioInv,
+        customers: [...prioCust.entries()].sort((a, b) => b[1].open - a[1].open).slice(0, 25)
+          .map(([name, c]) => ({
+            name, open: r0(c.open), maxDays: c.maxD, factored: c.f,
+            phone: contactMerged[name]?.phone || "", email: contactMerged[name]?.email || "",
+          })),
+      },
       customers: [...perCust.entries()]
         .filter(([, c]) => c.unlock > 0)
         .sort((a, b) => b[1].unlock - a[1].unlock)
