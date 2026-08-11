@@ -53,7 +53,9 @@ async function buildCompanyAssets(co: { id: string; code: string }, year: number
     const cls = classByFa[fa] || { c: "?", s: "?" };
     const k = `${cls.c}|${cls.s}`;
     const row = agg.get(k) || { classCode: cls.c, subclassCode: cls.s, count: 0, bookValue: 0, acquisitionYtd: 0, depreciationYtd: 0 };
-    const amt = (e.Amount as number) || 0;
+    // Webservice exporteert Amount_LCY (euro), niet Amount — BC 400 sinds de
+    // herpublicatie; vastgesteld in de live-audit 11/08/2026.
+    const amt = ((e.Amount_LCY as number) ?? (e.Amount as number)) || 0;
     const type = String(e.FA_Posting_Type || "");
     row.bookValue += amt;
     if (pd >= ystart) {
@@ -68,7 +70,7 @@ async function buildCompanyAssets(co: { id: string; code: string }, year: number
   // al verwerkte pagina's dubbel tellen (boekwaarde/CAPEX te hoog, terwijl `count`
   // door de dedupe wél klopte — dus vrijwel onzichtbaar). Audit 04/08/2026.
   const base = `${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(co.code)}')/FALedgerEntries`;
-  await pageAllOData(`${base}?$select=FA_No,FA_Posting_Type,Posting_Date,Amount`, handle, token);
+  await pageAllOData(`${base}?$select=FA_No,FA_Posting_Type,Posting_Date,Amount_LCY`, handle, token);
   const bundle: CoAssets = { rows: [...agg.values()] };
   setCache(key, bundle, 720);
   return bundle;
