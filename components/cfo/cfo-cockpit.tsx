@@ -1220,7 +1220,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
               <ExportButton kind="ap" label="Leveranciersaging (Excel)" />
               <ExportButton kind="ar" label="Klantenaging (Excel)" />
               <ExportButton kind="leasing" label="Leasing cash-out (Excel)" />
-              <ExportButton kind="uitgaven" label="Overzicht uitgaven per categorie (Excel)" />
+              <ExportButton kind="uitgaven" label="Overzicht uitgaven per categorie (Excel)" withRange />
               <a
                 href="/api/cfo/ai-export"
                 className="flex w-full items-center justify-between rounded-xl border border-border bg-background/40 px-3 py-2 text-left text-xs font-semibold text-foreground transition hover:border-primary/40 hover:bg-accent"
@@ -1406,10 +1406,25 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
 }
 
 // ---- exports (de "knop": live pull uit BC, met timestamp) ----
-function ExportButton({ kind, label }: { kind: "ap" | "ar" | "leasing" | "uitgaven"; label: string }) {
+// Default-periode voor de uitgaven-export: 1 januari t/m de laatste VOLLEDIGE maand
+// (lonen van de lopende maand zijn nog niet geboekt).
+function uitgavenDefaultRange(): { from: string; to: string } {
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), 0); // laatste dag vorige maand
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return { from: `${end.getFullYear()}-01-01`, to: iso(end) };
+}
+
+function ExportButton({ kind, label, withRange }: { kind: "ap" | "ar" | "leasing" | "uitgaven"; label: string; withRange?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [pulledAt, setPulledAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Datumprompt (vraag David 11/08): bij exports met withRange eerst de cut-off-datums
+  // kiezen (van/tot boekingsdatum), dan pas downloaden.
+  const [open, setOpen] = useState(false);
+  const def = uitgavenDefaultRange();
+  const [from, setFrom] = useState(def.from);
+  const [to, setTo] = useState(def.to);
 
   const run = async () => {
     setBusy(true); setError(null);
@@ -1418,7 +1433,8 @@ function ExportButton({ kind, label }: { kind: "ap" | "ar" | "leasing" | "uitgav
       const exclude = kind === "leasing"
         ? new URL(window.location.href).searchParams.get("exclude") || ""
         : "";
-      const res = await fetch(`/api/cfo/export/${kind}${exclude ? `?exclude=${encodeURIComponent(exclude)}` : ""}`);
+      const range = withRange ? `?from=${from}&to=${to}` : "";
+      const res = await fetch(`/api/cfo/export/${kind}${range}${exclude ? `${range ? "&" : "?"}exclude=${encodeURIComponent(exclude)}` : ""}`);
       if (!res.ok) {
         const j = await res.json().catch(() => null);
         throw new Error(j?.error || `Export mislukt (${res.status})`);
@@ -1441,16 +1457,63 @@ function ExportButton({ kind, label }: { kind: "ap" | "ar" | "leasing" | "uitgav
     }
   };
 
+  // presets voor de datumprompt (boekjaar = kalenderjaar)
+  const year = new Date().getFullYear();
+  const presets: { label: string; from: string; to: string }[] = [
+    { label: "Vorige maand", from: `${uitgavenDefaultRange().to.slice(0, 8)}01`, to: uitgavenDefaultRange().to },
+    { label: "Q1", from: `${year}-01-01`, to: `${year}-03-31` },
+    { label: "Q2", from: `${year}-04-01`, to: `${year}-06-30` },
+    { label: "H1", from: `${year}-01-01`, to: `${year}-06-30` },
+    { label: "Dit jaar t/m vorige maand", from: def.from, to: def.to },
+    { label: `Heel ${year - 1}`, from: `${year - 1}-01-01`, to: `${year - 1}-12-31` },
+  ];
+
   return (
     <div>
       <button
-        onClick={run}
+        onClick={() => (withRange ? setOpen((o) => !o) : run())}
         disabled={busy}
         className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 text-left text-sm font-medium text-foreground transition hover:bg-primary/10 hover:text-primary disabled:opacity-60"
       >
         <span>{label}</span>
         {busy ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" /> : <Download className="h-4 w-4 shrink-0 text-primary" />}
       </button>
+      {withRange && open && !busy && (
+        <div className="mt-1.5 space-y-2 rounded-xl border border-border bg-background/60 p-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Periode (boekingsdatum)</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {presets.map((pz) => (
+              <button
+                key={pz.label}
+                onClick={() => { setFrom(pz.from); setTo(pz.to); }}
+                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 transition ${from === pz.from && to === pz.to ? "bg-primary/15 text-primary ring-primary/40" : "bg-muted text-muted-foreground ring-border hover:text-foreground"}`}
+              >
+                {pz.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              van
+              <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)}
+                className="rounded-lg border border-border bg-background px-2 py-1 text-[11px] text-foreground" />
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              tot
+              <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)}
+                className="rounded-lg border border-border bg-background px-2 py-1 text-[11px] text-foreground" />
+            </label>
+            <button
+              onClick={() => { setOpen(false); run(); }}
+              disabled={!from || !to || from > to}
+              className="ml-auto rounded-lg bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+            >
+              Download
+            </button>
+          </div>
+          <p className="text-[10px] leading-snug text-muted-foreground">Let op: de lopende maand is onvolledig zolang de loonverwerking niet geboekt is (lonen van maand X worden begin maand X+1 geboekt).</p>
+        </div>
+      )}
       {busy && <p className="mt-1 text-[10px] text-muted-foreground">Live aan het trekken uit BC (alle vennootschappen) — kan ± 1 min duren…</p>}
       {pulledAt && !busy && <p className="mt-1 text-[10px] text-positive">✓ Data getrokken op {pulledAt}</p>}
       {error && !busy && <p className="mt-1 text-[10px] text-negative">{error}</p>}
