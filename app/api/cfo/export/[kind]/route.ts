@@ -29,10 +29,27 @@ export async function GET(
   if (!cfoAllowed(session?.user?.email)) return new Response("Forbidden", { status: 403 });
 
   const { kind } = await params;
-  if (kind !== "ap" && kind !== "ar" && kind !== "leasing" && kind !== "klantencash") return new Response("Unknown export", { status: 404 });
+  if (kind !== "ap" && kind !== "ar" && kind !== "leasing" && kind !== "klantencash" && kind !== "uitgaven") return new Response("Unknown export", { status: 404 });
 
   try {
     const pulledAt = new Date();
+
+    // Overzicht uitgaven per categorie × firma × maand (FINSIT/OVZ-stijl, live).
+    // Optioneel ?from=YYYY-MM-DD&to=YYYY-MM-DD; default = 1 jan t/m laatste volledige maand.
+    if (kind === "uitgaven") {
+      const url = new URL(req.url);
+      const { fetchUitgaven, buildUitgavenWorkbook, defaultUitgavenRange } = await import("@/lib/uitgaven-export");
+      const def = defaultUitgavenRange(pulledAt);
+      const iso = /^\d{4}-\d{2}-\d{2}$/;
+      const from = iso.test(url.searchParams.get("from") || "") ? url.searchParams.get("from")! : def.from;
+      const to = iso.test(url.searchParams.get("to") || "") ? url.searchParams.get("to")! : def.to;
+      const data = await fetchUitgaven(from, to);
+      if (!data.rows) {
+        return Response.json({ error: "Geen boekingen gevonden in de periode — is de BC-verbinding actief (geen demomodus)?" }, { status: 503 });
+      }
+      const { buffer, filename } = await buildUitgavenWorkbook(data, from, to, pulledAt);
+      return xlsxResponse(buffer, filename, pulledAt);
+    }
 
     // Klanten & Cash: de volledige brondata achter de pagina (DSO per maand,
     // betaalgedrag per klant, open posten met BC-links, factoring, facturatie per week).

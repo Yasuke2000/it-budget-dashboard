@@ -1220,6 +1220,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
               <ExportButton kind="ap" label="Leveranciersaging (Excel)" />
               <ExportButton kind="ar" label="Klantenaging (Excel)" />
               <ExportButton kind="leasing" label="Leasing cash-out (Excel)" />
+              <ExportButton kind="uitgaven" label="Overzicht uitgaven per categorie (Excel)" />
               <a
                 href="/api/cfo/ai-export"
                 className="flex w-full items-center justify-between rounded-xl border border-border bg-background/40 px-3 py-2 text-left text-xs font-semibold text-foreground transition hover:border-primary/40 hover:bg-accent"
@@ -1405,7 +1406,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
 }
 
 // ---- exports (de "knop": live pull uit BC, met timestamp) ----
-function ExportButton({ kind, label }: { kind: "ap" | "ar" | "leasing"; label: string }) {
+function ExportButton({ kind, label }: { kind: "ap" | "ar" | "leasing" | "uitgaven"; label: string }) {
   const [busy, setBusy] = useState(false);
   const [pulledAt, setPulledAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1429,7 +1430,7 @@ function ExportButton({ kind, label }: { kind: "ap" | "ar" | "leasing"; label: s
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = m?.[1] || `${kind === "ap" ? "Leveranciersaging" : kind === "ar" ? "Klantenaging" : "Leasing cash-out"}.xlsx`;
+      a.download = m?.[1] || `${kind === "ap" ? "Leveranciersaging" : kind === "ar" ? "Klantenaging" : kind === "uitgaven" ? "Overzicht uitgaven" : "Leasing cash-out"}.xlsx`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
       if (stamp) setPulledAt(new Date(stamp).toLocaleString("nl-BE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }));
