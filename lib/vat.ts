@@ -215,7 +215,8 @@ function combineVat(bundles: CompanyVatBundle[], keys: string[], today: Date): C
   };
 }
 
-const inflight = new Map<string, Promise<CfoVat>>();
+const _gVat = globalThis as unknown as { __inflightVat?: Map<string, Promise<CfoVat>> };
+const inflight = (_gVat.__inflightVat ??= new Map<string, Promise<CfoVat>>());
 
 async function buildLiveVat(cacheKey: string, exclude: string[]): Promise<CfoVat> {
   const today = new Date();
