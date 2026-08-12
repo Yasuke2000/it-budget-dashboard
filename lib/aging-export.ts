@@ -50,6 +50,9 @@ export interface AgingRow {
   // Betalingsvoorwaarde-code van de tegenpartij (vraag finance 11/08/2026), uit de
   // stamdata (paymentTermsId → paymentTerms.code, bv. "30D", "LM+30D").
   payTerms: string;
+  // Klant-leverancier-relatie (vraag finance 12/08/2026): staat deze tegenpartij ook
+  // aan de ándere kant in de stamdata (btw-nummer- of naam-match)? Kandidaat saldering.
+  alsoOther: boolean;
 }
 
 async function pageAll(url: string, token: string): Promise<Record<string, unknown>[]> {
@@ -98,6 +101,30 @@ async function fetchPartyMeta(
   return meta;
 }
 
+// Tegenpartij-sets van de ANDERE kant (AR → leveranciers, AP → klanten) voor de
+// klant-leverancier-vlag: btw-nummers (sterk) + genormaliseerde namen (indicatief).
+async function fetchCounterpartySets(
+  companies: { id: string }[], entity: "customers" | "vendors", token: string
+): Promise<{ vats: Set<string>; names: Set<string> }> {
+  const vats = new Set<string>(); const names = new Set<string>();
+  for (const c of companies) {
+    const url = `${API_ROOT}/companies(${c.id})/${entity}?$select=displayName,taxRegistrationNumber`;
+    for (const p of await pageAll(url, token)) {
+      const vat = String(p.taxRegistrationNumber || "").replace(/\D/g, "").slice(-9);
+      if (vat) vats.add(vat);
+      const n = normName(String(p.displayName || ""));
+      if (n) names.add(n);
+    }
+  }
+  return { vats, names };
+}
+function markAlsoOther(rows: AgingRow[], sets: { vats: Set<string>; names: Set<string> }): void {
+  for (const r of rows) {
+    const vat = r.vatNo.replace(/\D/g, "").slice(-9);
+    r.alsoOther = (vat !== "" && sets.vats.has(vat)) || sets.names.has(normName(r.party));
+  }
+}
+
 /** All OPEN vendor ledger entries, group-wide. Payable = −Remaining_Amt_LCY. */
 export async function fetchAgingAP(): Promise<AgingRow[]> {
   const token = await getBCToken();
@@ -128,9 +155,11 @@ export async function fetchAgingAP(): Promise<AgingRow[]> {
         dueDate: cleanDate(e.Due_Date),
         amountEUR: Math.round(-remLCY * 100) / 100,
         company: co,
+        alsoOther: false,
       });
     }
   }
+  markAlsoOther(rows, await fetchCounterpartySets(companies, "customers", token));
   return rows;
 }
 
@@ -169,9 +198,11 @@ export async function fetchAgingAR(): Promise<AgingRow[]> {
         dueDate: cleanDate(e.Due_Date),
         amountEUR: Math.round(remLCY * 100) / 100,
         company: co,
+        alsoOther: false,
       });
     }
   }
+  markAlsoOther(rows, await fetchCounterpartySets(companies, "vendors", token));
   return rows;
 }
 
@@ -181,11 +212,17 @@ export async function fetchAgingAR(): Promise<AgingRow[]> {
 // vervaldag. "Hoe lang zweeft dit geld al", los van de afgesproken termijn. De
 // vervaldag blijft als aparte kolom staan; het "vervallen"-deel (vervaldag ≤ vandaag,
 // = BC-rapport "Vervallen posten") staat apart op de bladen.
-const BUCKETS = ["0 – 30d", "31 – 60d", "61 – 90d", "> 90d", "Onbekend"] as const;
+// "Niet toegewezen" (vraag finance 12/08/2026): creditnota's, betalingen en
+// terugbetalingen die open staan omdat ze niet aan een factuur zijn afgepunt —
+// die horen niet in een ouderdomsblok maar in hun eigen kolom naast > 90d.
+const BUCKETS = ["0 – 30d", "31 – 60d", "61 – 90d", "> 90d", "Niet toegewezen", "Onbekend"] as const;
+const UNAPPLIED_TYPES = new Set(["Betaling", "Terugbetaling", "Creditnota"]);
 // Audit 11/08/2026: leeftijd op KALENDERDAG Brussel (snapIso), niet op het
 // milliseconden-verschil met het pull-moment — een pull om 01:00 schoof anders
 // alle grensfacturen één bucket te jong t.o.v. het dashboard.
-function bucketOf(invDate: string, snapIso: string): (typeof BUCKETS)[number] {
+function bucketOf(x: { invoiceDate: string; docType: string }, snapIso: string): (typeof BUCKETS)[number] {
+  if (UNAPPLIED_TYPES.has(x.docType)) return "Niet toegewezen";
+  const invDate = x.invoiceDate;
   if (!invDate) return "Onbekend";
   const d = Date.parse(`${invDate}T00:00:00Z`);
   if (Number.isNaN(d)) return "Onbekend";
@@ -227,7 +264,7 @@ export async function buildAgingWorkbook(
   const bucketSums = (rs: AgingRow[]) => {
     const s: Record<string, number> = {};
     for (const b of BUCKETS) s[b] = 0;
-    for (const r of rs) s[bucketOf(r.invoiceDate, snapIso)] += r.amountEUR;
+    for (const r of rs) s[bucketOf(r, snapIso)] += r.amountEUR;
     return s;
   };
 
@@ -238,13 +275,15 @@ export async function buildAgingWorkbook(
   const C_COMP = C_SOORT + 1;                   // 13
   const C_VAT = C_COMP + 1;                     // 14
   const C_TERMS = C_VAT + 1;                    // 15
+  const C_XREL = C_TERMS + 1;                   // klant-leverancier-vlag
 
   const wb = new ExcelJS.Workbook();
   wb.created = pulledAt;
 
   // ---- sheet 1: detail grouped ----
   const ws = wb.addWorksheet("Aging");
-  const headers = [partyLabel, "Factuurnummer", "Totaalbedrag", "Munt", "Factuurdatum", "Vervaldatum", ...BUCKETS, "Soort", "Vennootschap", "Btw-nummer", "Betalingsvoorwaarde"];
+  const xrelLabel = isAP ? "Ook klant?" : "Ook leverancier?";
+  const headers = [partyLabel, "Factuurnummer", "Totaalbedrag", "Munt", "Factuurdatum", "Vervaldatum", ...BUCKETS, "Soort", "Vennootschap", "Btw-nummer", "Betalingsvoorwaarde", xrelLabel];
   const NC = headers.length;
   ws.getCell(1, 1).value = `${title} — GHEERAERT GROEP — data getrokken op ${stamp} · ouderdom = dagen sinds FACTUURDATUM`;
   ws.getCell(1, 1).font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
@@ -252,7 +291,7 @@ export async function buildAgingWorkbook(
   ws.getRow(3).values = headers;
   ws.getRow(3).font = { bold: true, color: { argb: "FFFFFFFF" } };
   fill(ws, 3, NC, BLUE);
-  const widths = [34, 16, 14, 7, 12, 12, 13, 13, 13, 12, 12, 9, 13, 15, 18];
+  const widths = [34, 16, 14, 7, 12, 12, ...BUCKETS.map(() => 13), 9, 13, 15, 18, 14];
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w));
 
   const grand = bucketSums(rows);
@@ -278,6 +317,7 @@ export async function buildAgingWorkbook(
     ws.getCell(r, C_SOORT).value = ic ? "IC" : "Extern";
     ws.getCell(r, C_VAT).value = g.rows.find((x) => x.vatNo)?.vatNo || "";
     ws.getCell(r, C_TERMS).value = g.rows.find((x) => x.payTerms)?.payTerms || "";
+    ws.getCell(r, C_XREL).value = g.rows.some((x) => x.alsoOther) ? "JA" : "";
     ws.getRow(r).font = { bold: true, color: { argb: "FFFFFFFF" } };
     fill(ws, r, NC, ic ? ICCLR : BLUEROW);
     r++;
@@ -302,13 +342,14 @@ export async function buildAgingWorkbook(
       ws.getCell(r, 5).value = x.invoiceDate;
       ws.getCell(r, 6).value = x.dueDate;
       if (isOverdue(x)) ws.getCell(r, 6).font = { color: { argb: "FFB4342A" } };
-      const b = bucketOf(x.invoiceDate, snapIso);
+      const b = bucketOf(x, snapIso);
       const ci = B0 + BUCKETS.indexOf(b);
       ws.getCell(r, ci).value = x.amountEUR; ws.getCell(r, ci).numFmt = EUR_FMT;
       if (b === "> 90d") ws.getCell(r, ci).font = { color: { argb: "FFB4342A" } };
       ws.getCell(r, C_COMP).value = x.company;
       ws.getCell(r, C_VAT).value = x.vatNo;
       ws.getCell(r, C_TERMS).value = x.payTerms;
+      ws.getCell(r, C_XREL).value = x.alsoOther ? "JA" : "";
       r++;
     }
   }
@@ -325,7 +366,7 @@ export async function buildAgingWorkbook(
   wsC.getRow(3).font = { bold: true, color: { argb: "FFFFFFFF" } };
   fill(wsC, 3, hC.length, BLUE);
   wsC.getColumn(1).width = 16; wsC.getColumn(3).width = 34;
-  for (const i of [2, 4, 5, 6, 7, 8, 9]) wsC.getColumn(i).width = 16;
+  for (let i = 2; i <= 5 + BUCKETS.length; i++) if (i !== 3) wsC.getColumn(i).width = 16;
   const byComp = new Map<string, AgingRow[]>();
   for (const x of rows) {
     const arr = byComp.get(x.company) ?? [];
@@ -363,7 +404,7 @@ export async function buildAgingWorkbook(
   const ws2 = wb.addWorksheet("Samenvatting");
   ws2.getCell(1, 1).value = `SAMENVATTING PER ${isAP ? "LEVERANCIER" : "KLANT"} — data getrokken op ${stamp}`;
   ws2.getCell(1, 1).font = { bold: true, size: 12 };
-  const h2 = [partyLabel, "Soort", "Totaal openstaand", "Waarvan vervallen", ...BUCKETS, "# posten", "# venn.", "Btw-nummer", "Betalingsvoorwaarde"];
+  const h2 = [partyLabel, "Soort", "Totaal openstaand", "Waarvan vervallen", ...BUCKETS, "# posten", "# venn.", "Btw-nummer", "Betalingsvoorwaarde", xrelLabel];
   ws2.getRow(3).values = h2;
   ws2.getRow(3).font = { bold: true, color: { argb: "FFFFFFFF" } };
   fill(ws2, 3, h2.length, BLUE);
@@ -385,6 +426,7 @@ export async function buildAgingWorkbook(
     ws2.getCell(r2, 6 + BUCKETS.length).value = new Set(g.rows.map((x) => x.company)).size;
     ws2.getCell(r2, 7 + BUCKETS.length).value = g.rows.find((x) => x.vatNo)?.vatNo || "";
     ws2.getCell(r2, 8 + BUCKETS.length).value = g.rows.find((x) => x.payTerms)?.payTerms || "";
+    ws2.getCell(r2, 9 + BUCKETS.length).value = g.rows.some((x) => x.alsoOther) ? "JA" : "";
     r2++;
   }
   ws2.autoFilter = { from: { row: 3, column: 1 }, to: { row: r2 - 1, column: h2.length } };
@@ -399,7 +441,10 @@ export async function buildAgingWorkbook(
     isAP
       ? "Bron: ALLE open (niet-afgepunte) leveranciersposten (VendorLedgerEntries, Open=true), alle operationele vennootschappen — facturen, creditnota's en onafgepunte betalingen. Te betalen = −Remaining_Amt_LCY (factuur +, creditnota/betaling −)."
       : "Bron: ALLE open (niet-afgepunte) klantposten (Cust_LedgerEntries, Open=true), alle operationele vennootschappen — facturen, creditnota's en onafgepunte betalingen (negatief). Zelfde basis als het BC-rapport 'Klant - Vervallen posten'; gevalideerd op GDI: vervallen deel = € 4.188.920,04, exact het rapporttotaal van 11/08/2026.",
-    "OUDERDOMSBLOKKEN t.o.v. de FACTUURDATUM (afspraak finance 11/08/2026): 0–30d / 31–60d / 61–90d / > 90d / Onbekend (geen datum). Dit meet hoe lang het geld al zweeft, los van de afgesproken betaaltermijn.",
+    "OUDERDOMSBLOKKEN t.o.v. de FACTUURDATUM (afspraak finance 11/08/2026): 0–30d / 31–60d / 61–90d / > 90d. Dit meet hoe lang het geld al zweeft, los van de afgesproken betaaltermijn.",
+    "NIET TOEGEWEZEN (kolom naast > 90d): creditnota's, betalingen en terugbetalingen die open staan omdat ze (nog) niet aan een factuur zijn afgepunt — vooruitbetalingen, dubbele betalingen of creditnota's die op verrekening wachten. Ze krijgen bewust géén ouderdom: het zijn geen te innen facturen maar af te punten posten (meestal negatief, drukt het saldo). Actie: afpunten in BC of terugbetalen.",
+    "ONBEKEND (laatste kolom): posten zonder factuur-/boekingsdatum in BC — vrijwel altijd migratie- of beginbalansposten of handmatige boekingen zonder documentdatum. De ouderdom is daar niet te bepalen; open de post via de doorklik om de herkomst te zien.",
+    `${xrelLabel.toUpperCase()} (JA): deze tegenpartij staat óók aan de andere kant in de stamdata (match op btw-nummer, anders op naam — naam-matches verifiëren). Kandidaat voor saldering/verrekening; het openstaande bedrag aan beide kanten staat in het Debiteuren-werkdossier, blad 'Saldering klant-leverancier'.`,
     "WAARVAN VERVALLEN (bladen 'Per vennootschap' en 'Samenvatting') = posten met vervaldag op of vóór vandaag — dat is het cijfer dat aansluit op het BC-rapport 'Vervallen posten'. Een vervallen vervaldatum kleurt rood op het Aging-blad.",
     "BETALINGSVOORWAARDE: de conditiecode uit de stamdata (bv. 30D = 30 dagen na factuurdatum, LM+30D = eind maand + 30 dagen). Leeg = geen conditie ingevuld in BC.",
     "Groepering per naam over alle vennootschappen (firmacode-prefix en rechtsvormen genegeerd bij het matchen).",
