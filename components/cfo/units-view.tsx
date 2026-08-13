@@ -4,7 +4,7 @@
 // (Grootboekposten_Excel) + facturatie/DSO per unit (klantposten) + vaste activa
 // (FALedgerEntries). Zelfde poll-patroon en designtaal als Klanten & Cash.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as echarts from "echarts";
 import type { CfoReceivables } from "@/lib/types";
 import type { CfoUnits } from "@/lib/units";
@@ -14,20 +14,123 @@ import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
 import { useChartPalette } from "@/lib/chart-theme";
 import { usePolledData, Card, Kpi, KpiSourceModal, eurAxis, fmtStamp, fmtMonth, fmtDate } from "./cfo-ui";
 import type { KpiSource } from "./cfo-ui";
-import { Loader2, RefreshCcw, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Loader2, RefreshCcw, AlertTriangle, ArrowLeft, X, ExternalLink } from "lucide-react";
+
+// Periode-presets voor de datumkiezer (vraag David 13/08/2026). Boekjaar = kalenderjaar.
+function rangePresets(): { label: string; from: string; to: string }[] {
+  const now = new Date();
+  const y = now.getFullYear();
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const today = iso(now);
+  const prevEnd = new Date(y, now.getMonth(), 0);
+  const prevStart = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), 1);
+  return [
+    { label: "YTD", from: `${y}-01-01`, to: today },
+    { label: "Vorige maand", from: iso(prevStart), to: iso(prevEnd) },
+    { label: "Q1", from: `${y}-01-01`, to: `${y}-03-31` },
+    { label: "Q2", from: `${y}-04-01`, to: `${y}-06-30` },
+    { label: "H1", from: `${y}-01-01`, to: `${y}-06-30` },
+    { label: `Heel ${y - 1}`, from: `${y - 1}-01-01`, to: `${y - 1}-12-31` },
+  ];
+}
+
+// ---- drill-down: wat zit er onder een kosten-/omzetregel (vraag David 13/08/2026) ----
+interface DrillRow { company: string; account: string; name: string; amount: number; kind: "income" | "expense"; bcUrl: string }
+interface DrillData { rows: DrillRow[]; totals: { revenue: number; costs: number }; count: number; capped: boolean; warning?: string }
+
+function DrillPanel({ title, query, onClose }: { title: string; query: string; onClose: () => void }) {
+  const [d, setD] = useState<DrillData | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  // Reset gebeurt via key={query} op de aanroepplek (remount per drill) — geen
+  // synchrone setState in de effect-body (react-hooks/set-state-in-effect).
+  useEffect(() => {
+    let dead = false;
+    fetch(`/api/cfo/units/drill?${query}`)
+      .then(async (r) => { if (!r.ok) throw new Error((await r.json().catch(() => null))?.error || `HTTP ${r.status}`); return r.json(); })
+      .then((j) => { if (!dead) setD(j); })
+      .catch((e) => { if (!dead) setErr(String(e.message || e).slice(0, 160)); });
+    return () => { dead = true; };
+  }, [query]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label={title}>
+      <div className="max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <button onClick={onClose} aria-label="Sluiten" className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="max-h-[calc(85vh-52px)] overflow-y-auto p-4">
+          {!d && !err && <p className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Rekeningen ophalen uit BC…</p>}
+          {err && <p className="py-6 text-center text-xs text-warning">{err}</p>}
+          {d && (
+            <>
+              <div className="mb-3 flex flex-wrap gap-4 text-[11px] text-muted-foreground">
+                {d.totals.revenue !== 0 && <span>Omzet: <b className="text-positive">{formatCurrency(d.totals.revenue)}</b></span>}
+                {d.totals.costs !== 0 && <span>Kosten: <b className="text-foreground">{formatCurrency(d.totals.costs)}</b></span>}
+                {d.totals.revenue !== 0 && d.totals.costs !== 0 && <span>Resultaat: <b className={d.totals.revenue - d.totals.costs >= 0 ? "text-positive" : "text-negative"}>{formatCurrency(d.totals.revenue - d.totals.costs)}</b></span>}
+                <span>{d.count} rekening-regels{d.capped ? ` (grootste ${d.rows.length} getoond)` : ""}</span>
+              </div>
+              {d.warning && <p className="mb-2 rounded-lg bg-warning/10 p-2 text-[11px] text-warning">{d.warning}</p>}
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <th className="px-2 py-1.5 text-left">Rekening</th>
+                      <th className="px-2 py-1.5 text-left">Naam</th>
+                      <th className="px-2 py-1.5 text-left">Firma</th>
+                      <th className="px-2 py-1.5 text-right">Bedrag</th>
+                      <th className="px-2 py-1.5 text-right">BC</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {d.rows.map((r) => (
+                      <tr key={`${r.company}-${r.account}`} className="border-b border-border/40">
+                        <td className="px-2 py-1.5 font-mono text-[11px] font-semibold text-foreground">{r.account}</td>
+                        <td className="max-w-[260px] truncate px-2 py-1.5 text-muted-foreground" title={r.name}>{r.name || "—"}</td>
+                        <td className="px-2 py-1.5 text-muted-foreground">{r.company}</td>
+                        <td className={`px-2 py-1.5 text-right font-semibold tabular-nums ${r.kind === "income" ? "text-positive" : "text-foreground"}`}>{formatCurrency(r.amount)}</td>
+                        <td className="px-2 py-1.5 text-right">
+                          <a href={r.bcUrl} target="_blank" rel="noopener noreferrer" title="Alle posten van deze rekening in Business Central" className="inline-flex items-center gap-1 text-primary hover:underline">open<ExternalLink className="h-3 w-3" /></a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-[10px] text-muted-foreground">Bedragen teken-genormaliseerd (omzet positief, kosten debet-normaal), zelfde venster als de pagina. De BC-link opent álle posten van die rekening bij die firma (vindplaats; BC-login vereist).</p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function UnitsView({ exclude }: { exclude: string[] }) {
-  const qs = exclude.length ? `?exclude=${exclude.join(",")}` : "";
+  // Datumrange (default YTD) — de hele pagina volgt dit venster.
+  const [range, setRange] = useState<{ from: string; to: string } | null>(null);
+  const [draft, setDraft] = useState<{ from: string; to: string } | null>(null);
+  const presets = useMemo(() => rangePresets(), []);
+  const rangeQs = range ? `from=${range.from}&to=${range.to}` : "";
+  const parts = [exclude.length ? `exclude=${exclude.join(",")}` : "", rangeQs].filter(Boolean);
+  const qs = parts.length ? `?${parts.join("&")}` : "";
+  const qsExcl = exclude.length ? `?exclude=${exclude.join(",")}` : "";
   const units = usePolledData<CfoUnits>(`/api/cfo/units${qs}`);
-  const assets = usePolledData<CfoAssets>(`/api/cfo/assets${qs}`);
-  const rcv = usePolledData<CfoReceivables>(`/api/cfo/receivables${qs}`);
+  const assets = usePolledData<CfoAssets>(`/api/cfo/assets${qsExcl}`);
+  const rcv = usePolledData<CfoReceivables>(`/api/cfo/receivables${qsExcl}`);
   const p = useChartPalette();
   const u = units.data;
   const [kpiSrc, setKpiSrc] = useState<KpiSource | null>(null);
+  const [drill, setDrill] = useState<{ title: string; query: string } | null>(null);
 
   // Periode: elk cijfer op deze pagina draagt zichtbaar over welke periode het gaat.
   const vandaag = fmtDate(new Date().toISOString().slice(0, 10));
-  const perYtd = u ? `01/01/${u.year} t/m ${vandaag}` : "year-to-date";
+  const perYtd = u?.from ? `${fmtDate(u.from)} t/m ${fmtDate(u.to)}` : u ? `01/01/${u.year} t/m ${vandaag}` : "gekozen periode";
+  const drillRange = u?.from ? `from=${u.from}&to=${u.to}` : `from=${new Date().getFullYear()}-01-01&to=${new Date().toISOString().slice(0, 10)}`;
+  const drillExcl = exclude.length ? `&exclude=${exclude.join(",")}` : "";
+  const openCompanyDrill = (code: string, activity: string) =>
+    setDrill({ title: `${code} · ${activity} — omzet & kosten per rekening (${perYtd})`, query: `company=${code}&${drillRange}` });
+  const openClassDrill = (cls: string, label: string) =>
+    setDrill({ title: `Klasse ${cls} · ${label} — per rekening, alle firma's (${perYtd})`, query: `cls=${cls}&${drillRange}${drillExcl}` });
   const src = (
     label: string, value: string, periode: string, watStaatEr: string, hoeKomenWeEraan: string,
     delen?: { naam: string; waarde: string }[], excel?: string, caveat?: string,
@@ -129,7 +232,30 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
               <h1 className="text-lg font-bold text-foreground">Business Units & Activa</h1>
               {!u.isLive && <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase text-warning">demo</span>}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">Operationele P&L per activiteit (dimensie AFDELING), YTD {u.year} · bedragen excl. btw, bruto (incl. intercompany).</p>
+            <p className="mt-1 text-xs text-muted-foreground">Operationele P&L per activiteit, <b className="text-foreground">{perYtd}</b> · bedragen excl. btw, bruto (incl. intercompany) · klik een rij voor het rekeningdetail.</p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {presets.map((pz) => {
+                const active = range ? range.from === pz.from && range.to === pz.to : pz.label === "YTD";
+                return (
+                  <button key={pz.label} onClick={() => { setRange(pz.label === "YTD" ? null : { from: pz.from, to: pz.to }); setDraft(null); }}
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ring-1 transition ${active ? "bg-primary text-primary-foreground ring-primary" : "bg-muted text-muted-foreground ring-border hover:text-foreground"}`}>
+                    {pz.label}
+                  </button>
+                );
+              })}
+              <span className="mx-1 text-[10px] text-muted-foreground">of</span>
+              <input type="date" value={(draft ?? range ?? { from: "", to: "" }).from} max={(draft ?? range)?.to || undefined}
+                onChange={(e) => setDraft({ from: e.target.value, to: (draft ?? range)?.to || "" })}
+                className="rounded-lg border border-border bg-background px-1.5 py-0.5 text-[10px] text-foreground" aria-label="Van datum" />
+              <input type="date" value={(draft ?? range ?? { from: "", to: "" }).to} min={(draft ?? range)?.from || undefined}
+                onChange={(e) => setDraft({ from: (draft ?? range)?.from || "", to: e.target.value })}
+                className="rounded-lg border border-border bg-background px-1.5 py-0.5 text-[10px] text-foreground" aria-label="Tot datum" />
+              <button disabled={!draft || !draft.from || !draft.to || draft.from > draft.to}
+                onClick={() => { if (draft) { setRange(draft); setDraft(null); } }}
+                className="rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-semibold text-primary-foreground disabled:opacity-40">
+                Toepassen
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
             <span>Data per <b className="text-foreground">{fmtStamp(u.asOf)}</b></span>
@@ -256,8 +382,9 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
             </thead>
             <tbody>
               {u.perCompany.map((c) => (
-                <tr key={c.code} className="border-b border-border/40">
-                  <td className="px-2 py-1.5 font-semibold text-foreground">{c.code} <span className="font-normal text-muted-foreground">· {c.activity}</span></td>
+                <tr key={c.code} onClick={() => openCompanyDrill(c.code, c.activity)} title="Klik: omzet & kosten per grootboekrekening"
+                    className="cursor-pointer border-b border-border/40 transition hover:bg-primary/5">
+                  <td className="px-2 py-1.5 font-semibold text-primary underline decoration-dotted underline-offset-2">{c.code} <span className="font-normal text-muted-foreground no-underline">· {c.activity}</span></td>
                   <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{formatCurrency(c.revenue)}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(c.costs)}</td>
                   <td className={`px-2 py-1.5 text-right font-semibold tabular-nums ${c.result >= 0 ? "text-positive" : "text-negative"}`}>{formatCurrency(c.result)}</td>
@@ -342,8 +469,9 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
             </thead>
             <tbody>
               {u.consolidated.byClass.map((r) => (
-                <tr key={r.cls} className="border-b border-border/40">
-                  <td className="px-2 py-1.5 font-semibold text-foreground">{r.cls} · {r.label}</td>
+                <tr key={r.cls} onClick={() => openClassDrill(r.cls, r.label)} title="Klik: deze klasse per grootboekrekening, over alle firma's"
+                    className="cursor-pointer border-b border-border/40 transition hover:bg-primary/5">
+                  <td className="px-2 py-1.5 font-semibold text-primary underline decoration-dotted underline-offset-2">{r.cls} · {r.label}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(r.gross)}</td>
                   <td className={`px-2 py-1.5 text-right tabular-nums ${r.ic ? "text-primary" : "text-muted-foreground"}`}>{r.ic ? `− ${formatCurrency(r.ic)}` : "—"}</td>
                   <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{formatCurrency(r.net)}</td>
@@ -535,6 +663,7 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
       </details>
 
       {kpiSrc && <KpiSourceModal src={kpiSrc} onClose={() => setKpiSrc(null)} />}
+      {drill && <DrillPanel key={drill.query} title={drill.title} query={drill.query} onClose={() => setDrill(null)} />}
     </div>
   );
 }

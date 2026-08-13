@@ -48,7 +48,9 @@ export interface ConsClassRow {
 export interface CustRevRow { name: string; amount: number; ic: boolean; sharePct: number }
 export interface CfoUnits {
   asOf: string; isLive: boolean; year: number;
-  months: string[];                       // YTD-maanden
+  // Gekozen venster (vraag David 13/08/2026): default YTD, instelbaar via ?from/?to.
+  from: string; to: string;
+  months: string[];                       // maanden binnen het venster
   perCompany: CompanyUnitRow[];           // primaire BU-laag: vennootschap = activiteit
   units: UnitRow[];                       // AFDELING-dimensie (waar ingevuld), gesorteerd op omzet
   undimensioned: { revenue: number; costs: number; sharePct: number };
@@ -100,8 +102,8 @@ interface CoUnits {
   builtAt: string;   // wanneer deze bundel werkelijk uit BC kwam (voor een eerlijke tijdstempel)
 }
 
-async function buildCompanyUnits(co: { id: string; code: string }, months: string[], todayIso: string): Promise<CoUnits> {
-  const key = `units-co4-${co.code}-${todayIso.slice(0, 7)}`;
+async function buildCompanyUnits(co: { id: string; code: string }, months: string[], fromIso: string, toIso: string): Promise<CoUnits> {
+  const key = `units-co5-${co.code}-${fromIso}-${toIso}`;
   const cached = getCache<CoUnits>(key);
   if (cached) return cached;
   const token = await getBCToken();
@@ -112,7 +114,7 @@ async function buildCompanyUnits(co: { id: string; code: string }, months: strin
   const nonRecAccounts = NON_RECURRING_REV[co.code] || [];
   let sourcedAbs = 0, totalAbs = 0;
   const filter = encodeURIComponent(
-    `Posting_Date ge ${months[0]}-01 and Posting_Date le ${todayIso} and G_L_Account_No ge '600000' and G_L_Account_No le '799999'`
+    `Posting_Date ge ${fromIso} and Posting_Date le ${toIso} and G_L_Account_No ge '600000' and G_L_Account_No le '799999'`
   );
   await pageAllOData(
     `${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(co.code)}')/Grootboekposten_Excel?$filter=${filter}&$select=Posting_Date,G_L_Account_No,Amount,Global_Dimension_1_Code,Source_Type,ESCW_Source_Name,IC_Partner_Code,Description`,
@@ -159,12 +161,21 @@ async function buildCompanyUnits(co: { id: string; code: string }, months: strin
   return bundle;
 }
 
-async function buildUnits(exclude: string[]): Promise<CfoUnits> {
+async function buildUnits(exclude: string[], extra?: string): Promise<CfoUnits> {
   const today = new Date();
   const todayIso = today.toISOString().slice(0, 10);
-  const year = today.getUTCFullYear();
+  // Venster: extra = "YYYY-MM-DD..YYYY-MM-DD" (gevalideerd in de route); default YTD.
+  let fromIso = `${today.getUTCFullYear()}-01-01`;
+  let toIso = todayIso;
+  const m2 = /^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/.exec(extra || "");
+  if (m2 && m2[1] <= m2[2]) { fromIso = m2[1]; toIso = m2[2]; }
+  const year = Number(fromIso.slice(0, 4));
   const months: string[] = [];
-  for (let m = 0; m <= today.getUTCMonth(); m++) months.push(`${year}-${String(m + 1).padStart(2, "0")}`);
+  for (let d = new Date(`${fromIso.slice(0, 7)}-01T00:00:00Z`);
+       d.toISOString().slice(0, 7) <= toIso.slice(0, 7) && months.length < 36;
+       d.setUTCMonth(d.getUTCMonth() + 1)) {
+    months.push(d.toISOString().slice(0, 7));
+  }
   const raw = await fetchBCCompanies();
   const companies = raw.map((c) => ({ id: String(c.id), code: String(c.name) }))
     .filter((c) => isOperatingCompany(c.code) && !exclude.includes(c.code));
@@ -174,7 +185,7 @@ async function buildUnits(exclude: string[]): Promise<CfoUnits> {
   const perCompany: CompanyUnitRow[] = [];
   let sourcedAbs = 0, totalAbs = 0, dimmedAbsAll = 0, nonRecurringRev = 0, oldestBuilt = "";
   for (let i = 0; i < companies.length; i += 2) {
-    const part = await Promise.all(companies.slice(i, i + 2).map(async (c) => ({ code: c.code, b: await buildCompanyUnits(c, months, todayIso) })));
+    const part = await Promise.all(companies.slice(i, i + 2).map(async (c) => ({ code: c.code, b: await buildCompanyUnits(c, months, fromIso, toIso) })));
     for (const { code, b: p } of part) {
       for (const [u, v] of Object.entries(p.agg)) {
         const dst = (agg[u] = agg[u] || { rev: months.map(() => 0), cost: months.map(() => 0) });
@@ -268,7 +279,7 @@ async function buildUnits(exclude: string[]): Promise<CfoUnits> {
   return {
     // Tijdstempel van de wérkelijke datapull (oudste firmabundel), niet van het
     // combineren — anders toont "Vernieuwen" een verse stempel op 12u oude cijfers.
-    asOf: oldestBuilt || new Date().toISOString(), isLive: true, year, months, perCompany, units,
+    asOf: oldestBuilt || new Date().toISOString(), isLive: true, year, from: fromIso, to: toIso, months, perCompany, units,
     nonRecurringRev: r0(nonRecurringRev),
     undimensioned: {
       revenue: r0(undimRev), costs: r0(undimCost),
@@ -307,7 +318,7 @@ function demoUnits(): CfoUnits {
     return { code, label: UNIT_LABELS[code] || code, revenue, costs, result: revenue - costs, marginPct, monthlyRevenue: mk(rev / months.length, 1), monthlyCosts: mk(rev / months.length, 1 - marginPct / 100) };
   };
   return {
-    asOf: new Date(0).toISOString(), isLive: false, year, months,
+    asOf: new Date(0).toISOString(), isLive: false, year, from: `${year}-01-01`, to: today.toISOString().slice(0, 10), months,
     perCompany: [
       { code: "GDI", activity: "Distributie", revenue: 16_900_000, costs: 16_400_000, result: 500_000, marginPct: 3.0, icRevenuePct: 8.1, dimCoveragePct: 1.2 },
       { code: "GTR", activity: "Trucking", revenue: 12_400_000, costs: 12_100_000, result: 300_000, marginPct: 2.4, icRevenuePct: 6.0, dimCoveragePct: 98.7 },
@@ -353,4 +364,4 @@ function demoUnits(): CfoUnits {
   };
 }
 
-export const getUnits = makePolledGetter<CfoUnits>("units-v4", buildUnits, demoUnits);
+export const getUnits = makePolledGetter<CfoUnits>("units-v5", buildUnits, demoUnits);
