@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as echarts from "echarts";
 import type { CfoReceivables } from "@/lib/types";
 import type { CfoUnits } from "@/lib/units";
+import type { CfoIcBtw } from "@/lib/ic-btw";
 import type { CfoAssets } from "@/lib/assets";
 import { EChart } from "./echart";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
@@ -115,6 +116,8 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
   const qs = parts.length ? `?${parts.join("&")}` : "";
   const qsExcl = exclude.length ? `?exclude=${exclude.join(",")}` : "";
   const units = usePolledData<CfoUnits>(`/api/cfo/units${qs}`);
+  const icbtw = usePolledData<CfoIcBtw>(`/api/cfo/ic-btw${qs}`);
+  const [icTab, setIcTab] = useState<"btw" | "omzet">("btw");
   const assets = usePolledData<CfoAssets>(`/api/cfo/assets${qsExcl}`);
   const rcv = usePolledData<CfoReceivables>(`/api/cfo/receivables${qsExcl}`);
   const p = useChartPalette();
@@ -507,6 +510,104 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
         <p className="mt-2 rounded-lg bg-muted/60 p-2.5 text-[11px] leading-snug text-muted-foreground">
           <b className="text-foreground">Symmetrie-check:</b> IC-omzet {formatCurrencyCompact(u.consolidated.icSymmetry.icRevenue)} vs IC-kosten {formatCurrencyCompact(u.consolidated.icSymmetry.icCosts)} → Δ <b className={Math.abs(u.consolidated.icSymmetry.delta) > 500_000 ? "text-warning" : "text-foreground"}>{formatCurrencyCompact(u.consolidated.icSymmetry.delta)}</b>. {u.consolidated.icSymmetry.note}
         </p>
+      </Card>
+
+      <Card
+        title="IC-btw & omzetsplit per vennootschap per maand"
+        period={perYtd}
+        hint="Factuurbasis (geboekte verkoopfacturen, creditnota's verrekend). IC-btw = de btw die tussen eigen firma's rondgepompt wordt — de kern van de btw-eenheid-vraag."
+        right={
+          <div className="flex gap-1">
+            {([["btw", "IC-btw"], ["omzet", "Omzet extern vs IC"]] as const).map(([k, lbl]) => (
+              <button key={k} onClick={() => setIcTab(k)}
+                className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ring-1 transition ${icTab === k ? "bg-primary text-primary-foreground ring-primary" : "bg-muted text-muted-foreground ring-border hover:text-foreground"}`}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+        }
+        onSource={() => icbtw.data && setKpiSrc(src(
+          "IC-btw & omzetsplit (factuurbasis)", formatCurrency(icbtw.data.totals.icVat), perYtd,
+          "Per vennootschap per maand: de omzet gesplitst in extern en intercompany, en het btw-bedrag op diezelfde facturen. De IC-btw-kolom is geld dat de ene groepsfirma aan de andere betaalt en die het daarna terugvordert — cash die alleen rondgepompt wordt.",
+          icbtw.data.sources[0]?.detail || "",
+          [{ naam: "Omzet extern (periode)", waarde: formatCurrency(icbtw.data.totals.extNet) },
+           { naam: "Omzet intercompany", waarde: formatCurrency(icbtw.data.totals.icNet) },
+           { naam: "Btw op externe facturen", waarde: formatCurrency(icbtw.data.totals.extVat) },
+           { naam: "Btw op IC-facturen (rondgepompt)", waarde: formatCurrency(icbtw.data.totals.icVat) }],
+          undefined,
+          icbtw.data.notes.join(" "),
+        ))}
+      >
+        {!icbtw.data && <p className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{icbtw.building ? "Verkoopfacturen worden opgehaald uit BC…" : "Laden…"}</p>}
+        {icbtw.error && <p className="py-3 text-center text-xs text-warning">{icbtw.error}</p>}
+        {icbtw.data && (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <th className="px-2 py-1.5 text-left">Firma</th>
+                  {icTab === "omzet" && <th className="px-2 py-1.5 text-left">Soort</th>}
+                  {icbtw.data.months.map((m) => <th key={m} className="px-2 py-1.5 text-right">{fmtMonth(m)}</th>)}
+                  <th className="px-2 py-1.5 text-right">Totaal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {icTab === "btw" ? (
+                  <>
+                    {icbtw.data.perCompany.filter((c) => Math.abs(c.totals.icVat) >= 1).map((c) => (
+                      <tr key={c.code} className="border-b border-border/40">
+                        <td className="px-2 py-1.5 font-semibold text-foreground">{c.code}</td>
+                        {c.months.map((m) => <td key={m.month} className="px-2 py-1.5 text-right tabular-nums">{m.icVat ? formatCurrencyCompact(m.icVat) : "—"}</td>)}
+                        <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{formatCurrency(c.totals.icVat)}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t-2 border-border">
+                      <td className="px-2 py-2 font-bold text-foreground">GROEP</td>
+                      {icbtw.data.group.map((m) => <td key={m.month} className="px-2 py-2 text-right font-bold tabular-nums">{formatCurrencyCompact(m.icVat)}</td>)}
+                      <td className="px-2 py-2 text-right font-bold tabular-nums text-primary">{formatCurrency(icbtw.data.totals.icVat)}</td>
+                    </tr>
+                  </>
+                ) : (
+                  <>
+                    {icbtw.data.perCompany.filter((c) => Math.abs(c.totals.extNet) + Math.abs(c.totals.icNet) >= 1).map((c) => (
+                      <>
+                        <tr key={`${c.code}-e`} className="border-b border-border/20">
+                          <td className="px-2 py-1.5 font-semibold text-foreground" rowSpan={2}>{c.code}</td>
+                          <td className="px-2 py-1.5 text-muted-foreground">Extern</td>
+                          {c.months.map((m) => <td key={m.month} className="px-2 py-1.5 text-right tabular-nums">{m.extNet ? formatCurrencyCompact(m.extNet) : "—"}</td>)}
+                          <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{formatCurrency(c.totals.extNet)}</td>
+                        </tr>
+                        <tr key={`${c.code}-i`} className="border-b border-border/40">
+                          <td className="px-2 py-1.5 text-primary">IC</td>
+                          {c.months.map((m) => <td key={m.month} className="px-2 py-1.5 text-right tabular-nums text-primary">{m.icNet ? formatCurrencyCompact(m.icNet) : "—"}</td>)}
+                          <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-primary">{formatCurrency(c.totals.icNet)}</td>
+                        </tr>
+                      </>
+                    ))}
+                    <tr className="border-t-2 border-border">
+                      <td className="px-2 py-2 font-bold text-foreground" colSpan={2}>GROEP extern / IC</td>
+                      {icbtw.data.group.map((m) => (
+                        <td key={m.month} className="px-2 py-2 text-right tabular-nums">
+                          <div className="font-bold">{formatCurrencyCompact(m.extNet)}</div>
+                          <div className="text-primary">{formatCurrencyCompact(m.icNet)}</div>
+                        </td>
+                      ))}
+                      <td className="px-2 py-2 text-right tabular-nums">
+                        <div className="font-bold">{formatCurrency(icbtw.data.totals.extNet)}</div>
+                        <div className="text-primary">{formatCurrency(icbtw.data.totals.icNet)}</div>
+                      </td>
+                    </tr>
+                  </>
+                )}
+              </tbody>
+            </table>
+            <p className="mt-2 rounded-lg bg-muted/60 p-2.5 text-[11px] leading-snug text-muted-foreground">
+              {icTab === "btw"
+                ? <>Dit is de btw die tussen eigen vennootschappen betaald en teruggevorderd wordt (±€500k in een volledige maand) — het kerncijfer voor de <b className="text-foreground">btw-eenheid-businesscase</b>. De laatste 1–2 maanden zijn onvolledig: IC-facturatie wordt met vertraging geboekt.</>
+                : <>Factuurbasis, creditnota&apos;s verrekend, excl. btw. GPR-extern bevat in maart de gebouwenverkoop (€10,63M, one-off). GDI/WHS: gefactureerd ≠ GL-70x (doorfacturatie, bewust).</>}
+            </p>
+          </div>
+        )}
       </Card>
 
       <Card
