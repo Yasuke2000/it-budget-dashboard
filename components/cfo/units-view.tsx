@@ -117,6 +117,17 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
   const qsExcl = exclude.length ? `?exclude=${exclude.join(",")}` : "";
   const units = usePolledData<CfoUnits>(`/api/cfo/units${qs}`);
   const icbtw = usePolledData<CfoIcBtw>(`/api/cfo/ic-btw${qs}`);
+  // CEO-signalen rekenen ALTIJD op afgesloten maanden (1 jan t/m einde vorige maand),
+  // los van de gekozen pagina-range — anders maakt de lopende-maand-vertekening
+  // (kosten geboekt, omzet nog niet) valse "fix"-signalen (vraag David 14/08/2026).
+  const closed = useMemo(() => {
+    const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth(), 0);
+    const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return { from: `${end.getFullYear()}-01-01`, to: iso(end) };
+  }, []);
+  const closedQs = [`from=${closed.from}&to=${closed.to}`, exclude.length ? `exclude=${exclude.join(",")}` : ""].filter(Boolean).join("&");
+  const sig = usePolledData<CfoUnits>(`/api/cfo/units?${closedQs}`);
   const [icTab, setIcTab] = useState<"btw" | "omzet">("btw");
   const assets = usePolledData<CfoAssets>(`/api/cfo/assets${qsExcl}`);
   const rcv = usePolledData<CfoReceivables>(`/api/cfo/receivables${qsExcl}`);
@@ -353,6 +364,73 @@ export function UnitsView({ exclude }: { exclude: string[] }) {
           ))}
         />
       </div>
+
+      <Card
+        title="Fix / geen fix — CEO-signalen"
+        period={sig.data?.from ? `${fmtDate(sig.data.from)} t/m ${fmtDate(sig.data.to)} (afgesloten maanden)` : "afgesloten maanden"}
+        hint="Bewust NIET op de gekozen range hierboven: signalen rekenen altijd op volledige maanden, zodat de lopende-maand-vertekening geen valse verliezen toont. Elke regel zegt of het een marktprobleem is (fixen) of een interne verklaring heeft (niet fixen)."
+        onSource={() => sig.data && setKpiSrc(src(
+          "CEO-signalen: fix / geen fix", `${sig.data.perCompany.length} vennootschappen beoordeeld`,
+          `${fmtDate(sig.data.from)} t/m ${fmtDate(sig.data.to)} — uitsluitend afgesloten maanden`,
+          "Per vennootschap een oordeel op basis van drie gecontroleerde cijfers: het operationele resultaat, de marge en het aandeel intercompany-omzet. De regels: verlies bij een firma die vooral aan de markt verkoopt = FIXEN (rood); verlies bij een firma die vooral intern factureert = interne verrekenprijs, geen marktprobleem (geel, gesprek over prijszetting); dunne marge (< 2%) op substantiële omzet = opvolgen (geel); de rest is gezond (groen).",
+          "Zelfde bron en berekening als de tabel 'Per vennootschap' (Grootboekposten_Excel, klassen 70–74 en 60–64), maar dan over een vast venster van afgesloten maanden. De omzetcijfers zijn dubbel geverifieerd: het grootboek sluit per firma op < 1% aan op de geboekte verkoopfacturen (kruisverificatie 14/08/2026), en de omzetdefinitie reproduceerde EMAsphere's gevalideerde maartcijfer tot op € 1.",
+          [{ naam: "Venster", waarde: `${fmtDate(sig.data.from)} – ${fmtDate(sig.data.to)}` },
+           { naam: "Niet-recurrent uitgesloten (verkoop gebouwen GPR)", waarde: formatCurrency(sig.data.nonRecurringRev) },
+           { naam: "Geconsolideerd EBIT (na IC-eliminatie)", waarde: formatCurrency(sig.data.consolidated.totals.ebitNet) }],
+          undefined,
+          "Jaareinde-caveat blijft gelden: afschrijvingen en belastingen worden grotendeels op 31/12 geboekt, dus elk YTD-resultaat is rooskleuriger dan het jaarcijfer wordt. Een groen signaal betekent 'geen operationeel alarm', geen winstgarantie.",
+        ))}
+      >
+        {!sig.data && <p className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{sig.building ? "Afgesloten maanden worden opgebouwd uit BC…" : "Laden…"}</p>}
+        {sig.data && (() => {
+          type Sig = { tone: "fix" | "watch" | "ok"; code: string; activity: string; titel: string; uitleg: string; bedrag: number };
+          const rows: Sig[] = sig.data.perCompany.map((c) => {
+            if (c.result < 0 && c.icRevenuePct < 50) return {
+              tone: "fix" as const, code: c.code, activity: c.activity, bedrag: c.result,
+              titel: `Verlies op de markt: ${formatCurrency(c.result)}`,
+              uitleg: `Omzet ${formatCurrency(c.revenue)}, kosten ${formatCurrency(c.costs)}, marge ${c.marginPct}% — en maar ${c.icRevenuePct}% van de omzet is intern, dus dit verlies komt van externe klanten. Klik de firma in de tabel eronder om te zien op welke rekeningen het zit.`,
+            };
+            if (c.result < 0) return {
+              tone: "watch" as const, code: c.code, activity: c.activity, bedrag: c.result,
+              titel: `Verlies, maar ${c.icRevenuePct}% interne omzet`,
+              uitleg: `Resultaat ${formatCurrency(c.result)} bij vooral intra-groep-facturatie: dit is een verrekenprijs-kwestie (te lage interne tarieven), geen marktprobleem. Fixen = interne prijszetting herzien, niet de operatie.`,
+            };
+            if (c.marginPct < 2 && c.revenue > 1_000_000) return {
+              tone: "watch" as const, code: c.code, activity: c.activity, bedrag: c.result,
+              titel: `Dunne marge: ${c.marginPct}% op ${formatCurrencyCompact(c.revenue)}`,
+              uitleg: `Resultaat ${formatCurrency(c.result)} — positief maar zonder buffer; één tegenvaller duwt dit onder nul. Opvolgen via de drill-down (grootste kostenrekeningen).`,
+            };
+            return {
+              tone: "ok" as const, code: c.code, activity: c.activity, bedrag: c.result,
+              titel: `Gezond: marge ${c.marginPct}%`,
+              uitleg: `Resultaat ${formatCurrency(c.result)} op ${formatCurrencyCompact(c.revenue)} omzet${c.icRevenuePct >= 50 ? ` (let wel: ${c.icRevenuePct}% interne omzet — groepsdienst)` : ""}.`,
+            };
+          });
+          const order = { fix: 0, watch: 1, ok: 2 } as const;
+          rows.sort((a, b) => order[a.tone] - order[b.tone] || a.bedrag - b.bedrag);
+          const badge = (t: Sig["tone"]) => t === "fix"
+            ? <span className="shrink-0 rounded-full bg-negative/15 px-2 py-0.5 text-[10px] font-bold uppercase text-negative">Fixen</span>
+            : t === "watch"
+            ? <span className="shrink-0 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase text-warning">Opvolgen</span>
+            : <span className="shrink-0 rounded-full bg-positive/15 px-2 py-0.5 text-[10px] font-bold uppercase text-positive">OK</span>;
+          return (
+            <div className="space-y-1.5">
+              {rows.map((r) => (
+                <div key={r.code} className={`flex items-start gap-3 rounded-xl border p-2.5 ${r.tone === "fix" ? "border-negative/30 bg-negative/5" : r.tone === "watch" ? "border-warning/25 bg-warning/5" : "border-border bg-background/40"}`}>
+                  {badge(r.tone)}
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-foreground">{r.code} · {r.activity} — {r.titel}</p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{r.uitleg}</p>
+                  </div>
+                </div>
+              ))}
+              <p className="mt-2 rounded-lg bg-muted/60 p-2.5 text-[11px] leading-snug text-muted-foreground">
+                <b className="text-foreground">Niet fixen (al verklaard):</b> de verkoop van gebouwen ({formatCurrency(sig.data.nonRecurringRev)}, GPR) is eenmalig en buiten alle cijfers gehouden · de lopende maand telt hier bewust niet mee · afschrijvingen/belastingen volgen grotendeels op 31/12, dus elk resultaat hier is vóór dat jaareinde-effect. Geconsolideerd EBIT na IC-eliminatie over dit venster: <b className={sig.data.consolidated.totals.ebitNet >= 0 ? "text-positive" : "text-negative"}>{formatCurrency(sig.data.consolidated.totals.ebitNet)}</b>.
+              </p>
+            </div>
+          );
+        })()}
+      </Card>
 
       <Card
         title="Per vennootschap — de betrouwbare activiteiten-laag"
