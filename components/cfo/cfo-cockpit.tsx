@@ -1519,8 +1519,8 @@ function CashforecastTeaser() {
       {d ? (
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
           {stat("Bankstand nu (eigen)", money(d.bankNow), "excl. factorkrediet", d.bankNow < 0)}
-          {stat("Laagste punt — zonder factoring", money(d.lowPoint.noFactor.value), wk(d.lowPoint.noFactor.week), d.lowPoint.noFactor.value < 0)}
-          {stat("Laagste punt — mét factoring", money(d.lowPoint.withFactor.value), wk(d.lowPoint.withFactor.week), d.lowPoint.withFactor.value < 0)}
+          {stat("Laagste punt (kasrealiteit)", money(d.lowPoint.withFactor.value), wk(d.lowPoint.withFactor.week), d.lowPoint.withFactor.value < 0)}
+          {stat("Wat-als: stoppen met factoring", money(d.lowPoint.noFactor.value), wk(d.lowPoint.noFactor.week), d.lowPoint.noFactor.value < 0)}
         </div>
       ) : (
         <p className="mt-3 inline-flex items-center gap-2 text-[11px] text-muted-foreground">

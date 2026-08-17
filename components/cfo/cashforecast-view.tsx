@@ -86,12 +86,13 @@ export function CashForecastView() {
               {d && !d.isLive && <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase text-warning">demo</span>}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              13 weken vooruit op betaalgedrag per klant (week 1–4 scherp, 5–13 richtinggevend), creditnota&apos;s gesaldeerd.
-              Baseline = <b>zonder factoring</b> (het zuiverste beeld van wanneer klanten echt betalen); de lijn <b>met factoring</b> toont
-              de kasrealiteit waarin ±85% al via de 433-rekening is voorgeschoten. Anker = de échte bankstand van vandaag.
+              13 weken vooruit op betaalgedrag per klant (week 1–4 scherp, 5–13 richtinggevend), creditnota&apos;s gesaldeerd,
+              nieuwe facturatie en inkopen op het werkelijke weekritme. <b>Kasrealiteit</b> = het echte saldo-pad mét factoring.
+              <b> Wat-als stoppen met factoring</b> = eerst het 433-voorschot terugbetalen, daarna 100% van elke factuur op betaalgedrag.
+              Anker = de échte bankstand van vandaag.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {([["met", "Kasrealiteit (met factoring)"], ["zonder", "Zonder factoring (betaalgedrag-beeld)"], ["beide", "Side-by-side"]] as const).map(([k, lbl]) => (
+              {([["met", "Kasrealiteit"], ["zonder", "Wat als we stoppen met factoring?"], ["beide", "Vergelijk beide"]] as const).map(([k, lbl]) => (
                 <button key={k} onClick={() => setScenario(k)}
                   className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ring-1 transition ${scenario === k ? "bg-primary text-primary-foreground ring-primary" : "bg-muted text-muted-foreground ring-border hover:text-foreground"}`}>
                   {lbl}
@@ -122,21 +123,21 @@ export function CashForecastView() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Kpi label="Bankstand nu (eigen)" value={eurS(d.bankNow)} sub="excl. factorkrediet — het anker van de prognose"
               onClick={() => setKpiSrc({ label: "Bankstand nu", value: eur(d.bankNow), bron: "Som van alle eigen bankrekeningen (BankAccountLedgerEntries per rekening), exclusief de factor-rekeningen — het opgenomen factorvoorschot is een schuld (433), geen cash.", caveat: "Live BC-stand; Isabel/CODA-dagreconciliatie is fase 2." })} />
-            <Kpi label="Laagste punt (zonder factoring)" value={eurS(d.lowPoint.noFactor.value)} tone={d.lowPoint.noFactor.value < 0 ? "neg" : "pos"}
-              sub={`week van ${weekRange(d.lowPoint.noFactor.week)}`}
-              onClick={() => setKpiSrc({ label: "Laagste punt — zonder factoring", value: eur(d.lowPoint.noFactor.value), bron: "Cumulatief saldo per week: bankstand nu + verwachte ontvangsten (betaalgedrag per klant, CN gesaldeerd, 100% van de factuur) − leveranciers op vervaldag − lonen/btw/leasing op kalenderdata.", caveat: "Baseline uit de meeting: factoring buiten beschouwing voor het zuiverste beeld." })} />
-            <Kpi label="Laagste punt (met factoring)" value={eurS(d.lowPoint.withFactor.value)} tone={d.lowPoint.withFactor.value < 0 ? "neg" : "pos"}
+            <Kpi label="Laagste punt (kasrealiteit)" value={eurS(d.lowPoint.withFactor.value)} tone={d.lowPoint.withFactor.value < 0 ? "neg" : "pos"}
               sub={`week van ${weekRange(d.lowPoint.withFactor.week)}`}
-              onClick={() => setKpiSrc({ label: "Laagste punt — met factoring", value: eur(d.lowPoint.withFactor.value), bron: "Zelfde opbouw, maar bij factoring-klanten telt alleen het 15%-saldo als komende ontvangst (85% is al voorgeschoten via de 433-rekening).", caveat: "Nieuwe facturatie ná vandaag (en dus nieuwe 85%-voorschotten) zit nog niet in het weekbeeld — daarvoor zijn de E-trans opmaakdatums nodig (fase 2)." })} />
+              onClick={() => setKpiSrc({ label: "Laagste punt — kasrealiteit", value: eur(d.lowPoint.withFactor.value), bron: "Cumulatief saldo per week mét factoring: bestaande posten (factoring-klanten alleen het 15%-saldo — 85% is al binnen via de 433) + nieuwe facturatie op weekritme (85% ±1 week na uitreiking) − leveranciers − lonen/btw/leasing − nieuwe inkopen.", caveat: "Rood = financieringsbehoefte, niet lege kas: kredietlijnen/straight loans zitten er bewust niet in." })} />
+            <Kpi label="Wat-als: stoppen met factoring" value={eurS(d.lowPoint.noFactor.value)} tone={d.lowPoint.noFactor.value < 0 ? "neg" : "pos"}
+              sub={`week van ${weekRange(d.lowPoint.noFactor.week)}`}
+              onClick={() => setKpiSrc({ label: "Wat-als — stoppen met factoring", value: eur(d.lowPoint.noFactor.value), bron: "Startsaldo = bankstand min terugbetaling van het opgenomen 433-voorschot; daarna 100% van elke factuur op betaalgedrag (bestaand + nieuw ritme). Toont wat het kost om uit factoring te stappen.", caveat: "Terugbetaling conservatief meteen gemodelleerd; in de praktijk loopt ze uit over de inning door de factor. De echte uitstap-businesscase staat in de Cost-of-cash-analyse (§5)." })} />
             <Kpi label="Niet-toegewezen betalingen" value={eurS(d.totals.unapplied)} sub={`${d.totals.unappliedCount} open betalingen zonder factuur`}
               onClick={() => setKpiSrc({ label: "Niet-toegewezen betalingen", value: eur(d.totals.unapplied), bron: "Open klantposten van het type Betaling (Cust_LedgerEntries, Open=true): geld dat op de bank staat maar (nog) niet aan een factuur is afgepunt — drukt het echte openstaande saldo.", excel: "Klantenaging-export: gesaldeerd in het blok van hun datum." })} />
             <Kpi label="433-saldo (factor R/C)" value={eurS(d.totals.saldo433)} sub="de lump-sum 'zak met geld' bij de factors"
               onClick={() => setKpiSrc({ label: "Rekening 433 — factor rekening-courant", value: eur(d.totals.saldo433), bron: "trialBalances per vennootschap, alle 433-rekeningen: het saldo tussen voorgeschoten (85%) en afgerekende facturen. Negatief = opgenomen voorschot (schuld aan de factor).", caveat: "Koppeling van individuele 433-bewegingen aan facturen is fase 2 (factorportaal-rapporten)." })} />
           </div>
 
-          <Card title="Saldo bank per week" period={scenario === "zonder" ? "betaalgedrag-beeld" : "kasrealiteit — met factoring"}
+          <Card title="Saldo bank per week" period={scenario === "zonder" ? "wat-als: stoppen met factoring" : "kasrealiteit — met factoring"}
             hint="Eén balk per week = het verwachte banksaldo op zondag. Rood = tekort: dan is extra financiering of sneller innen nodig."
-            onSource={() => setKpiSrc({ label: "Saldo bank per week", value: "", bron: "Cumulatief saldo per week: echte bankstand van vandaag + verwachte ontvangsten (bestaande posten op betaalgedrag + nieuwe facturatie op 12-wekenritme) − leveranciers − lonen/btw/leasing − nieuwe inkopen. Kasrealiteit = met factoring: 85% van bestaande factoring-posten is al binnen; nieuwe facturatie geeft wél elke week verse voorschotten.", caveat: "Kredietlijnen/straight-loanopnames zitten er bewust niet in — een rode balk betekent 'financieringsbehoefte', niet 'lege kas'. Het betaalgedrag-beeld (zonder factoring) is géén saldo-pad: het telt al ontvangen voorschotten nog een keer." })}>
+            onSource={() => setKpiSrc({ label: "Saldo bank per week", value: "", bron: "Cumulatief saldo per week: echte bankstand van vandaag + verwachte ontvangsten (bestaande posten op betaalgedrag + nieuwe facturatie op 12-wekenritme) − leveranciers − lonen/btw/leasing − nieuwe inkopen. Kasrealiteit = met factoring: 85% van bestaande factoring-posten is al binnen; nieuwe facturatie geeft wél elke week verse voorschotten.", caveat: "Kredietlijnen/straight-loanopnames zitten er bewust niet in — een rode balk betekent 'financieringsbehoefte', niet 'lege kas'. Het wat-als 'stoppen met factoring' betaalt eerst het 433-voorschot terug en ontvangt daarna 100% per factuur — daarom ligt die lijn láger: factoring is structureel cash-positief." })}>
             {(() => {
               const key = scenario === "zonder" ? "cumNoFactor" as const : "cumWithFactor" as const;
               const vals = d.weeks.map((w) => w[key]);
@@ -149,7 +150,7 @@ export function CashForecastView() {
                     xAxis: echartsCategoryAxis(pal, { data: d.weeks.map((w) => `${w.weekStart.slice(8, 10)}/${w.weekStart.slice(5, 7)}`) }),
                     yAxis: echartsValueAxis(pal, (v) => eurAxis(v)),
                     series: [{
-                      name: scenario === "zonder" ? "Saldo (betaalgedrag-beeld)" : "Saldo bank (kasrealiteit)",
+                      name: scenario === "zonder" ? "Saldo wat-als stop factoring" : "Saldo bank (kasrealiteit)",
                       type: "bar", barMaxWidth: 40,
                       data: vals.map((v, i) => ({
                         value: v,
@@ -203,12 +204,12 @@ export function CashForecastView() {
                         { name: "Uit — lonen/btw/leasing", type: "bar", stack: "uit", data: d.weeks.map((w) => -w.outFixed), itemStyle: { color: pal.warning, borderColor: pal.surface, borderWidth: 1 } },
                         { name: "Uit — nieuwe inkopen (raming)", type: "bar", stack: "uit", data: d.weeks.map((w) => -w.outNew), itemStyle: { color: pal.expense, opacity: 0.45, borderColor: pal.surface, borderWidth: 1 } },
                         ...(scenario !== "met" ? [{
-                          name: "Saldo zonder factoring", type: "line" as const, data: d.weeks.map((w) => w.cumNoFactor),
+                          name: "Saldo wat-als stop factoring", type: "line" as const, data: d.weeks.map((w) => w.cumNoFactor),
                           lineStyle: { width: 2.5, color: pal.info }, itemStyle: { color: pal.info }, symbol: "circle" as const, symbolSize: 6, z: 5,
                           markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: pal.negative, type: "dotted" as const, width: 1 }, data: [{ yAxis: 0 }] },
                         }] : []),
                         ...(scenario !== "zonder" ? [{
-                          name: "Saldo met factoring", type: "line" as const, data: d.weeks.map((w) => w.cumWithFactor),
+                          name: "Saldo kasrealiteit", type: "line" as const, data: d.weeks.map((w) => w.cumWithFactor),
                           lineStyle: { width: 2.5, color: metColor, type: "dashed" as const }, itemStyle: { color: metColor }, symbol: "circle" as const, symbolSize: 6, z: 5,
                           ...(scenario === "met" ? { markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: pal.negative, type: "dotted" as const, width: 1 }, data: [{ yAxis: 0 }] } } : {}),
                         }] : []),
@@ -217,7 +218,7 @@ export function CashForecastView() {
                   {(nZ || nM) && (
                     <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-snug text-negative">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                      <span>{[msg("Zónder factoring", nZ), msg("Mét factoring", nM)].filter(Boolean).join(" · ")}. Diepste punt: {eurS(Math.min(d.lowPoint.noFactor.value, d.lowPoint.withFactor.value))}.</span>
+                      <span>{[msg("Kasrealiteit", nM), msg("Wat-als stop factoring", nZ)].filter(Boolean).join(" · ")}. Diepste punt: {eurS(Math.min(d.lowPoint.noFactor.value, d.lowPoint.withFactor.value))}.</span>
                     </p>
                   )}
                 </>
@@ -228,13 +229,13 @@ export function CashForecastView() {
                 <thead>
                   <tr className="border-b border-border text-left text-[10px] uppercase tracking-wide text-muted-foreground">
                     <th className="py-1.5 pr-2">Week</th>
-                    <th className="py-1.5 pr-2 text-right" title="bestaande posten + nieuwe facturatie (raming), 100%">In zonder</th>
-                    <th className="py-1.5 pr-2 text-right" title="bestaande posten (15%-saldo) + nieuwe facturatie: 85% ~1 week na uitreiking + 15% op betaalgedrag">In met</th>
+                    <th className="py-1.5 pr-2 text-right" title="wat-als stop factoring: bestaande posten + nieuwe facturatie, 100% op betaalgedrag">In wat-als</th>
+                    <th className="py-1.5 pr-2 text-right" title="bestaande posten (15%-saldo) + nieuwe facturatie: 85% ~1 week na uitreiking + 15% op betaalgedrag">In kasrealiteit</th>
                     <th className="py-1.5 pr-2 text-right">Uit leveranciers</th>
                     <th className="py-1.5 pr-2 text-right">Uit vast</th>
                     <th className="py-1.5 pr-2 text-right" title="nieuwe inkopen op 12-weken-ritme, ±30d betaaltermijn (raming)">Uit nieuw</th>
-                    <th className="py-1.5 pr-2 text-right">Saldo zonder</th>
-                    <th className="py-1.5 pr-2 text-right">Saldo met</th>
+                    <th className="py-1.5 pr-2 text-right">Saldo wat-als</th>
+                    <th className="py-1.5 pr-2 text-right">Saldo kasrealiteit</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -329,7 +329,15 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
 
   // ---- 7. Cumulatief saldo + kantelpunten (anker = echte bankstand) ----
   const bankNow = bank.totals.cashOwn;
-  let cumN = bankNow, cumF = bankNow;
+  // Wat-als "stoppen met factoring" (fix 18/08, vraag David "hoe kan cash meer
+  // zijn zonder factoring?"): de oude zonder-lijn startte op de bankstand-mét-
+  // voorschotten én telde daarna 100% van de facturen — dubbeltelling, waardoor
+  // hij ONterecht boven de kasrealiteit lag. Correct: wie stopt met factoring
+  // betaalt eerst het opgenomen 433-voorschot terug (hier: meteen, conservatief),
+  // en ontvangt daarna 100% van elke factuur op betaalgedrag. Factoring is dus
+  // structureel cash-positief zolang de omzet draait.
+  const saldo433Now = perCompany.reduce((s, x) => s + x.saldo433, 0); // negatief = schuld
+  let cumN = bankNow + saldo433Now, cumF = bankNow;
   const negN: string[] = [], negF: string[] = [];
   for (const w of weeks) {
     w.inNoFactor = r0(w.inNoFactor); w.inWithFactor = r0(w.inWithFactor);
@@ -382,7 +390,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   for (const m of months) { if (!m.isActual) { cumM += m.net; m.cum = r0(cumM); } }
 
   const unappliedTotal = perCompany.reduce((s, x) => s + x.unappliedPayments, 0);
-  const saldo433Total = perCompany.reduce((s, x) => s + x.saldo433, 0);
+  const saldo433Total = saldo433Now;
 
   return {
     asOf: new Date().toISOString(), isLive: true,
@@ -406,6 +414,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     },
     aannames: ([
       "Betaalmoment per klant = factuurdatum + mediaan betaalgedrag van dié klant (niet de vervaldag) — de grootste accuraatheidswinst volgens best practice.",
+      "Wat-als 'stoppen met factoring': die lijn betaalt eerst het opgenomen 433-voorschot terug (conservatief: meteen) en ontvangt daarna 100% van elke factuur op betaalgedrag. Daardoor ligt hij ónder de kasrealiteit — factoring is structureel cash-positief zolang de omzet draait.",
       "Factoring-variant: bij factoring-klanten is 85% van de bestaande posten al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt daar nog. Door KBC uitgesloten facturen (portaal-export 10/08: €42.518) tellen wél aan 100%; de Belfius- en BNP-uitsluitingslijsten ontbreken nog.",
       "Run-rate-laag: nieuwe facturatie loopt door op het gemiddelde weekritme van de laatste 12 volle weken (gesplitst factoring/niet-factoring); met factoring komt 85% daarvan ±1 week na uitreiking binnen (E-trans-aanname), de rest op betaalgedrag. Nieuwe inkopen lopen door op het 12-weken-ritme van de leveranciersfacturen (excl. leasing, ±30d betaaltermijn). Dit is een ritme-aanname, geen orderboek.",
       "Achterstallige posten (klant én leverancier) worden vlak gespreid over week 1–6 — een inningsaanname, geen belofte per post.",
@@ -454,4 +463,4 @@ function demoCashForecast(): CfoCashForecast {
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v6", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v7", buildCashForecast, demoCashForecast);
