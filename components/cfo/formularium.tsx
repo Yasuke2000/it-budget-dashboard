@@ -218,15 +218,15 @@ const BEGRIPPEN: Begrip[] = [
     term: "Factoring-label (de tag 'factor')", cat: "Factoring",
     wat: "Een klant heet factoring-klant wanneer minstens 40% van zijn betaald volume via een factor-dagboek is afgewikkeld. Er bestaat GEEN factoring-veld in Business Central — dit is afgeleid.",
     formule: "factorvolume ÷ totaal betaald volume ≥ 40%",
-    bron: "Toewijzingen (Application-posten): de dagboekprefix van de afwikkeling — GTR: KBCF/BNPF · GDI: BELF · WHS: KBCC · TDR: KBC.",
-    basis: "De 40% is een eigen drempel (aanname A4). TDR-dagboek 'KBC' = factor is afgeleid, niet bevestigd (aanname A7, €3,79M). Beter: een veld op de klantenkaart — aangevraagd bij GMI.", aanname: true,
+    bron: "Toewijzingen (Application-posten): de dagboekprefix van de afwikkeling — GTR: KBCF/BNPF · GDI: BELF · WHS: KBCC.",
+    basis: "De 40% is een eigen drempel (aanname A4). Ex-aanname A7 is BEANTWOORD (finance 17/08/2026): het TDR-dagboek 'KBC' is een gewone KBC-zichtrekening, géén factor — TDR telt niet meer als factoring. Beter blijft: een veld op de klantenkaart — aangevraagd bij GMI.", aanname: true,
     waar: "Klanten & Cash, overal waar 'factor' als label staat",
   },
   {
     term: "Voorschot 85% / retentie 15%", cat: "Factoring",
     wat: "Bij factoring schiet de bank ~85% van de factuur voor zodra ze is ingediend; de resterende 15% (retentie) volgt als de eindklant betaalt. Sneller innen bij een factoring-klant levert dus alleen die 15% op.",
     bron: "Staat NIET in Business Central: elke factuur wordt daar in één keer op 100% afgewikkeld en rekening 499200 beweegt niet. Het percentage leeft volledig binnen de factorrelatie.",
-    basis: "85% is een AANNAME (marktgebruikelijke band 80–90%, bevestigd door externe review). Openstaande vraag aan finance: het échte percentage per factor uit de contracten. Instelbaar in de Excel.", aanname: true,
+    basis: "85% is BEVESTIGD (Cost-of-cash-analyse Peter, v2 31/07/2026): Belfius 85% · BNP 85% · KBC 85% voorschot. De retentie-vrijgave loopt via de 433-rekening als saldo (finance 17/08/2026): pas wanneer de bank 100% van de klant ontvangt en finance afpunt, zien we het — geen vaste kalenderdatum per factuur.", aanname: false,
     waar: "Klanten & Cash, kaart Cashpotentieel",
   },
   {
@@ -288,7 +288,7 @@ const BEGRIPPEN: Begrip[] = [
     term: "Financieringsrente (3,5%)", cat: "Cash",
     wat: "De rentevoet waarmee we de kost van vastgezet kapitaal en de rentewinst rekenen. Een aanname — en we hebben geprobeerd hem te meten: dat kan niet uit BC.",
     bron: "Rekening 650000 mengt factoringrente, factorloon, provisies en afrekeningen; meetpogingen gaven 8% / 6,9% / 34% — geen rentevoeten. Zonder de kredietschema's van de bank blijft dit een aanname.",
-    basis: "Verlaagd van 5,0% naar 3,5% na externe review (marktrente kort bedrijfskrediet ±3,5%). Instelbaar via Settings zodra de bank de echte voet per faciliteit geeft.", aanname: true,
+    basis: "Verlaagd van 5,0% naar 3,5% na externe review. BEVESTIGD dicht bij de realiteit door de Cost-of-cash-analyse (Peter, v2 31/07/2026): factoring effectief BNP ≈3,10% · Belfius ≈3,45% · KBC ≈3,70% (E3M ≈2,35% + marge) — opname-gewogen ±3,4%. Alleen de straight-loanvoeten (KBC/BNP, R/C 433000) staan nog open. Instelbaar via Settings.", aanname: true,
     waar: "Klanten & Cash, Cashpotentieel + klantentabel",
   },
   {
@@ -363,7 +363,7 @@ const BEGRIPPEN: Begrip[] = [
   },
   {
     term: "Aanname (register A1–A8)", cat: "Spelregels",
-    wat: "Cijfers die op een aanname steunen zijn overal als zodanig gelabeld. De belangrijkste drie: het 85%-voorschot bij factoring, de financieringsrente van 3,5%, en het TDR-factordagboek. Elk staat in het aannameregister van METHODIEK-FORMULES.md met de vraag die het oplost.",
+    wat: "Cijfers die op een aanname steunen zijn overal als zodanig gelabeld. Op 17/08/2026 zijn er twee gesloten: het 85%-voorschot is bevestigd (Cost-of-cash-analyse) en het TDR-dagboek 'KBC' bleek een gewone bankrekening (géén factor). Open blijft vooral: de echte straight-loanrentes. Elk punt staat in het aannameregister van METHODIEK-FORMULES.md.",
     bron: "METHODIEK-FORMULES.md §13 + mails/2026-08-10-vragen-voor-accuraatheid.md (21 vragen aan finance/boekhouding/GMI).",
     waar: "Dit register — alle items met een geel driehoekje",
     aanname: true,

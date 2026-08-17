@@ -215,22 +215,43 @@ export async function fetchAgingAR(): Promise<AgingRow[]> {
 // "Niet toegewezen" (vraag finance 12/08/2026): creditnota's, betalingen en
 // terugbetalingen die open staan omdat ze niet aan een factuur zijn afgepunt —
 // die horen niet in een ouderdomsblok maar in hun eigen kolom naast > 90d.
-const BUCKETS = ["0 – 30d", "31 – 60d", "61 – 90d", "> 90d", "Niet toegewezen", "Onbekend"] as const;
+const BUCKETS_AP = ["0 – 30d", "31 – 60d", "61 – 90d", "> 90d", "Niet toegewezen", "Onbekend"] as const;
+// KLANTENAGING (vraag David 17/08/2026, dagelijks belwerk debiteuren vanaf 21/08):
+// aging op VERVALDATUM, en creditnota's/betalingen NIET apart parkeren maar salderen
+// in het blok van hun eigen vervaldatum — "facturen en CN's gesaldeerd per vervallen
+// periode". De leveranciersaging houdt de afspraak van 11/08 (dagen sinds factuurdatum
+// + kolom Niet toegewezen).
+const BUCKETS_AR = ["Niet vervallen", "1 – 30d vervallen", "31 – 60d vervallen", "61 – 90d vervallen", "> 90d vervallen", "Onbekend"] as const;
 const UNAPPLIED_TYPES = new Set(["Betaling", "Terugbetaling", "Creditnota"]);
 // Audit 11/08/2026: leeftijd op KALENDERDAG Brussel (snapIso), niet op het
 // milliseconden-verschil met het pull-moment — een pull om 01:00 schoof anders
 // alle grensfacturen één bucket te jong t.o.v. het dashboard.
-function bucketOf(x: { invoiceDate: string; docType: string }, snapIso: string): (typeof BUCKETS)[number] {
+function daysSince(dateIso: string, snapIso: string): number | null {
+  if (!dateIso) return null;
+  const d = Date.parse(`${dateIso}T00:00:00Z`);
+  if (Number.isNaN(d)) return null;
+  return Math.floor((Date.parse(`${snapIso}T00:00:00Z`) - d) / 86400000);
+}
+function bucketOfAP(x: { invoiceDate: string; docType: string }, snapIso: string): string {
   if (UNAPPLIED_TYPES.has(x.docType)) return "Niet toegewezen";
-  const invDate = x.invoiceDate;
-  if (!invDate) return "Onbekend";
-  const d = Date.parse(`${invDate}T00:00:00Z`);
-  if (Number.isNaN(d)) return "Onbekend";
-  const days = Math.floor((Date.parse(`${snapIso}T00:00:00Z`) - d) / 86400000);
+  const days = daysSince(x.invoiceDate, snapIso);
+  if (days == null) return "Onbekend";
   if (days <= 30) return "0 – 30d";
   if (days <= 60) return "31 – 60d";
   if (days <= 90) return "61 – 90d";
   return "> 90d";
+}
+// AR: vervaldatum bepaalt het blok; zonder vervaldatum valt de post terug op de
+// documentdatum (creditnota's/betalingen dragen niet altijd een vervaldag) zodat
+// álles gesaldeerd in een periode zit en niets apart blijft hangen.
+function bucketOfAR(x: { invoiceDate: string; dueDate: string; docType: string }, snapIso: string): string {
+  const days = daysSince(x.dueDate, snapIso) ?? daysSince(x.invoiceDate, snapIso);
+  if (days == null) return "Onbekend";
+  if (days <= 0) return "Niet vervallen";
+  if (days <= 30) return "1 – 30d vervallen";
+  if (days <= 60) return "31 – 60d vervallen";
+  if (days <= 90) return "61 – 90d vervallen";
+  return "> 90d vervallen";
 }
 
 const EUR_FMT = '#,##0.00\\ "€"';
@@ -250,6 +271,8 @@ export async function buildAgingWorkbook(
   const fileStamp = pulledAt.toLocaleString("sv-SE", { timeZone: "Europe/Brussels" }).replace(" ", "_").replace(/:/g, "").slice(0, 15);
   const snapIso = pulledAt.toLocaleDateString("sv-SE", { timeZone: "Europe/Brussels" }); // YYYY-MM-DD
   const isOverdue = (x: AgingRow) => !!x.dueDate && x.dueDate <= snapIso;
+  const BUCKETS: readonly string[] = isAP ? BUCKETS_AP : BUCKETS_AR;
+  const bucketOf = (x: AgingRow) => (isAP ? bucketOfAP(x, snapIso) : bucketOfAR(x, snapIso));
 
   // group by normalized party name
   const groups = new Map<string, { display: string; rows: AgingRow[] }>();
@@ -264,7 +287,7 @@ export async function buildAgingWorkbook(
   const bucketSums = (rs: AgingRow[]) => {
     const s: Record<string, number> = {};
     for (const b of BUCKETS) s[b] = 0;
-    for (const r of rs) s[bucketOf(r, snapIso)] += r.amountEUR;
+    for (const r of rs) s[bucketOf(r)] += r.amountEUR;
     return s;
   };
 
@@ -285,7 +308,7 @@ export async function buildAgingWorkbook(
   const xrelLabel = isAP ? "Ook klant?" : "Ook leverancier?";
   const headers = [partyLabel, "Factuurnummer", "Totaalbedrag", "Munt", "Factuurdatum", "Vervaldatum", ...BUCKETS, "Soort", "Vennootschap", "Btw-nummer", "Betalingsvoorwaarde", xrelLabel];
   const NC = headers.length;
-  ws.getCell(1, 1).value = `${title} — GHEERAERT GROEP — data getrokken op ${stamp} · ouderdom = dagen sinds FACTUURDATUM`;
+  ws.getCell(1, 1).value = `${title} — GHEERAERT GROEP — data getrokken op ${stamp} · ${isAP ? "ouderdom = dagen sinds FACTUURDATUM" : "aging op VERVALDATUM — facturen en creditnota's gesaldeerd per periode"}`;
   ws.getCell(1, 1).font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
   fill(ws, 1, NC, BLUE);
   ws.getRow(3).values = headers;
@@ -342,10 +365,10 @@ export async function buildAgingWorkbook(
       ws.getCell(r, 5).value = x.invoiceDate;
       ws.getCell(r, 6).value = x.dueDate;
       if (isOverdue(x)) ws.getCell(r, 6).font = { color: { argb: "FFB4342A" } };
-      const b = bucketOf(x, snapIso);
+      const b = bucketOf(x);
       const ci = B0 + BUCKETS.indexOf(b);
       ws.getCell(r, ci).value = x.amountEUR; ws.getCell(r, ci).numFmt = EUR_FMT;
-      if (b === "> 90d") ws.getCell(r, ci).font = { color: { argb: "FFB4342A" } };
+      if (b.startsWith("> 90d")) ws.getCell(r, ci).font = { color: { argb: "FFB4342A" } };
       ws.getCell(r, C_COMP).value = x.company;
       ws.getCell(r, C_VAT).value = x.vatNo;
       ws.getCell(r, C_TERMS).value = x.payTerms;
@@ -441,9 +464,17 @@ export async function buildAgingWorkbook(
     isAP
       ? "Bron: ALLE open (niet-afgepunte) leveranciersposten (VendorLedgerEntries, Open=true), alle operationele vennootschappen — facturen, creditnota's en onafgepunte betalingen. Te betalen = −Remaining_Amt_LCY (factuur +, creditnota/betaling −)."
       : "Bron: ALLE open (niet-afgepunte) klantposten (Cust_LedgerEntries, Open=true), alle operationele vennootschappen — facturen, creditnota's en onafgepunte betalingen (negatief). Zelfde basis als het BC-rapport 'Klant - Vervallen posten'; gevalideerd op GDI: vervallen deel = € 4.188.920,04, exact het rapporttotaal van 11/08/2026.",
-    "OUDERDOMSBLOKKEN t.o.v. de FACTUURDATUM (afspraak finance 11/08/2026): 0–30d / 31–60d / 61–90d / > 90d. Dit meet hoe lang het geld al zweeft, los van de afgesproken betaaltermijn.",
-    "NIET TOEGEWEZEN (kolom naast > 90d): creditnota's, betalingen en terugbetalingen die open staan omdat ze (nog) niet aan een factuur zijn afgepunt — vooruitbetalingen, dubbele betalingen of creditnota's die op verrekening wachten. Ze krijgen bewust géén ouderdom: het zijn geen te innen facturen maar af te punten posten (meestal negatief, drukt het saldo). Actie: afpunten in BC of terugbetalen.",
-    "ONBEKEND (laatste kolom): posten zonder factuur-/boekingsdatum in BC — vrijwel altijd migratie- of beginbalansposten of handmatige boekingen zonder documentdatum. De ouderdom is daar niet te bepalen; open de post via de doorklik om de herkomst te zien.",
+    ...(isAP
+      ? [
+          "OUDERDOMSBLOKKEN t.o.v. de FACTUURDATUM (afspraak finance 11/08/2026): 0–30d / 31–60d / 61–90d / > 90d. Dit meet hoe lang het geld al zweeft, los van de afgesproken betaaltermijn.",
+          "NIET TOEGEWEZEN (kolom naast > 90d): creditnota's, betalingen en terugbetalingen die open staan omdat ze (nog) niet aan een factuur zijn afgepunt — vooruitbetalingen, dubbele betalingen of creditnota's die op verrekening wachten. Ze krijgen bewust géén ouderdom: het zijn geen te innen facturen maar af te punten posten (meestal negatief, drukt het saldo). Actie: afpunten in BC of terugbetalen.",
+          "ONBEKEND (laatste kolom): posten zonder factuur-/boekingsdatum in BC — vrijwel altijd migratie- of beginbalansposten of handmatige boekingen zonder documentdatum. De ouderdom is daar niet te bepalen; open de post via de doorklik om de herkomst te zien.",
+        ]
+      : [
+          "BLOKKEN OP VERVALDATUM (afspraak David 17/08/2026, t.b.v. het dagelijkse belwerk): Niet vervallen / 1–30d / 31–60d / 61–90d / > 90d vervallen. Een klant staat dus pas in een vervallen-blok als de afgesproken betaaltermijn effectief verstreken is.",
+          "CREDITNOTA'S EN BETALINGEN ZIJN GESALDEERD in het blok van hun eigen (verval)datum — negatief, ze drukken het saldo per periode. Er is dus GEEN aparte kolom 'Niet toegewezen' meer: het bedrag per blok is meteen het netto te innen bedrag voor die periode. Zonder vervaldag valt zo'n post terug op de documentdatum.",
+          "ONBEKEND (laatste kolom): posten zonder verval- én documentdatum in BC — vrijwel altijd migratie- of beginbalansposten. Open de post via de doorklik om de herkomst te zien.",
+        ]),
     `${xrelLabel.toUpperCase()} (JA): deze tegenpartij staat óók aan de andere kant in de stamdata (match op btw-nummer, anders op naam — naam-matches verifiëren). Kandidaat voor saldering/verrekening; het openstaande bedrag aan beide kanten staat in het Debiteuren-werkdossier, blad 'Saldering klant-leverancier'.`,
     "WAARVAN VERVALLEN (bladen 'Per vennootschap' en 'Samenvatting') = posten met vervaldag op of vóór vandaag — dat is het cijfer dat aansluit op het BC-rapport 'Vervallen posten'. Een vervallen vervaldatum kleurt rood op het Aging-blad.",
     "BETALINGSVOORWAARDE: de conditiecode uit de stamdata (bv. 30D = 30 dagen na factuurdatum, LM+30D = eind maand + 30 dagen). Leeg = geen conditie ingevuld in BC.",

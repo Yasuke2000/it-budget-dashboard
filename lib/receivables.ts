@@ -43,8 +43,9 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 //   GTR:  KBCF €5,78M + BNPF €2,28M   (KBC CF én BNP Fortis Factor naast elkaar)
 //   GDI:  BELF €18,5M                  (bankrekening F01 heet letterlijk "Belfius Factor")
 //   WHS:  KBCC €12,5M                  (bankrekening F02 = "KBC FACTORING")
-//   TDR:  KBC  €4,6M in slechts 162 lump-afwikkelingen (gem. €28,6k) — afgeleid als
-//         KBC CF: enige bankrekening zit in de KBC-CF-reeks (7360…) én GL 499200 bestaat.
+//   TDR:  BEVESTIGD GEEN FACTOR (David/finance 17/08/2026, ex-aanname A7): het
+//         TDR-dagboek "KBC" is een gewone KBC-zichtrekening (BE94 7360 1335 1914);
+//         alleen WHS factort bij KBC CF. TDR is 100% onderaannemer van Warehouse BV.
 // De prefix-betekenis verschilt per firma (bij GTG/GRE/LMB is "KBC" de gewone bank),
 // dus de mapping is PER VENNOOTSCHAP. Onbekende prefixen tellen NIET als factoring.
 const FACTOR_LABELS: Record<string, string> = {
@@ -56,7 +57,6 @@ const FACTOR_JOURNALS: Record<string, Record<string, string>> = {
   GTR: { KBCF: "KBC", BNPF: "BNP" },
   GDI: { BELF: "Belfius" },
   WHS: { KBCC: "KBC" },
-  TDR: { KBC: "KBC" },
 };
 // Factoringkosten-herkenning op rekening 650000 (waar de factor-rente bij Gheeraert
 // staat, náást gewone financieringsrente). Match op de tegenpartij/omschrijving:
@@ -171,7 +171,7 @@ interface CompanyRcvBundle {
 async function buildCompanyRcvBundle(
   co: { id: string; code: string }, win: MonthWindow, today: Date
 ): Promise<CompanyRcvBundle> {
-  const key = `rcv-co4-${co.code}-${win.keys[win.keys.length - 1]}`;
+  const key = `rcv-co5-${co.code}-${win.keys[win.keys.length - 1]}`;
   const cached = getCache<CompanyRcvBundle>(key);
   if (cached) return cached;
 
@@ -1225,7 +1225,7 @@ export async function getReceivables(
   const excl = [...new Set(exclude.map((x) => x.trim().toUpperCase()).filter(Boolean))].sort();
   // v4: DSO-rijpheid en de uitsluiting van eenmalige verkopen wijzigen de reeksen —
   // een payload van een oudere build mag nooit blijven hangen (die toonde 132.302 dagen).
-  const cacheKey = `rcv-v4-x:${excl.join(",")}`;
+  const cacheKey = `rcv-v5-x:${excl.join(",")}`;
   const cached = getCache<CfoReceivables>(cacheKey);
   if (cached && !force) return cached;
 
