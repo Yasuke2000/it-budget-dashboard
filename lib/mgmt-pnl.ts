@@ -73,7 +73,7 @@ const BUCKETS: { id: string; label: string; style: PnlRow["style"]; indent: 0 | 
   { id: "brutomarge_pct", label: "Brutomarge %", style: "memo", indent: 0 },
   { id: "vast", label: "Vaste kosten", style: "subtotal", indent: 0 },
   { id: "huur_gebouwen", label: "Huur gebouwen", style: "normal", indent: 1 },
-  { id: "lease_rollend", label: "Huur rollend materieel", style: "normal", indent: 1 },
+  { id: "lease_rollend", label: "Huur & afschrijving rollend materieel", style: "normal", indent: 1 },
   { id: "onderhoud_gebouwen", label: "Onderhoud gebouwen & terreinen", style: "normal", indent: 1 },
   { id: "onderhoud_materieel", label: "Onderhoud machines & materieel (vast)", style: "normal", indent: 1 },
   { id: "software_it", label: "Software en IT", style: "normal", indent: 1 },
@@ -111,6 +111,10 @@ const SUMS: Record<string, string[]> = {
 };
 
 const LEASE_ACCTS = new Set(["610100", "610200", "610250", "610260", "610500"]);
+// Interne mapping-doelen die in het rapport samenvloeien in één rij:
+// huur_rollend + afschr_rollend → lease_rollend (EMAsphere: "Huur en afschrijving
+// rollend materieel"); hun EBITDA telt de rollend-afschrijvingen wél terug — wij ook.
+const MERGE: Record<string, string> = { huur_rollend: "lease_rollend", afschr_rollend: "lease_rollend" };
 
 /** Rekening → bucket. Nummerreeks eerst; naam alleen waar reeksen dubbelzinnig zijn. */
 export function mapAccount(acct: string, name: string, company: string): string {
@@ -136,7 +140,11 @@ export function mapAccount(acct: string, name: string, company: string): string 
   // ---- kosten ----
   if (c2 === "60") return c3 === "609" || /voorraadwijziging/.test(n) ? "voorraadwijziging" : "onderaanneming";
   if (c2 === "61") {
-    if (c4 === "6100") return LEASE_ACCTS.has(acct) ? "lease_rollend" : "huur_gebouwen";
+    if (c4 === "6100") {
+      if (LEASE_ACCTS.has(acct)) return "huur_rollend";
+      if (/elektriciteit|water|gas|nutsvoorzien|verwarming|stookolie/.test(n)) return "nutsvoorzieningen";
+      return "huur_gebouwen";
+    }
     if (/software|computer|hardware|informatica/.test(n)) return "software_it";
     if (/motorvoertuig|getrokken|logistiek materiaal|banden/.test(n) && /onderhoud/.test(n)) return "ddg_var";
     if (/onderhoud|ruimdienst/.test(n) && /(gebouw|terrein|parking|kantoor)/.test(n)) return "onderhoud_gebouwen";
@@ -146,7 +154,7 @@ export function mapAccount(acct: string, name: string, company: string): string 
     if (c3 === "614") return "verzekeringen";
     if (c3 === "615") return /verplaatsingskosten zaakvoerder|vervoer/.test(n) ? "vergoeding_derden" : "ddg_var"; // km-heffing/tol/eurovignet/door te rekenen
     if (c3 === "616" || c3 === "617") return "personeel_var"; // uitzendkrachten/interim
-    if (/huur/.test(n)) return /voertuig|trekker|trailer|materieel|machine|personenwagen/.test(n) ? "lease_rollend" : "huur_gebouwen";
+    if (/huur/.test(n)) return /voertuig|trekker|trailer|materieel|machine|personenwagen/.test(n) ? "huur_rollend" : "huur_gebouwen";
     if (/telefonie|internet|kantoor|documentatie|port/.test(n)) return "kantoor";
     if (/nutsvoorziening|elektriciteit|water|gas\b/.test(n)) return "nutsvoorzieningen";
     return "vergoeding_derden";
@@ -159,6 +167,7 @@ export function mapAccount(acct: string, name: string, company: string): string 
   }
   if (c2 === "63") {
     if (/voorziening|waardeverm/.test(n)) return "voorzieningen";
+    if (/motorvoertuig|getrokken|logistiek|rollend|personenwagen/.test(n)) return "afschr_rollend";
     return "afschrijvingen";
   }
   if (c2 === "64") return "andere_kosten";
@@ -190,7 +199,7 @@ async function accountNames(companyId: string, code: string, token: string): Pro
 }
 
 async function buildCompanyPnl(co: { id: string; code: string }, year: number, toIso: string, token: string): Promise<CoPnl> {
-  const key = `pnl-co2-${co.code}-${year}-${toIso}`;
+  const key = `pnl-co3-${co.code}-${year}-${toIso}`;
   const cached = getCache<CoPnl>(key);
   if (cached) return cached;
   const names = await accountNames(co.id, co.code, token);
@@ -261,12 +270,17 @@ async function buildMgmtPnl(exclude: string[], extra?: string): Promise<CfoMgmtP
     const part = await Promise.all(companies.slice(i, i + 2).map(async (c) => ({ code: c.code, b: await buildCompanyPnl(c, year, toIso, token) })));
     for (const { code, b } of part) {
       for (const [k, arr] of Object.entries(b.agg)) {
-        const dst = (agg[k] ??= new Array(12).fill(0));
+        const key = MERGE[k] || k;
+        const dst = (agg[key] ??= new Array(12).fill(0));
         for (let m = 0; m < 12; m++) dst[m] += arr[m];
+        if (k === "afschr_rollend") {
+          const d2 = (agg["_afschr_rollend"] ??= new Array(12).fill(0));
+          for (let m = 0; m < 12; m++) d2[m] += arr[m];
+        }
       }
       for (const [acct, u] of Object.entries(b.unmapped)) unmappedAll.push({ account: acct, name: u.name, company: code, ytd: u.ytd });
       for (const [acct, d] of Object.entries(b.acct)) {
-        (detailAll[d.bucket] ??= []).push({ account: acct, name: d.name, company: code, ytd: d.ytd, bcUrl: glAccountLink(code, acct) });
+        (detailAll[MERGE[d.bucket] || d.bucket] ??= []).push({ account: acct, name: d.name, company: code, ytd: d.ytd, bcUrl: glAccountLink(code, acct) });
       }
       for (let m = 0; m < 12; m++) loonAll[m] += b.loon[m];
       nonRec += b.nonRec;
@@ -293,8 +307,10 @@ async function buildMgmtPnl(exclude: string[], extra?: string): Promise<CfoMgmtP
       const ytdBm = bm.slice(0, monthCount).reduce((s, x) => s + x, 0);
       return { id: b.id, label: b.label, style: b.style, indent: b.indent, monthly: monthly.slice(0, monthCount), ytd: ytdOm ? Math.round((ytdBm / ytdOm) * 1000) / 10 : 0 };
     } else if (b.id === "ebitda") {
-      const br = sumOf("bedrijfsresultaat"), af = val("afschrijvingen"), vz = val("voorzieningen");
-      monthly = br.map((v, i) => v - af[i] - vz[i]); // afschr/voorz zijn negatief → aftrekken = terugtellen
+      // EMAsphere-conventie: óók de afschrijvingen rollend materieel (die in de
+      // huur&afschrijving-rij zitten) terugtellen — geverifieerd tegen GTR Q1.
+      const br = sumOf("bedrijfsresultaat"), af = val("afschrijvingen"), vz = val("voorzieningen"), ar = val("_afschr_rollend");
+      monthly = br.map((v, i) => v - af[i] - vz[i] - ar[i]);
     } else if (b.id === "niet_gemapt") {
       monthly = val("niet_gemapt");
     } else if (b.id === "niet_recurrent") {
@@ -307,7 +323,7 @@ async function buildMgmtPnl(exclude: string[], extra?: string): Promise<CfoMgmtP
   });
 
   const resNaBel = rows.find((r) => r.id === "res_na_bel")?.ytd || 0;
-  const bruto = Object.entries(agg).filter(([k]) => k !== "niet_recurrent").reduce((s, [, arr]) => s + arr.slice(0, monthCount).reduce((a, x) => a + x, 0), 0);
+  const bruto = Object.entries(agg).filter(([k]) => k !== "niet_recurrent" && k !== "_afschr_rollend").reduce((s, [, arr]) => s + arr.slice(0, monthCount).reduce((a, x) => a + x, 0), 0);
   const controlelijn = r0(resNaBel - r0(bruto)); // hoort 0 te zijn: alle 60-77 gemapt
 
   for (const k of Object.keys(detailAll)) {
@@ -356,4 +372,4 @@ function demoMgmtPnl(): CfoMgmtPnl {
   };
 }
 
-export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v2", buildMgmtPnl, demoMgmtPnl);
+export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v3", buildMgmtPnl, demoMgmtPnl);
