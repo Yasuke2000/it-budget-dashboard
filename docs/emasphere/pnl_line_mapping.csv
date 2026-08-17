@@ -1,0 +1,40 @@
+row_id,type,title,formula_or_categories,style,hidden
+1,Formula,Omzet,2..4,subtotal,false
+2,Filter,Verkoop Transport,70-VERT,normal,false
+3,Filter,Verkoop Magazijn,70-VERM,normal,false
+4,Filter,Verkoop Andere,"70-KORT|70-VER|70-VERG|70-VERH|70-VERO|70-VERS",normal,false
+5,Formula,Diverse Bedrijfsopbrengsten,6..8,subtotal,false
+6,Filter,Accijnsrecuperatie,74-ACC,normal,false
+7,Filter,Meerwaarden,74-MW,normal,false
+8,Filter,Andere Opbrengsten,74-RO,normal,false
+9,Formula,Variabele Kosten,10..12,subtotal,false
+10,Filter,Onderaanneming,60-VAR,normal,false
+11,Filter,Diensten en diverse goederen variabel,61-VAR,normal,false
+12,Filter,Personeelskosten Variabel,62-VAR,normal,false
+13,Formula,Brutomarge,1+5+9,total,false
+14,Empty,,,,false
+15,Formula,Vaste kosten,16..28,subtotal,false
+16,Filter,Huur Gebouwen,610-HUUR,normal,false
+17,Filter,Operationele lease rollend materiaal,610-RENT,normal,false
+18,Filter,Diensten en diverse goederen vast,61-VAST,normal,false
+19,Filter,Onderhoud en herstelling materieel,611-OH,normal,false
+20,Filter,Leveringen aan de onderneming,612-LEV,normal,false
+21,Filter,Vergoeding aan derden,613-VERG,normal,false
+22,Filter,Verzekeringen,614-VERZ,normal,false
+23,Filter,Vervoer en verplaatsing,615-VERV,normal,false
+24,Filter,Personeelskosten Vast,"62-VAST|62-VASTA|62-VASTB",normal,false
+25,Filter,Afschrijvingen en earn-out,"63-DPN|63-EARN OUT",normal,false
+26,Filter,Voorziening voor risico's en kosten,63-VRK,normal,false
+27,Filter,Waardeverminderingen,63-WAA,normal,false
+28,Filter,Andere Bedrijfskosten,64-BEK,normal,false
+29,Formula,Bedrijfsresultaat,13+15,total,false
+30,Filter,Financiële opbrengsten,75-FIO,normal,false
+31,Filter,Financiële kosten,65-FIK,normal,false
+32,Filter,Uitzonderlijke opbrengsten,76-UIT,normal,false
+33,Filter,Uitzonderlijke kosten,66-EXC,normal,false
+34,Formula,Resultaat voor belastingen,29..33,total,false
+35,Filter,Belastingen,"67-TAX|77-REG",normal,false
+36,Formula,Resultaat na belastingen,34+35,total,false
+37,Empty,,,,false
+38,Filter,all costs & revenues,CATEGORY_GROUP IN (Costs|Revenues),normal,true
+39,Formula,Controlelijn,36-38,italic,false

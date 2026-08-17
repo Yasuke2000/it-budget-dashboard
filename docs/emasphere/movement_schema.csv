@@ -1,0 +1,38 @@
+field,caption,type,role,notes
+key,Identifier,id,pk,"crunch_<uuid> plus analytic_1..10 suffixes"
+movementOrigin,Movement origin,string,dimension,ACCOUNTING or FORECAST
+tenant,Entity,string,dimension,entity UUID
+tenantLabel,Entity name,string,dimension,denormalised label
+period,Period,string,time,YYYY-MM; temporalField = refMonth
+accountNumber,Account,string,dimension,GL account
+accountName,Account name,string,dimension,
+accountClass,Account class,string,dimension,FR labels from EMAsphere template
+categoryCode,Category,string,dimension,"PIVOT FIELD - drives every datagrid filter"
+categoryName,Category name,string,dimension,
+categoryGroup,Category group,string,dimension,Assets|Liabilities|Revenues|Costs|Results
+mainCategory,Main category,string,dimension,
+categoryRole,Category role,string,dimension,often null
+cashCategory,Cash category,string,dimension,feeds cash flow grid
+journalCode,Journal code,string,dimension,e.g. VERKOOP
+journalType,Journal type,string,dimension,SELL|BUY|...
+associatedName,Third-party,string,dimension,customer or supplier
+analyticName-1,Partners,string,dimension,mostly NO_VALUE
+analyticName-2,Afdeling,string,dimension,OVERHEAD|TRUCKING|DISTRIBUTIE|GARAGE LOPPEM|WAREHOUSING|TANKSTATION|TRUCKCLEANING
+analyticName-3,Vloot,string,dimension,"plate + model + fleet code"
+analyticName-4,IC,string,dimension,intercompany flag
+analyticName-5,Title 5,string,dimension,unused
+analyticName-6,Title 6,string,dimension,unused
+analyticName-7,Title 7,string,dimension,unused
+analyticName-8,Title 8,string,dimension,unused
+analyticName-9,Title 9,string,dimension,unused
+analyticName-10,Title 10,string,dimension,unused
+analyticName-701633ff-ecab-4ff1-8096-8817bae25c22,Intercompany,string,derived,do not replicate - compute
+analyticName-d1ca5c04-4ca1-44ea-ade0-0387cf30a483,Aggregated Customers,string,derived,do not replicate - compute
+analyticName-6cd34fae-7477-4025-954b-f4695264b0cb,Account Category,string,derived,mirror of categoryName
+analyticName-4d8474e8-e04b-404d-937e-e58f6aba5dae,Class,string,derived,mirror of accountClass
+analyticName-30af1619-65fe-4398-abe5-476da0df79fe,Main Category,string,derived,mirror of mainCategory
+analyticName-200b9c2a-103b-483e-bda2-e0baa18229b2,Group Category,string,derived,mirror of categoryGroup
+analyticName-1bb88580-a1b0-43d5-94f4-834076b87327,Cash Category,string,derived,mirror of cashCategory
+analyticName-a41b09d0-3fe6-4ff8-b6cc-5b6bc590e7a5,Cash Origin,string,derived,e.g. BillingNew
+analyticName-8c701e56-51b7-4049-9d8a-ce48ccb0bd47,Role Category,string,derived,
+amount,Amount,number,measure,"credit-positive in source; aggregationFunction SUM"
