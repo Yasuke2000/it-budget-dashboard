@@ -119,7 +119,7 @@ const MERGE: Record<string, string> = { huur_rollend: "lease_rollend", afschr_ro
 /** Rekening → bucket. Nummerreeks eerst; naam alleen waar reeksen dubbelzinnig zijn. */
 export function mapAccount(acct: string, name: string, company: string): string {
   const n = (name || "").toLowerCase();
-  const c2 = acct.slice(0, 2), c3 = acct.slice(0, 3), c4 = acct.slice(0, 4);
+  const c2 = acct.slice(0, 2), c3 = acct.slice(0, 3);
   // ---- opbrengsten ----
   if (c2 === "70") {
     if (acct === "705200") return company === "GPR" ? "niet_recurrent" : "verkoop_andere";
@@ -140,8 +140,9 @@ export function mapAccount(acct: string, name: string, company: string): string 
   // ---- kosten ----
   if (c2 === "60") return c3 === "609" || /voorraadwijziging/.test(n) ? "voorraadwijziging" : "onderaanneming";
   if (c2 === "61") {
-    if (c4 === "6100") {
-      if (LEASE_ACCTS.has(acct)) return "huur_rollend";
+    if (c3 === "610") {
+      // EMAsphere-lijn "Huur & afschrijving rollend materieel": machines/voertuigen/getrokken/logistiek/personenwagens
+      if (LEASE_ACCTS.has(acct) || /machine|motorvoertuig|getrokken|logistiek|personenwagen|rollend|trailer|trekker|oplegger|vrachtwagen|heftruck/.test(n)) return "huur_rollend";
       if (/elektriciteit|water|gas|nutsvoorzien|verwarming|stookolie/.test(n)) return "nutsvoorzieningen";
       return "huur_gebouwen";
     }
@@ -149,7 +150,10 @@ export function mapAccount(acct: string, name: string, company: string): string 
     if (/motorvoertuig|getrokken|logistiek materiaal|banden/.test(n) && /onderhoud/.test(n)) return "ddg_var";
     if (/onderhoud|ruimdienst/.test(n) && /(gebouw|terrein|parking|kantoor)/.test(n)) return "onderhoud_gebouwen";
     if (/onderhoud/.test(n)) return "onderhoud_materieel"; // machines, installaties, personenwagens
-    if (c3 === "612") return /brandstof|adblue/.test(n) ? "ddg_var" : "kantoor"; // port/leveringen → kantoor
+    if (c3 === "612") {
+      if (/elektriciteit|aardgas|^gas$|\bgas\b|^water$|verwarming|stookolie/.test(n)) return "nutsvoorzieningen"; // 612100/612150/612160
+      return /brandstof|adblue/.test(n) ? "ddg_var" : "kantoor"; // port/leveringen → kantoor
+    }
     if (c3 === "613") return /dkv|as24/.test(n) ? "ddg_var" : "vergoeding_derden";
     if (c3 === "614") return "verzekeringen";
     if (c3 === "615") return /verplaatsingskosten zaakvoerder|vervoer/.test(n) ? "vergoeding_derden" : "ddg_var"; // km-heffing/tol/eurovignet/door te rekenen
@@ -199,7 +203,7 @@ async function accountNames(companyId: string, code: string, token: string): Pro
 }
 
 async function buildCompanyPnl(co: { id: string; code: string }, year: number, toIso: string, token: string): Promise<CoPnl> {
-  const key = `pnl-co3-${co.code}-${year}-${toIso}`;
+  const key = `pnl-co4-${co.code}-${year}-${toIso}`;
   const cached = getCache<CoPnl>(key);
   if (cached) return cached;
   const names = await accountNames(co.id, co.code, token);
@@ -372,4 +376,4 @@ function demoMgmtPnl(): CfoMgmtPnl {
   };
 }
 
-export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v3", buildMgmtPnl, demoMgmtPnl);
+export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v4", buildMgmtPnl, demoMgmtPnl);
