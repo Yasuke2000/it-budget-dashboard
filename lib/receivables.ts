@@ -717,6 +717,9 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   // reeks MET factoring: bij factoring-klanten is ±85% al voorgeschoten via de
   // 433-rekening, dus daar komt alleen het saldo (15%) nog als kasontvangst.
   const forecastBeyond = { net: 0, factor: 0 };
+  // Doorklik-detail (vraag David 18/08): de posten achter elke forecast-week,
+  // met BC-link. Gespreide (achterstallige) posten staan één keer, gevlagd.
+  const forecastDetail: NonNullable<CfoReceivables["forecastDetail"]> = [];
   for (const b of bundles) for (const inv of b.invoices) {
     if (!inv.open || inv.ic) continue;
     const openAmt = inv.rem || inv.amt - inv.applied;
@@ -741,8 +744,24 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
         forecastBeyond.factor += amt * factorShare;
       }
     };
-    if (expIso < todayIso) { for (let k = 0; k < 6; k++) addFc(k, openAmt / 6); }
+    const spread = expIso < todayIso;
+    if (spread) { for (let k = 0; k < 6; k++) addFc(k, openAmt / 6); }
     else addFc(ei, openAmt);
+    forecastDetail.push({
+      week: spread ? 0 : Math.min(ei, 13), co: inv.co, cust: inv.rawCust, doc: inv.doc,
+      amount: r0(openAmt), expected: expIso, factored: factorShare !== 1, spread,
+      bcUrl: custLedgerDocLink(inv.co, inv.doc),
+    });
+  }
+  // Per week de grootste posten houden (payload-cap): top 15 op |bedrag|.
+  {
+    const byWeek = new Map<number, NonNullable<CfoReceivables["forecastDetail"]>>();
+    for (const r of forecastDetail) { const a = byWeek.get(r.week) ?? []; a.push(r); byWeek.set(r.week, a); }
+    forecastDetail.length = 0;
+    for (const a of byWeek.values()) {
+      a.sort((x, y) => Math.abs(y.amount) - Math.abs(x.amount));
+      forecastDetail.push(...a.slice(0, 15));
+    }
   }
   for (const w of cashExpectation) {
     w.expected = r0(w.expected); w.onDueDate = r0(w.onDueDate);
@@ -1210,7 +1229,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       netLedger: r0(arExt[n - 1] + arEndByCat.ic[n - 1]),
       items: openItems.slice(0, 80), itemsShown: Math.min(80, openItems.length), itemsTotal: openItems.length,
     },
-    cashExpectation, forecastBeyond, behaviour, icShare, dataQuality, sources, notes,
+    cashExpectation, forecastBeyond, forecastDetail, behaviour, icShare, dataQuality, sources, notes,
   };
 }
 
@@ -1252,7 +1271,7 @@ export async function getReceivables(
   const excl = [...new Set(exclude.map((x) => x.trim().toUpperCase()).filter(Boolean))].sort();
   // v4: DSO-rijpheid en de uitsluiting van eenmalige verkopen wijzigen de reeksen —
   // een payload van een oudere build mag nooit blijven hangen (die toonde 132.302 dagen).
-  const cacheKey = `rcv-v7-x:${excl.join(",")}`;
+  const cacheKey = `rcv-v8-x:${excl.join(",")}`;
   const cached = getCache<CfoReceivables>(cacheKey);
   if (cached && !force) return cached;
 

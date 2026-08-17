@@ -826,6 +826,9 @@ export interface CfoReceivables {
   };
   cashExpectation: RcvCashWeekExpectation[];  // 13 weken verwachte inning
   forecastBeyond?: { net: number; factor: number }; // open AR die pas ná week 13 verwacht wordt
+  // Doorklik-detail cashforecast: de grootste posten (top 15/week) achter elke
+  // forecast-week. week 13 = "ná week 13"; spread = achterstallig, gespreid wk 1–6.
+  forecastDetail?: { week: number; co: string; cust: string; doc: string; amount: number; expected: string; factored: boolean; spread: boolean; bcUrl: string }[];
   behaviour?: CfoBehaviour;                   // betaalgedrag-analyse (norm 30 dagen)
   icShare: { arOpenIcPct: number; salesIcPct: number };
   dataQuality: string[];                      // bv. INTERCO-dim ontbreekt bij X; beginbalans ontbreekt

@@ -3,8 +3,8 @@
 // Cashflowprognose — 13-weken direct (zonder/met factoring side-by-side) +
 // maandlaag tot eind volgend jaar + 6 mnd. Meeting 17/08/2026, cluster C.
 
-import { useState } from "react";
-import type { CfoCashForecast } from "@/lib/cashforecast";
+import { Fragment, useState } from "react";
+import type { CfoCashForecast, FcDetailRow } from "@/lib/cashforecast";
 import { usePolledData, Card, Kpi, KpiSourceModal, fmtStamp, weekRange, eurAxis } from "./cfo-ui";
 import type { KpiSource } from "./cfo-ui";
 import { EChart } from "./echart";
@@ -14,11 +14,56 @@ import { Loader2, RefreshCcw, ArrowLeft, AlertTriangle } from "lucide-react";
 const eur = (v: number) => `€ ${Math.round(v).toLocaleString("nl-BE")}`;
 const eurS = (v: number) => `${v < 0 ? "−" : ""}€ ${Math.abs(Math.round(v / 1000)).toLocaleString("nl-BE")}k`;
 
+// Doorklik per week: de grootste posten (top 15 in/uit) achter het weekcijfer,
+// elk met BC-link — zelfde conventie als de drill op Business Units en de P&L.
+function WeekDrill({ week, weekStart, detail }: { week: number; weekStart: string; detail: CfoCashForecast["weekDetail"] }) {
+  const inRows = detail.in.filter((r) => r.week === week);
+  const outRows = detail.out.filter((r) => r.week === week);
+  const spreadNote = week < 6 && (inRows.some((r) => r.spread) || outRows.some((r) => r.spread));
+  const list = (rows: FcDetailRow[], sign: 1 | -1, title: string) => (
+    <div>
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      {rows.length === 0 && <p className="text-[11px] text-muted-foreground">geen posten in deze week</p>}
+      {rows.map((r, i) => (
+        <div key={`${r.co}-${r.doc}-${i}`} className="flex items-baseline justify-between gap-2 border-b border-border/40 py-0.5 text-[11px]">
+          <span className="min-w-0 truncate">
+            <span className="font-medium text-foreground">{r.party || "(zonder naam)"}</span>
+            <span className="text-muted-foreground"> · {r.co}</span>
+            {r.doc && (
+              <a href={r.bcUrl} target="_blank" rel="noreferrer" className="ml-1 text-primary underline decoration-dotted underline-offset-2" title="Open deze post in Business Central">
+                {r.doc}↗
+              </a>
+            )}
+            {r.factored && <span className="ml-1 rounded bg-muted px-1 text-[9px] font-semibold text-muted-foreground ring-1 ring-border" title="Factoring-klant: 85% al voorgeschoten, alleen het 15%-saldo telt in de met-factoring-reeks">factor</span>}
+            {r.spread && <span className="ml-1 rounded bg-warning/15 px-1 text-[9px] font-semibold text-warning" title="Achterstallig: telt voor 1/6 per week mee in week 1–6">gespreid wk 1–6</span>}
+          </span>
+          <span className={`shrink-0 tabular-nums ${sign * r.amount < 0 ? "text-negative" : "text-foreground"}`}>{eurS(sign * r.amount)}</span>
+        </div>
+      ))}
+    </div>
+  );
+  return (
+    <tr>
+      <td colSpan={7} className="bg-muted/30 p-3">
+        <div className="grid gap-4 md:grid-cols-2">
+          {list(inRows, 1, `In — grootste posten week van ${weekStart.slice(8, 10)}/${weekStart.slice(5, 7)} (top 15, volledig openstaand bedrag)`)}
+          {list(outRows, -1, "Uit — grootste leveranciersposten (top 15)")}
+        </div>
+        <p className="mt-2 text-[10px] leading-snug text-muted-foreground">
+          Bedragen = het volledige open bedrag van de post; {spreadNote ? "posten met 'gespreid wk 1–6' tellen voor 1/6 per week mee in het weekcijfer erboven. " : ""}
+          Kalenderposten (lonen/btw/leasing) staan niet in deze lijst — die zie je in de kolom &apos;Uit vast&apos;. Doorklikken opent de post in Business Central (BC-login vereist).
+        </p>
+      </td>
+    </tr>
+  );
+}
+
 export function CashForecastView() {
   const fc = usePolledData<CfoCashForecast>("/api/cfo/cashforecast");
   const pal = useChartPalette();
   const [kpiSrc, setKpiSrc] = useState<KpiSource | null>(null);
   const [scenario, setScenario] = useState<"beide" | "zonder" | "met">("beide");
+  const [openWeek, setOpenWeek] = useState<number | null>(null);
   const d = fc.data;
 
   return (
@@ -122,16 +167,23 @@ export function CashForecastView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {d.weeks.map((w) => (
-                    <tr key={w.weekStart} className="border-b border-border/50">
-                      <td className="py-1 pr-2 font-medium text-foreground">{w.label} · {weekRange(w.weekStart)}</td>
-                      <td className="py-1 pr-2 text-right tabular-nums text-positive">{eurS(w.inNoFactor)}</td>
-                      <td className="py-1 pr-2 text-right tabular-nums text-info" style={{ color: pal.info }}>{eurS(w.inWithFactor)}</td>
-                      <td className="py-1 pr-2 text-right tabular-nums text-negative">{eurS(-w.outAP)}</td>
-                      <td className="py-1 pr-2 text-right tabular-nums text-warning">{eurS(-w.outFixed)}</td>
-                      <td className={`py-1 pr-2 text-right font-semibold tabular-nums ${w.cumNoFactor < 0 ? "text-negative" : "text-foreground"}`}>{eurS(w.cumNoFactor)}</td>
-                      <td className={`py-1 pr-2 text-right font-semibold tabular-nums ${w.cumWithFactor < 0 ? "text-negative" : "text-foreground"}`}>{eurS(w.cumWithFactor)}</td>
-                    </tr>
+                  {d.weeks.map((w, wi) => (
+                    <Fragment key={w.weekStart}>
+                      <tr
+                        onClick={() => setOpenWeek(openWeek === wi ? null : wi)}
+                        title="Klik: de grootste posten achter deze week, met BC-link"
+                        className={`cursor-pointer border-b border-border/50 transition hover:bg-primary/5 ${openWeek === wi ? "bg-primary/5" : ""}`}
+                      >
+                        <td className="py-1 pr-2 font-medium text-foreground">{w.label} · {weekRange(w.weekStart)}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums text-positive">{eurS(w.inNoFactor)}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums" style={{ color: pal.info }}>{eurS(w.inWithFactor)}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums text-negative">{eurS(-w.outAP)}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums text-warning">{eurS(-w.outFixed)}</td>
+                        <td className={`py-1 pr-2 text-right font-semibold tabular-nums ${w.cumNoFactor < 0 ? "text-negative" : "text-foreground"}`}>{eurS(w.cumNoFactor)}</td>
+                        <td className={`py-1 pr-2 text-right font-semibold tabular-nums ${w.cumWithFactor < 0 ? "text-negative" : "text-foreground"}`}>{eurS(w.cumWithFactor)}</td>
+                      </tr>
+                      {openWeek === wi && <WeekDrill week={wi} weekStart={w.weekStart} detail={d.weekDetail} />}
+                    </Fragment>
                   ))}
                   <tr>
                     <td className="py-1.5 pr-2 text-muted-foreground">ná week 13 nog verwacht</td>

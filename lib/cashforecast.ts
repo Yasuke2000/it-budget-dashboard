@@ -25,6 +25,7 @@ import { getCache, setCache } from "./sync-cache";
 import { getReceivables } from "./receivables";
 import { getBank, type CfoBank } from "./bank";
 import { isIcName } from "./cfo";
+import { vendorLedgerDocLink } from "./bc-links";
 
 const r0 = (n: number) => Math.round(n);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -49,6 +50,15 @@ export interface FcMonth {
   inSeason: number; outSeason: number; net: number; cum: number;
   isActual: boolean;      // true = historische maand (echte bankmutaties)
 }
+export interface FcDetailRow {
+  week: number;           // 0-based weekindex; 13 = "ná week 13"
+  co: string; party: string; doc: string;
+  amount: number;         // in: te ontvangen (+), CN (−) · uit: te betalen (+)
+  when: string;           // verwacht betaalmoment (in) of vervaldag (uit)
+  factored?: boolean;     // in: factoring-klant (85% al voorgeschoten)
+  spread: boolean;        // achterstallig → 1/6 per week over wk 1–6
+  bcUrl: string;
+}
 export interface FcCompanyMisc {
   company: string;
   saldo433: number;       // rekening-courant factor (lump-sum "zak met geld")
@@ -66,6 +76,7 @@ export interface CfoCashForecast {
   lowPoint: { noFactor: { week: string; value: number }; withFactor: { week: string; value: number } };
   negativeWeeks: { noFactor: string[]; withFactor: string[] };
   perCompany: FcCompanyMisc[];
+  weekDetail: { in: FcDetailRow[]; out: FcDetailRow[] }; // top 15 per week, met BC-link
   totals: { unapplied: number; unappliedCount: number; saldo433: number; btw: number; btwUnclear: number; payrollMonthly: number; leasingMonthly: number };
   aannames: string[];
   sources: CfoSource[]; notes: string[];
@@ -148,8 +159,9 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   // ---- 3. Uitstromen: open leveranciersposten op vervaldag (CN gesaldeerd) ----
   // IC uitgesloten: intern betalen is geen netto groepskasstroom.
   let apBeyond = 0;
+  const outDetail: FcDetailRow[] = [];
   for (const c of companies) {
-    const url = `${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(c.code)}')/VendorLedgerEntries?$filter=Open eq true&$select=Vendor_Name,Due_Date,Document_Date,Remaining_Amt_LCY`;
+    const url = `${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(c.code)}')/VendorLedgerEntries?$filter=Open eq true&$select=Vendor_Name,Document_No,Due_Date,Document_Date,Remaining_Amt_LCY`;
     await pageAllOData(url, (e) => {
       const rem = -((e.Remaining_Amt_LCY as number) || 0); // te betalen = positief
       if (Math.abs(rem) < 1) return;
@@ -157,16 +169,31 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       const due = String(e.Due_Date || "").slice(0, 10);
       const doc = String(e.Document_Date || "").slice(0, 10);
       const when = (due && !due.startsWith("0001") ? due : doc) || todayIso;
+      let week: number;
       if (when < todayIso) {
         // Achterstallige leveranciers betalen we niet allemaal deze week —
         // inhaalritme gespreid over week 1–6 (eigen keuze, zelfde spreiding als AR).
         for (let k = 0; k < 6; k++) weeks[k].outAP += rem / 6;
+        week = 0;
       } else {
         const wi = weekOf(when);
-        if (wi < 13) weeks[wi].outAP += rem; else apBeyond += rem;
+        if (wi < 13) { weeks[wi].outAP += rem; week = wi; } else { apBeyond += rem; week = 13; }
       }
+      outDetail.push({
+        week, co: c.code, party: String(e.Vendor_Name || "").trim(), doc: String(e.Document_No || ""),
+        amount: r0(rem), when, spread: when < todayIso,
+        bcUrl: vendorLedgerDocLink(c.code, String(e.Document_No || "")),
+      });
     }, token);
   }
+  // Payload-cap: per week de 15 grootste posten.
+  const capPerWeek = (rows: FcDetailRow[]): FcDetailRow[] => {
+    const byWeek = new Map<number, FcDetailRow[]>();
+    for (const r of rows) { const a = byWeek.get(r.week) ?? []; a.push(r); byWeek.set(r.week, a); }
+    const out: FcDetailRow[] = [];
+    for (const a of byWeek.values()) { a.sort((x, y) => Math.abs(y.amount) - Math.abs(x.amount)); out.push(...a.slice(0, 15)); }
+    return out;
+  };
 
   // ---- 4. Kalenderposten: lonen/RSZ (62-range, gem. laatste 3 volle maanden) ----
   const m0 = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 3, 1));
@@ -318,6 +345,13 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     lowPoint: { noFactor: lowN, withFactor: lowF },
     negativeWeeks: { noFactor: negN, withFactor: negF },
     perCompany,
+    weekDetail: {
+      in: (rcv.forecastDetail || []).map((r) => ({
+        week: r.week, co: r.co, party: r.cust, doc: r.doc, amount: r.amount,
+        when: r.expected, factored: r.factored, spread: r.spread, bcUrl: r.bcUrl,
+      })),
+      out: capPerWeek(outDetail),
+    },
     totals: {
       unapplied: r0(unappliedTotal), unappliedCount: perCompany.reduce((s, x) => s + x.unappliedCount, 0),
       saldo433: r0(saldo433Total), btw: r0(btwPayable), btwUnclear: r0(btwUnclear),
@@ -365,9 +399,10 @@ function demoCashForecast(): CfoCashForecast {
     months: [], lowPoint: { noFactor: { week: weeks[8].weekStart, value: -240_000 }, withFactor: { week: weeks[6].weekStart, value: -510_000 } },
     negativeWeeks: { noFactor: [weeks[8].weekStart], withFactor: [weeks[6].weekStart, weeks[7].weekStart] },
     perCompany: [{ company: "WHS", saldo433: -1_350_000, btwSaldo: -220_000, unappliedPayments: -180_000, unappliedCount: 14, openCn: -60_000 }],
+    weekDetail: { in: [], out: [] },
     totals: { unapplied: -180_000, unappliedCount: 14, saldo433: -1_350_000, btw: 220_000, btwUnclear: 0, payrollMonthly: 1_450_000, leasingMonthly: 410_000 },
     aannames: ["Demomodus"], sources: [{ label: "Demo", detail: "Demomodus — live versie leest BC." }], notes: [],
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v3", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v4", buildCashForecast, demoCashForecast);
