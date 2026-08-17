@@ -729,13 +729,20 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       if (ei < 13) cashExpectation[ei].expected += openAmt;
       const di = weekOf(inv.due || todayIso); if (di < 13) cashExpectation[di].onDueDate += openAmt;
     }
-    if (ei < 13) {
-      cashExpectation[ei].expectedNet = (cashExpectation[ei].expectedNet || 0) + openAmt;
-      cashExpectation[ei].expectedFactor = (cashExpectation[ei].expectedFactor || 0) + openAmt * factorShare;
-    } else {
-      forecastBeyond.net += openAmt;
-      forecastBeyond.factor += openAmt * factorShare;
-    }
+    // Forecast-reeksen: posten waarvan het verwachte betaalmoment al VERSTREKEN is
+    // (achterstallig t.o.v. het eigen betaalgedrag) komen niet allemaal deze week
+    // binnen — die spreiden we vlak over week 1–6 (inningsaanname, cf. belwerk).
+    const addFc = (wi: number, amt: number) => {
+      if (wi < 13) {
+        cashExpectation[wi].expectedNet = (cashExpectation[wi].expectedNet || 0) + amt;
+        cashExpectation[wi].expectedFactor = (cashExpectation[wi].expectedFactor || 0) + amt * factorShare;
+      } else {
+        forecastBeyond.net += amt;
+        forecastBeyond.factor += amt * factorShare;
+      }
+    };
+    if (expIso < todayIso) { for (let k = 0; k < 6; k++) addFc(k, openAmt / 6); }
+    else addFc(ei, openAmt);
   }
   for (const w of cashExpectation) {
     w.expected = r0(w.expected); w.onDueDate = r0(w.onDueDate);
@@ -1245,7 +1252,7 @@ export async function getReceivables(
   const excl = [...new Set(exclude.map((x) => x.trim().toUpperCase()).filter(Boolean))].sort();
   // v4: DSO-rijpheid en de uitsluiting van eenmalige verkopen wijzigen de reeksen —
   // een payload van een oudere build mag nooit blijven hangen (die toonde 132.302 dagen).
-  const cacheKey = `rcv-v6-x:${excl.join(",")}`;
+  const cacheKey = `rcv-v7-x:${excl.join(",")}`;
   const cached = getCache<CfoReceivables>(cacheKey);
   if (cached && !force) return cached;
 

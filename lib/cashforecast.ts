@@ -157,8 +157,14 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       const due = String(e.Due_Date || "").slice(0, 10);
       const doc = String(e.Document_Date || "").slice(0, 10);
       const when = (due && !due.startsWith("0001") ? due : doc) || todayIso;
-      const wi = weekOf(when < todayIso ? todayIso : when); // achterstallig = deze week
-      if (wi < 13) weeks[wi].outAP += rem; else apBeyond += rem;
+      if (when < todayIso) {
+        // Achterstallige leveranciers betalen we niet allemaal deze week —
+        // inhaalritme gespreid over week 1–6 (eigen keuze, zelfde spreiding als AR).
+        for (let k = 0; k < 6; k++) weeks[k].outAP += rem / 6;
+      } else {
+        const wi = weekOf(when);
+        if (wi < 13) weeks[wi].outAP += rem; else apBeyond += rem;
+      }
     }, token);
   }
 
@@ -219,18 +225,23 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     leasingMonthly = lease.totals.extern / n;
   } catch { /* leasing-config uit → 0 */ }
 
-  // Kalenderregels in het weekraster: lonen/RSZ op maandeinde, btw op de 20e,
-  // leasing gespreid begin maand. Alleen TOEKOMSTIGE datums binnen 13 weken.
+  // Kalenderregels in het weekraster: lonen/RSZ op maandeinde, leasing begin
+  // maand (maandelijks terugkerend); btw ÉÉN keer op de eerstvolgende 20e —
+  // het 451-saldo is de schuld volgens het grootboek, latere aangiftes zijn
+  // niet geraamd (bewust: WHS/TDR-saldi zien er opgestapeld uit → PRIO-vraag).
   const horizonEnd = addDays(w0, 13 * 7);
+  let btwPlaced = false;
   for (let m = 0; m < 5; m++) {
     const monthEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1 + m, 0));
     const btw20 = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + m, 20));
     const lease5 = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + m, 5));
-    // btw: het huidige 451-saldo dekt de eerstvolgende aangifte; voor latere
-    // maanden herhalen we het als raming (maandelijkse aangevers, zelfde orde).
-    for (const [d, amt] of [[monthEnd, payrollMonthly], [btw20, btwPayable], [lease5, leasingMonthly]] as [Date, number][]) {
+    for (const [d, amt] of [[monthEnd, payrollMonthly], [lease5, leasingMonthly]] as [Date, number][]) {
       if (d <= today || d >= horizonEnd || amt <= 0) continue;
       weeks[weekOf(iso(d))].outFixed += amt;
+    }
+    if (!btwPlaced && btw20 > today && btw20 < horizonEnd && btwPayable > 0) {
+      weeks[weekOf(iso(btw20))].outFixed += btwPayable;
+      btwPlaced = true;
     }
   }
 
@@ -306,7 +317,8 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     aannames: [
       "Betaalmoment per klant = factuurdatum + mediaan betaalgedrag van dié klant (niet de vervaldag) — de grootste accuraatheidswinst volgens best practice.",
       "Factoring-variant: bij factoring-klanten is 85% verondersteld al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt als komende ontvangst. Nieuwe facturatie ná vandaag zit nog niet in het weekbeeld.",
-      "Lonen/RSZ = gemiddelde van de laatste 3 volle maanden op de 62-rekeningen, geboekt op maandeinde. Btw = huidig 451-saldo op de eerstvolgende 20e, en als raming herhaald voor latere maanden. Leasing = 12m-gemiddelde externe cash-out, begin maand.",
+      "Achterstallige posten (klant én leverancier) worden vlak gespreid over week 1–6 — een inningsaanname, geen belofte per post.",
+      "Lonen/RSZ = gemiddelde van de laatste 3 volle maanden op de 62-rekeningen, geboekt op maandeinde. Btw = het volledige 451-saldo ÉÉN keer op de eerstvolgende 20e; latere aangiftes zijn nog niet geraamd (weekbeeld 5–13 mist dus ±btw per maand). Leasing = 12m-gemiddelde externe cash-out, begin maand.",
       "Maandlaag = seizoensgemiddelde van de échte bankmutaties (excl. factorbewegingen) — richtinggevend, geen budget. De 12-maanden indirecte prognose blijft EMAsphere.",
       `AP-posten met vervaldag ná week 13 (€ ${r0(apBeyond).toLocaleString("nl-BE")}) zitten niet in het weekbeeld.`,
     ],
@@ -348,4 +360,4 @@ function demoCashForecast(): CfoCashForecast {
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v1", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v2", buildCashForecast, demoCashForecast);
