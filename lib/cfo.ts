@@ -440,7 +440,7 @@ function combine(
     { label: "Cash & balans", detail: "Nettosaldo grootboekklassen: 55 (bank), 1 (eigen vermogen), 2 (vaste activa), 3 (voorraden). Volledige balans (kl. 4/5) via de gematerialiseerde snapshot." },
     { label: "Openstaand leveranciers (AP)", detail: "Open leveranciersposten (VendorLedgerEntries), −Remaining_Amt_LCY, gebucket op vervaldatum. IC = intercompany (naam-match)." },
     { label: "Openstaand klanten (AR)", detail: "Open verkoopfacturen (salesInvoices, remainingAmount), gebucket op vervaldatum." },
-    { label: "Cashflowprognose", detail: "Directe methode: openingssaldo + AR-inning − AP-betaling − loon, 13 weken rollend op vervaldatum." },
+    { label: "Cashflowprognose (verkort, deze pagina)", detail: "Directe methode: openingssaldo + AR-inning − AP-betaling − loon, 13 weken rollend op VERVALDATUM. Dit is de verkorte afwikkeling van bestaande posten; de volledige prognose — betaalgedrag per klant, zonder/met factoring side-by-side, btw/leasing-kalender, maandlaag en doorklik per week — staat op /cfo/cashflow." },
   ];
   const notes: string[] = [];
   notes.push("P&L t/m nettoresultaat (financieel 65/75, niet-recurrent 66/76, belastingen 67/77); resultaatverwerking (68/69/78/79) uitgesloten.");

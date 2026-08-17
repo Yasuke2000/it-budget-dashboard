@@ -667,7 +667,9 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
         { name: "Inkomend", type: "bar", stack: "cf", data: f.weeks.map((w) => w.inflow), itemStyle: { color: p.income } },
         { name: "Uitgaand", type: "bar", stack: "cf", data: f.weeks.map((w) => -w.outflow), itemStyle: { color: p.expense } },
         {
-          name: "Eindsaldo", type: "line", data: f.weeks.map((w) => w.closing), itemStyle: { color: p.positive }, lineStyle: { width: 2 }, symbol: "circle", symbolSize: 5,
+          // p.info i.p.v. p.positive: die was identiek aan de Inkomend-balkkleur,
+          // waardoor de legende twee dezelfde groene blokjes toonde (David 18/08).
+          name: "Eindsaldo", type: "line", data: f.weeks.map((w) => w.closing), itemStyle: { color: p.info }, lineStyle: { width: 2, color: p.info }, symbol: "circle", symbolSize: 5,
           markLine: { silent: true, symbol: "none", lineStyle: { color: p.negative, type: "dashed" }, data: [{ yAxis: 0 }] },
         },
       ],
@@ -1088,9 +1090,10 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
           {forecast && (
             <Card
               title="13 weken vooruit — afwikkeling van de bestaande posten"
-              hint="as-labels = maandag van de week · klik een week"
+              hint="verkorte kijk op VERVALDATUM · de volledige prognose (betaalgedrag, factoring, kalenderposten) staat op de Cashflowprognose-pagina"
+              right={<a href="/cfo/cashflow" className="shrink-0 rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold text-primary-foreground transition hover:opacity-90">Volledige cashflowprognose →</a>}
               period={`VOORUITBLIK ${weekRange(data.cashForecast!.weeks[0]?.weekStart || "")} t/m ${weekRange(data.cashForecast!.weeks[data.cashForecast!.weeks.length - 1]?.weekStart || "").split(" t/m ")[1] || ""}`}
-              explain="Het enige cijfer op deze pagina dat naar de TOEKOMST kijkt, en dus níet meebeweegt met de periodekiezer bovenaan. We plannen elke openstaande klant- en leveranciersfactuur in op haar vervaldatum, tellen de loonkost erbij, en rollen dat af vanaf het huidige kassaldo. LET OP WAT ER NIET IN ZIT: toekomstige facturatie, nieuwe inkopen, btw-afdrachten, kredietaflossingen en leasingtermijnen. Dit is dus de AFWIKKELING VAN DE BESTAANDE POSTEN, geen volledige cashprognose — de lijn oogt daardoor structureel te gunstig naarmate je verder kijkt. Klik een week voor de facturen die er die week in vallen."
+              explain="Het enige cijfer op deze pagina dat naar de TOEKOMST kijkt, en dus níet meebeweegt met de periodekiezer bovenaan. We plannen elke openstaande klant- en leveranciersfactuur in op haar vervaldatum, tellen de loonkost erbij, en rollen dat af vanaf het huidige kassaldo. LET OP WAT ER NIET IN ZIT: toekomstige facturatie, nieuwe inkopen, btw-afdrachten, kredietaflossingen en leasingtermijnen — en vervallen posten vallen hier allemaal in week 1. De VOLLEDIGE prognose (betaalgedrag per klant i.p.v. vervaldag, zonder/met factoring side-by-side, btw/leasing-kalender, maandlaag, doorklik per week) staat op de Cashflowprognose-pagina — knop rechtsboven. Openingssaldo hier = grootboekklasse 55; het anker op de prognose-pagina = de bankrekeningen-module excl. factorrekeningen — die kunnen licht verschillen (definitie + moment van de datapull)."
               source="Open klantposten en leveranciersposten (Cust_LedgerEntries en VendorLedgerEntries met Open = true) ingepland op hun vervaldatum, plus de loonkost, plus het huidige saldo van de bankrekeningen. Bedragen incl. btw, want dit is een geldstroomcijfer."
             >
               <EChart option={forecast} height={300} onSelect={onForecastWeek} ariaLabel="13-week cash forecast" />
@@ -1380,9 +1383,11 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
               <div>
                 <p className="text-xs leading-relaxed text-muted-foreground">Klik op een balk, segment, bucket, week of rij om door te klikken naar de onderliggende grootboekrekeningen en de exacte brondata.</p>
                 <div className="mt-4 space-y-3">
+                  {/* Géén chevron: dit zijn leesblokken, geen knoppen — de pijltjes
+                      wekten de indruk dat er iets uitklapte (melding David 18/08). */}
                   {data.sources.map((s) => (
                     <div key={s.label} className="rounded-xl border border-border bg-card p-3">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground"><ChevronRight className="h-3 w-3 text-primary" />{s.label}</div>
+                      <div className="text-xs font-semibold text-foreground">{s.label}</div>
                       <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{s.detail}</p>
                     </div>
                   ))}
@@ -1537,8 +1542,8 @@ function ExportButton({ kind, label, withRange }: { kind: "ap" | "ar" | "leasing
 // `period` = altijd zichtbare periode-badge met EXACTE datums (finance mag nooit
 // moeten twijfelen waarover een cijfer gaat). `explain` = openklapbare uitleg:
 // wat staat er precies, en hoe komen we eraan.
-function Card({ title, hint, source, period, explain, children }: {
-  title: string; hint?: string; source?: string; period?: string; explain?: string; children: React.ReactNode;
+function Card({ title, hint, source, period, explain, right, children }: {
+  title: string; hint?: string; source?: string; period?: string; explain?: string; right?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
     <section className="rounded-2xl border border-border bg-card p-5 backdrop-blur">
@@ -1551,7 +1556,10 @@ function Card({ title, hint, source, period, explain, children }: {
             </span>
           )}
         </div>
-        {hint && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-border">{hint}</span>}
+        <div className="flex shrink-0 items-center gap-2">
+          {right}
+          {hint && <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-border">{hint}</span>}
+        </div>
       </div>
       {children}
       {(source || explain) && (
