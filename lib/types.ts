@@ -784,7 +784,11 @@ export interface RcvFactorRow {
 export interface RcvCashWeekExpectation {
   weekStart: string; label: string;
   expected: number;                           // verwachte inning o.b.v. betaalgedrag per klant
-  onDueDate: number;                          // baseline: inning exact op vervaldatum
+  onDueDate: number;                           // baseline: inning exact op vervaldatum
+  // Cashforecast-reeksen (meeting 17/08/2026): CN's gesaldeerd, en de variant mét
+  // factoring waarbij factoring-klanten alleen het 15%-saldo als kasontvangst geven.
+  expectedNet?: number;
+  expectedFactor?: number;
 }
 
 export interface CfoReceivables {
@@ -821,6 +825,7 @@ export interface CfoReceivables {
     items: RcvInvoiceItem[]; itemsShown: number; itemsTotal: number;
   };
   cashExpectation: RcvCashWeekExpectation[];  // 13 weken verwachte inning
+  forecastBeyond?: { net: number; factor: number }; // open AR die pas ná week 13 verwacht wordt
   behaviour?: CfoBehaviour;                   // betaalgedrag-analyse (norm 30 dagen)
   icShare: { arOpenIcPct: number; salesIcPct: number };
   dataQuality: string[];                      // bv. INTERCO-dim ontbreekt bij X; beginbalans ontbreekt

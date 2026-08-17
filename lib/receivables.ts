@@ -712,16 +712,36 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     const wi = Math.floor(daysBetween(iso(w0), dateIso) / 7);
     return wi < 0 ? 0 : wi;
   };
+  // Cashforecast-laag (meeting 17/08/2026): zelfde betaalgedrag-motor, maar
+  // (a) creditnota's GESALDEERD (negatief) i.p.v. genegeerd, en (b) een tweede
+  // reeks MET factoring: bij factoring-klanten is ±85% al voorgeschoten via de
+  // 433-rekening, dus daar komt alleen het saldo (15%) nog als kasontvangst.
+  const forecastBeyond = { net: 0, factor: 0 };
   for (const b of bundles) for (const inv of b.invoices) {
     if (!inv.open || inv.ic) continue;
     const openAmt = inv.rem || inv.amt - inv.applied;
-    if (openAmt <= 0) continue;
+    if (Math.abs(openAmt) < 1) continue;
     const behaveDays = custMedianDays[inv.cust] ?? globalDays;
     const expIso = iso(addDays(new Date(`${inv.invDate}T00:00:00Z`), Math.max(behaveDays, 7)));
-    const ei = weekOf(expIso); if (ei < 13) cashExpectation[ei].expected += openAmt;
-    const di = weekOf(inv.due || todayIso); if (di < 13) cashExpectation[di].onDueDate += openAmt;
+    const ei = weekOf(expIso);
+    const factorShare = isFactored(inv.cust) ? 0.15 : 1;
+    if (openAmt > 0) {
+      if (ei < 13) cashExpectation[ei].expected += openAmt;
+      const di = weekOf(inv.due || todayIso); if (di < 13) cashExpectation[di].onDueDate += openAmt;
+    }
+    if (ei < 13) {
+      cashExpectation[ei].expectedNet = (cashExpectation[ei].expectedNet || 0) + openAmt;
+      cashExpectation[ei].expectedFactor = (cashExpectation[ei].expectedFactor || 0) + openAmt * factorShare;
+    } else {
+      forecastBeyond.net += openAmt;
+      forecastBeyond.factor += openAmt * factorShare;
+    }
   }
-  for (const w of cashExpectation) { w.expected = r0(w.expected); w.onDueDate = r0(w.onDueDate); }
+  for (const w of cashExpectation) {
+    w.expected = r0(w.expected); w.onDueDate = r0(w.onDueDate);
+    w.expectedNet = r0(w.expectedNet || 0); w.expectedFactor = r0(w.expectedFactor || 0);
+  }
+  forecastBeyond.net = r0(forecastBeyond.net); forecastBeyond.factor = r0(forecastBeyond.factor);
 
   // ---- CRF-collectie-KPI's: CEI, Best Possible DSO, ADD ----
   // Audit 04/08/2026: de CRF-formule met "kredietverkopen/N" is bedoeld voor een
@@ -1183,7 +1203,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       netLedger: r0(arExt[n - 1] + arEndByCat.ic[n - 1]),
       items: openItems.slice(0, 80), itemsShown: Math.min(80, openItems.length), itemsTotal: openItems.length,
     },
-    cashExpectation, behaviour, icShare, dataQuality, sources, notes,
+    cashExpectation, forecastBeyond, behaviour, icShare, dataQuality, sources, notes,
   };
 }
 
@@ -1225,7 +1245,7 @@ export async function getReceivables(
   const excl = [...new Set(exclude.map((x) => x.trim().toUpperCase()).filter(Boolean))].sort();
   // v4: DSO-rijpheid en de uitsluiting van eenmalige verkopen wijzigen de reeksen —
   // een payload van een oudere build mag nooit blijven hangen (die toonde 132.302 dagen).
-  const cacheKey = `rcv-v5-x:${excl.join(",")}`;
+  const cacheKey = `rcv-v6-x:${excl.join(",")}`;
   const cached = getCache<CfoReceivables>(cacheKey);
   if (cached && !force) return cached;
 
