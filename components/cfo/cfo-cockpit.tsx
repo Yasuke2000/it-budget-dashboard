@@ -41,13 +41,6 @@ function eurAxis(v: number): string {
 
 // Week-labels: geen kale "wk 07" (ambigu) — altijd de maandag van de week erbij.
 function fmtDM(iso: string): string { return iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : ""; }
-function weekRange(weekStartIso: string): string {
-  if (!weekStartIso) return "";
-  const start = new Date(`${weekStartIso}T00:00:00Z`);
-  const end = new Date(start); end.setUTCDate(end.getUTCDate() + 6);
-  const e = end.toISOString().slice(0, 10);
-  return `ma ${fmtDM(weekStartIso)} t/m zo ${e.slice(8, 10)}/${e.slice(5, 7)}/${e.slice(0, 4)}`;
-}
 
 function fmtStamp(isoStr: string): string {
   const d = new Date(isoStr);
@@ -640,41 +633,10 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
   const apAging = useMemo(() => buildAgingOption(data.apAging, eliminateIC, p), [data.apAging, eliminateIC, p]);
   const arAging = useMemo(() => (data.arAging ? buildAgingOption(data.arAging, eliminateIC, p) : null), [data.arAging, eliminateIC, p]);
 
-  const forecast = useMemo<echarts.EChartsOption | null>(() => {
-    const f = data.cashForecast; if (!f) return null;
-    return {
-      tooltip: {
-        trigger: "axis", axisPointer: { type: "shadow" },
-        // Tooltip-titel = de volledige weekrange (ma t/m zo), daarna de reeksen.
-        formatter: (prs: unknown) => {
-          const arr = prs as { seriesName: string; value: number; dataIndex: number; marker: string }[];
-          const w = f.weeks[arr[0]?.dataIndex ?? 0];
-          const head = w ? `${w.label} · ${weekRange(w.weekStart)}` : "";
-          return `${head}<br/>${arr.map((x) => `${x.marker}${x.seriesName}: <b>${formatCurrency(Math.abs(Number(x.value)))}</b>`).join("<br/>")}`;
-        },
-      },
-      legend: { data: ["Inkomend", "Uitgaand", "Eindsaldo"], textStyle: { color: p.text }, top: 0, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
-      grid: { top: 36, left: 6, right: 8, bottom: 20, containLabel: true },
-      xAxis: {
-        type: "category",
-        // Exacte datums, geen ambigu weeknummer: label = maandag van de week.
-        data: f.weeks.map((w) => fmtDM(w.weekStart)),
-        axisLabel: { color: p.text, fontSize: 9 },
-        axisLine: { lineStyle: { color: p.axis } }, axisTick: { show: false },
-      },
-      yAxis: { type: "value", axisLabel: { color: p.textMuted, formatter: (v: number) => eurAxis(v) }, splitLine: { lineStyle: { color: p.grid } } },
-      series: [
-        { name: "Inkomend", type: "bar", stack: "cf", data: f.weeks.map((w) => w.inflow), itemStyle: { color: p.income } },
-        { name: "Uitgaand", type: "bar", stack: "cf", data: f.weeks.map((w) => -w.outflow), itemStyle: { color: p.expense } },
-        {
-          // p.info i.p.v. p.positive: die was identiek aan de Inkomend-balkkleur,
-          // waardoor de legende twee dezelfde groene blokjes toonde (David 18/08).
-          name: "Eindsaldo", type: "line", data: f.weeks.map((w) => w.closing), itemStyle: { color: p.info }, lineStyle: { width: 2, color: p.info }, symbol: "circle", symbolSize: 5,
-          markLine: { silent: true, symbol: "none", lineStyle: { color: p.negative, type: "dashed" }, data: [{ yAxis: 0 }] },
-        },
-      ],
-    };
-  }, [data.cashForecast, p]);
+  // De oude 13-wekengrafiek (op vervaldatum) is hier weggehaald: hij zaaide twee
+  // keer verwarring naast de volledige prognose op /cfo/cashflow (melding David
+  // 18/08 — "dummy proof"). De cockpit toont nu een compacte teaser (zie
+  // CashforecastTeaser onderaan) met de kerncijfers + één grote knop.
 
   // ---------- drill handlers ----------
   // Rekening → boekingen (laziest niveau, per rekening gefetcht en gecachet in state).
@@ -716,10 +678,6 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
   const bucketItems = (b: CfoAgingBucket) => (b.items || []).filter((it) => !eliminateIC || !it.ic);
   const onApAging = (p: EChartClick) => { const b = data.apAging.find((x) => x.label === p.name); if (b) { resetGl(); setDrill({ title: `Leveranciers — ${b.label}`, subtitle: "Open leveranciersposten (VendorLedgerEntries)", total: agingVal(b), rows: b.extern != null ? [{ label: "Extern", value: b.extern }, { label: "Intercompany", value: b.amount - b.extern }] : [], items: bucketItems(b), itemsCount: eliminateIC ? bucketItems(b).length : b.itemCount, note: "Grootste open posten hieronder — ↗ opent de post in Business Central. Volledig detail: export 'Leveranciersaging'." }); } };
   const onArAging = (p: EChartClick) => { const b = data.arAging?.find((x) => x.label === p.name); if (b) { resetGl(); setDrill({ title: `Klanten — ${b.label}`, subtitle: "Open verkoopfacturen (salesInvoices)", total: agingVal(b), rows: b.extern != null ? [{ label: "Extern", value: b.extern }, { label: "Intercompany", value: b.amount - b.extern }] : [], items: bucketItems(b), itemsCount: eliminateIC ? bucketItems(b).length : b.itemCount, note: "Grootste open facturen hieronder — ↗ opent de factuur in Business Central." }); } };
-  const onForecastWeek = (p: EChartClick) => {
-    const f = data.cashForecast; if (!f || typeof p.dataIndex !== "number") return; const w = f.weeks[p.dataIndex]; if (!w) return;
-    setDrill({ title: `Cashflow ${w.label} — ${fmtDM(w.weekStart)}`, subtitle: weekRange(w.weekStart), total: w.closing, rows: [{ label: "Inkomend (klanten)", value: w.inflow }, { label: "Uitgaand (leveranciers + loon)", value: -w.outflow }, { label: "Netto", value: w.net }, { label: "Verwacht eindsaldo", value: w.closing }], note: "Projectie op basis van vervaldata." });
-  };
   const onHeatCell = (pr: EChartClick) => {
     const v = (pr.data as { value?: [number, number, number]; raw?: number }) || {};
     if (!v.value) return;
@@ -1087,22 +1045,7 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
             <Legend items={[["Opbrengsten", p.income], ["Kosten", p.expense], ["EBITDA / vóór belastingen", p.result], ["EBIT / Nettoresultaat", p.positive]]} />
           </Card>
 
-          {forecast && (
-            <Card
-              title="13 weken vooruit — afwikkeling van de bestaande posten"
-              hint="verkorte kijk op VERVALDATUM · de volledige prognose (betaalgedrag, factoring, kalenderposten) staat op de Cashflowprognose-pagina"
-              right={<a href="/cfo/cashflow" className="shrink-0 rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold text-primary-foreground transition hover:opacity-90">Volledige cashflowprognose →</a>}
-              period={`VOORUITBLIK ${weekRange(data.cashForecast!.weeks[0]?.weekStart || "")} t/m ${weekRange(data.cashForecast!.weeks[data.cashForecast!.weeks.length - 1]?.weekStart || "").split(" t/m ")[1] || ""}`}
-              explain="Het enige cijfer op deze pagina dat naar de TOEKOMST kijkt, en dus níet meebeweegt met de periodekiezer bovenaan. We plannen elke openstaande klant- en leveranciersfactuur in op haar vervaldatum, tellen de loonkost erbij, en rollen dat af vanaf het huidige kassaldo. LET OP WAT ER NIET IN ZIT: toekomstige facturatie, nieuwe inkopen, btw-afdrachten, kredietaflossingen en leasingtermijnen — en vervallen posten vallen hier allemaal in week 1. De VOLLEDIGE prognose (betaalgedrag per klant i.p.v. vervaldag, zonder/met factoring side-by-side, btw/leasing-kalender, maandlaag, doorklik per week) staat op de Cashflowprognose-pagina — knop rechtsboven. Openingssaldo hier = grootboekklasse 55; het anker op de prognose-pagina = de bankrekeningen-module excl. factorrekeningen — die kunnen licht verschillen (definitie + moment van de datapull)."
-              source="Open klantposten en leveranciersposten (Cust_LedgerEntries en VendorLedgerEntries met Open = true) ingepland op hun vervaldatum, plus de loonkost, plus het huidige saldo van de bankrekeningen. Bedragen incl. btw, want dit is een geldstroomcijfer."
-            >
-              <EChart option={forecast} height={300} onSelect={onForecastWeek} ariaLabel="13-week cash forecast" />
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-                <span>Openingssaldo: <span className="text-foreground">{formatCurrency(data.cashForecast!.openingCash)}</span></span>
-                <span>Laagste punt: <span className={data.cashForecast!.lowestClosing < 0 ? "text-negative" : "text-foreground"}>{formatCurrency(data.cashForecast!.lowestClosing)}</span>{(() => { const w = data.cashForecast!.weeks.find((x) => x.label === data.cashForecast!.lowestWeekLabel); return w ? ` (${data.cashForecast!.lowestWeekLabel} · week van ma ${fmtDM(w.weekStart)})` : ` (${data.cashForecast!.lowestWeekLabel})`; })()}</span>
-              </div>
-            </Card>
-          )}
+          <CashforecastTeaser />
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card
@@ -1542,6 +1485,59 @@ function ExportButton({ kind, label, withRange }: { kind: "ap" | "ar" | "leasing
 // `period` = altijd zichtbare periode-badge met EXACTE datums (finance mag nooit
 // moeten twijfelen waarover een cijfer gaat). `explain` = openklapbare uitleg:
 // wat staat er precies, en hoe komen we eraan.
+// Compacte cashflow-teaser (vervangt de oude 13-wekengrafiek op vervaldatum):
+// drie kerncijfers uit de échte prognose + één grote knop. Dummy-proof.
+function CashforecastTeaser() {
+  const fc = usePolledData<{
+    bankNow: number;
+    lowPoint: { noFactor: { week: string; value: number }; withFactor: { week: string; value: number } };
+  }>("/api/cfo/cashforecast");
+  const d = fc.data;
+  const money = (v: number) => {
+    const a = Math.abs(v), sign = v < 0 ? "−" : "";
+    return a >= 950_000
+      ? `${sign}€ ${(a / 1e6).toLocaleString("nl-BE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`
+      : `${sign}€ ${Math.round(a / 1000).toLocaleString("nl-BE")}k`;
+  };
+  const wk = (isoStr: string) => (isoStr ? `week van ${isoStr.slice(8, 10)}/${isoStr.slice(5, 7)}` : "");
+  const stat = (label: string, value: string, sub: string, neg: boolean) => (
+    <div className="rounded-xl border border-border bg-muted/30 p-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className={`mt-0.5 text-lg font-bold tabular-nums ${neg ? "text-negative" : "text-foreground"}`}>{value}</p>
+      <p className="text-[10px] text-muted-foreground">{sub}</p>
+    </div>
+  );
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 backdrop-blur">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-sm font-semibold text-foreground">Cashflowprognose — 13 weken vooruit</h2>
+        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground ring-1 ring-border">live</span>
+      </div>
+      <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+        Wanneer komt het geld binnen, wanneer knelt het — op betaalgedrag per klant, zonder en mét factoring naast elkaar.
+      </p>
+      {d ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          {stat("Bankstand nu (eigen)", money(d.bankNow), "excl. factorkrediet", d.bankNow < 0)}
+          {stat("Laagste punt — zonder factoring", money(d.lowPoint.noFactor.value), wk(d.lowPoint.noFactor.week), d.lowPoint.noFactor.value < 0)}
+          {stat("Laagste punt — mét factoring", money(d.lowPoint.withFactor.value), wk(d.lowPoint.withFactor.week), d.lowPoint.withFactor.value < 0)}
+        </div>
+      ) : (
+        <p className="mt-3 inline-flex items-center gap-2 text-[11px] text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+          {fc.error ? "Prognose kon niet laden — open de pagina voor detail." : "Prognose wordt opgebouwd…"}
+        </p>
+      )}
+      <a
+        href="/cfo/cashflow"
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:opacity-90"
+      >
+        Open de volledige cashflowprognose <ChevronRight className="h-4 w-4" />
+      </a>
+    </section>
+  );
+}
+
 function Card({ title, hint, source, period, explain, right, children }: {
   title: string; hint?: string; source?: string; period?: string; explain?: string; right?: React.ReactNode; children: React.ReactNode;
 }) {
