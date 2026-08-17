@@ -359,7 +359,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     },
     aannames: ([
       "Betaalmoment per klant = factuurdatum + mediaan betaalgedrag van dié klant (niet de vervaldag) — de grootste accuraatheidswinst volgens best practice.",
-      "Factoring-variant: bij factoring-klanten is 85% verondersteld al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt als komende ontvangst. Nieuwe facturatie ná vandaag zit nog niet in het weekbeeld.",
+      "Factoring-variant: bij factoring-klanten is 85% verondersteld al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt als komende ontvangst. Door KBC uitgesloten facturen (portaal-export 10/08: €42.518 — achterstal/betwisting/limiet) tellen wél aan 100%; de Belfius- en BNP-uitsluitingslijsten ontbreken nog. Nieuwe facturatie ná vandaag zit nog niet in het weekbeeld.",
       "Achterstallige posten (klant én leverancier) worden vlak gespreid over week 1–6 — een inningsaanname, geen belofte per post.",
       "Lonen/RSZ = gemiddelde van de laatste 3 volle maanden op de 62-rekeningen, geboekt op maandeinde. Btw = 451-saldi tot €1M per firma ÉÉN keer op de eerstvolgende 20e; latere aangiftes zijn nog niet geraamd. Leasing = 12m-gemiddelde externe cash-out, begin maand.",
       btwUnclear > 0 ? `€ ${r0(btwUnclear).toLocaleString("nl-BE")} aan 451-saldi (>€1M per firma, o.a. WHS/TDR) staat NIET in het weekprofiel: het oogt opgestapeld (regime btw-provisierekening?) en de betaaltiming is onbekend — [PRIO]-vraag bij finance.` : "",
@@ -405,4 +405,4 @@ function demoCashForecast(): CfoCashForecast {
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v4", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v5", buildCashForecast, demoCashForecast);

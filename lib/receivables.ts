@@ -29,6 +29,9 @@ import { fetchWithRetry } from "./http";
 import { getCache, setCache } from "./sync-cache";
 import { isIcName } from "./cfo";
 import { custLedgerDocLink, custLedgerByCustomerLink, customerCardLink } from "./bc-links";
+// Factor-uitsluitingen uit het factorportaal ("lelijke excels", 17/08/2026):
+// facturen die de factor niet bevoorschot → in de met-factoring-forecast 100%.
+import factorUitsluitingen from "@/data/factor-uitsluitingen.json";
 import { getAppSettings } from "./settings-store";
 
 const ODATA_ROOT = `https://api.businesscentral.dynamics.com/v2.0/${process.env.BC_TENANT_ID}/${process.env.BC_ENVIRONMENT || "production"}`;
@@ -720,6 +723,11 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   // Doorklik-detail (vraag David 18/08): de posten achter elke forecast-week,
   // met BC-link. Gespreide (achterstallige) posten staan één keer, gevlagd.
   const forecastDetail: NonNullable<CfoReceivables["forecastDetail"]> = [];
+  // Door de factor uitgesloten facturen (portaal-export per firma): geen 85%-
+  // voorschot, dus in de met-factoring-reeks tellen ze gewoon aan 100%.
+  const factorExcluded = new Map<string, Set<string>>(
+    Object.entries(factorUitsluitingen.uitgesloten as Record<string, string[]>).map(([co, docs]) => [co, new Set(docs)])
+  );
   for (const b of bundles) for (const inv of b.invoices) {
     if (!inv.open || inv.ic) continue;
     const openAmt = inv.rem || inv.amt - inv.applied;
@@ -727,7 +735,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     const behaveDays = custMedianDays[inv.cust] ?? globalDays;
     const expIso = iso(addDays(new Date(`${inv.invDate}T00:00:00Z`), Math.max(behaveDays, 7)));
     const ei = weekOf(expIso);
-    const factorShare = isFactored(inv.cust) ? 0.15 : 1;
+    const factorShare = isFactored(inv.cust) && !factorExcluded.get(inv.co)?.has(inv.doc) ? 0.15 : 1;
     if (openAmt > 0) {
       if (ei < 13) cashExpectation[ei].expected += openAmt;
       const di = weekOf(inv.due || todayIso); if (di < 13) cashExpectation[di].onDueDate += openAmt;
@@ -1271,7 +1279,7 @@ export async function getReceivables(
   const excl = [...new Set(exclude.map((x) => x.trim().toUpperCase()).filter(Boolean))].sort();
   // v4: DSO-rijpheid en de uitsluiting van eenmalige verkopen wijzigen de reeksen —
   // een payload van een oudere build mag nooit blijven hangen (die toonde 132.302 dagen).
-  const cacheKey = `rcv-v8-x:${excl.join(",")}`;
+  const cacheKey = `rcv-v9-x:${excl.join(",")}`;
   const cached = getCache<CfoReceivables>(cacheKey);
   if (cached && !force) return cached;
 
