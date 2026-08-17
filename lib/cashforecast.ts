@@ -66,7 +66,7 @@ export interface CfoCashForecast {
   lowPoint: { noFactor: { week: string; value: number }; withFactor: { week: string; value: number } };
   negativeWeeks: { noFactor: string[]; withFactor: string[] };
   perCompany: FcCompanyMisc[];
-  totals: { unapplied: number; unappliedCount: number; saldo433: number; btw: number; payrollMonthly: number; leasingMonthly: number };
+  totals: { unapplied: number; unappliedCount: number; saldo433: number; btw: number; btwUnclear: number; payrollMonthly: number; leasingMonthly: number };
   aannames: string[];
   sources: CfoSource[]; notes: string[];
   refreshing?: boolean;
@@ -213,7 +213,16 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     perCompany.push(row);
   }
   perCompany.sort((a, b) => Math.abs(b.saldo433) - Math.abs(a.saldo433));
-  const btwPayable = perCompany.reduce((s, x) => s + Math.max(0, -x.btwSaldo), 0); // 451 = creditsaldo → te betalen
+  // 451 = creditsaldo → te betalen. Saldi boven €1M ogen OPGESTAPELD (WHS −2,5M,
+  // TDR −619k bij de eerste run — vermoedelijk regime-effect btw-provisierekening
+  // 1/5/2026, [PRIO]-vraag bij finance): die horen niet als één klap op de
+  // eerstvolgende 20e in het weekprofiel — timing onbekend, apart gerapporteerd.
+  const BTW_CLEAR_MAX = 1_000_000;
+  let btwPayable = 0, btwUnclear = 0;
+  for (const x of perCompany) {
+    const owed = Math.max(0, -x.btwSaldo);
+    if (owed <= BTW_CLEAR_MAX) btwPayable += owed; else btwUnclear += owed;
+  }
 
   // ---- 6. Leasing: gemiddelde maandelijkse externe cash-out (12m) ----
   let leasingMonthly = 0;
@@ -311,17 +320,18 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     perCompany,
     totals: {
       unapplied: r0(unappliedTotal), unappliedCount: perCompany.reduce((s, x) => s + x.unappliedCount, 0),
-      saldo433: r0(saldo433Total), btw: r0(btwPayable),
+      saldo433: r0(saldo433Total), btw: r0(btwPayable), btwUnclear: r0(btwUnclear),
       payrollMonthly: r0(payrollMonthly), leasingMonthly: r0(leasingMonthly),
     },
-    aannames: [
+    aannames: ([
       "Betaalmoment per klant = factuurdatum + mediaan betaalgedrag van dié klant (niet de vervaldag) — de grootste accuraatheidswinst volgens best practice.",
       "Factoring-variant: bij factoring-klanten is 85% verondersteld al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt als komende ontvangst. Nieuwe facturatie ná vandaag zit nog niet in het weekbeeld.",
       "Achterstallige posten (klant én leverancier) worden vlak gespreid over week 1–6 — een inningsaanname, geen belofte per post.",
-      "Lonen/RSZ = gemiddelde van de laatste 3 volle maanden op de 62-rekeningen, geboekt op maandeinde. Btw = het volledige 451-saldo ÉÉN keer op de eerstvolgende 20e; latere aangiftes zijn nog niet geraamd (weekbeeld 5–13 mist dus ±btw per maand). Leasing = 12m-gemiddelde externe cash-out, begin maand.",
+      "Lonen/RSZ = gemiddelde van de laatste 3 volle maanden op de 62-rekeningen, geboekt op maandeinde. Btw = 451-saldi tot €1M per firma ÉÉN keer op de eerstvolgende 20e; latere aangiftes zijn nog niet geraamd. Leasing = 12m-gemiddelde externe cash-out, begin maand.",
+      btwUnclear > 0 ? `€ ${r0(btwUnclear).toLocaleString("nl-BE")} aan 451-saldi (>€1M per firma, o.a. WHS/TDR) staat NIET in het weekprofiel: het oogt opgestapeld (regime btw-provisierekening?) en de betaaltiming is onbekend — [PRIO]-vraag bij finance.` : "",
       "Maandlaag = seizoensgemiddelde van de échte bankmutaties (excl. factorbewegingen) — richtinggevend, geen budget. De 12-maanden indirecte prognose blijft EMAsphere.",
       `AP-posten met vervaldag ná week 13 (€ ${r0(apBeyond).toLocaleString("nl-BE")}) zitten niet in het weekbeeld.`,
-    ],
+    ] as string[]).filter(Boolean),
     sources: [
       { label: "Instromen (13 weken)", detail: `Open klantposten (Cust_LedgerEntries, Open=true) van alle vennootschappen, extern, creditnota's gesaldeerd. Verwacht betaalmoment per klant uit de betaalgedrag-motor van de klantenpagina (meetperiode: ${rcv.periodNote}). Factoring-herkenning: ≥40% betaald volume via factor-dagboek.` },
       { label: "Uitstromen (13 weken)", detail: "Open leveranciersposten (VendorLedgerEntries, Open=true) op vervaldag (achterstallig = deze week), IC uitgesloten, CN gesaldeerd. Plus kalenderposten: lonen/RSZ (62-range, gem. 3 mnd), btw (451-saldo, 20e), leasing (12m-gemiddelde)." },
@@ -355,9 +365,9 @@ function demoCashForecast(): CfoCashForecast {
     months: [], lowPoint: { noFactor: { week: weeks[8].weekStart, value: -240_000 }, withFactor: { week: weeks[6].weekStart, value: -510_000 } },
     negativeWeeks: { noFactor: [weeks[8].weekStart], withFactor: [weeks[6].weekStart, weeks[7].weekStart] },
     perCompany: [{ company: "WHS", saldo433: -1_350_000, btwSaldo: -220_000, unappliedPayments: -180_000, unappliedCount: 14, openCn: -60_000 }],
-    totals: { unapplied: -180_000, unappliedCount: 14, saldo433: -1_350_000, btw: 220_000, payrollMonthly: 1_450_000, leasingMonthly: 410_000 },
+    totals: { unapplied: -180_000, unappliedCount: 14, saldo433: -1_350_000, btw: 220_000, btwUnclear: 0, payrollMonthly: 1_450_000, leasingMonthly: 410_000 },
     aannames: ["Demomodus"], sources: [{ label: "Demo", detail: "Demomodus — live versie leest BC." }], notes: [],
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v2", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v3", buildCashForecast, demoCashForecast);
