@@ -1240,6 +1240,12 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
               <a href="/cfo/units" className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-foreground transition hover:bg-primary/10" title="Omzet/kosten/marge per activiteit (AFDELING-dimensie) + CAPEX/afschrijvingen per activaklasse">
                 <span>Business Units &amp; Activa</span><ChevronRight className="h-3.5 w-3.5 text-primary" />
               </a>
+              <a href="/cfo/pnl" className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-foreground transition hover:bg-primary/10" title="De P&L in EMAsphere-bucketstructuur, live uit BC — per maand, per firma, met drill per rekening en controlelijn op nul">
+                <span>Management-P&amp;L</span><ChevronRight className="h-3.5 w-3.5 text-primary" />
+              </a>
+              <a href="/cfo/cashflow" className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-foreground transition hover:bg-primary/10" title="13 weken vooruit op betaalgedrag per klant (zonder/met factoring side-by-side) + maandlaag tot eind volgend jaar + 6 mnd; kantelpunten, 433-saldi en niet-toegewezen betalingen">
+                <span>Cashflowprognose — 13 weken &amp; kantelpunten</span><ChevronRight className="h-3.5 w-3.5 text-primary" />
+              </a>
               <a href="/cfo/formularium" className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-foreground transition hover:bg-primary/10" title="Elk begrip op deze pagina's: wat het betekent, de formule, de bron in BC en waarop het gebaseerd is — voor als iemand vraagt 'hoe kom je daaraan?'">
                 <span>Formularium — begrippen &amp; formules</span><ChevronRight className="h-3.5 w-3.5 text-primary" />
               </a>
