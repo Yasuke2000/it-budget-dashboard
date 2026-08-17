@@ -67,7 +67,10 @@ export function CashForecastView() {
   const fc = usePolledData<CfoCashForecast>("/api/cfo/cashforecast");
   const pal = useChartPalette();
   const [kpiSrc, setKpiSrc] = useState<KpiSource | null>(null);
-  const [scenario, setScenario] = useState<"beide" | "zonder" | "met">("beide");
+  // Default = kasrealiteit (met factoring): dát is het echte saldo-pad. "Zonder"
+  // is een betaalgedrag-beeld, geen saldo-pad — het telt de al ontvangen
+  // factorvoorschotten op bestaande facturen nog een keer (inzicht 18/08).
+  const [scenario, setScenario] = useState<"beide" | "zonder" | "met">("met");
   const [openWeek, setOpenWeek] = useState<number | null>(null);
   const d = fc.data;
 
@@ -88,7 +91,7 @@ export function CashForecastView() {
               de kasrealiteit waarin ±85% al via de 433-rekening is voorgeschoten. Anker = de échte bankstand van vandaag.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {([["beide", "Side-by-side"], ["zonder", "Zonder factoring"], ["met", "Met factoring"]] as const).map(([k, lbl]) => (
+              {([["met", "Kasrealiteit (met factoring)"], ["zonder", "Zonder factoring (betaalgedrag-beeld)"], ["beide", "Side-by-side"]] as const).map(([k, lbl]) => (
                 <button key={k} onClick={() => setScenario(k)}
                   className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ring-1 transition ${scenario === k ? "bg-primary text-primary-foreground ring-primary" : "bg-muted text-muted-foreground ring-border hover:text-foreground"}`}>
                   {lbl}
@@ -131,7 +134,36 @@ export function CashForecastView() {
               onClick={() => setKpiSrc({ label: "Rekening 433 — factor rekening-courant", value: eur(d.totals.saldo433), bron: "trialBalances per vennootschap, alle 433-rekeningen: het saldo tussen voorgeschoten (85%) en afgerekende facturen. Negatief = opgenomen voorschot (schuld aan de factor).", caveat: "Koppeling van individuele 433-bewegingen aan facturen is fase 2 (factorportaal-rapporten)." })} />
           </div>
 
-          <Card title="13 weken — in/uit per week en cumulatief saldo" period={`${weekRange(d.weeks[0].weekStart)} → ${weekRange(d.weeks[12].weekStart)}`}
+          <Card title="Saldo bank per week" period={scenario === "zonder" ? "betaalgedrag-beeld" : "kasrealiteit — met factoring"}
+            hint="Eén balk per week = het verwachte banksaldo op zondag. Rood = tekort: dan is extra financiering of sneller innen nodig."
+            onSource={() => setKpiSrc({ label: "Saldo bank per week", value: "", bron: "Cumulatief saldo per week: echte bankstand van vandaag + verwachte ontvangsten (bestaande posten op betaalgedrag + nieuwe facturatie op 12-wekenritme) − leveranciers − lonen/btw/leasing − nieuwe inkopen. Kasrealiteit = met factoring: 85% van bestaande factoring-posten is al binnen; nieuwe facturatie geeft wél elke week verse voorschotten.", caveat: "Kredietlijnen/straight-loanopnames zitten er bewust niet in — een rode balk betekent 'financieringsbehoefte', niet 'lege kas'. Het betaalgedrag-beeld (zonder factoring) is géén saldo-pad: het telt al ontvangen voorschotten nog een keer." })}>
+            {(() => {
+              const key = scenario === "zonder" ? "cumNoFactor" as const : "cumWithFactor" as const;
+              const vals = d.weeks.map((w) => w[key]);
+              const minIdx = vals.indexOf(Math.min(...vals));
+              return (
+                <EChart height={300} ariaLabel="Banksaldo per week"
+                  option={{
+                    tooltip: { ...echartsTooltip(pal), trigger: "axis", valueFormatter: (v) => (v == null ? "—" : eur(Number(v))) },
+                    grid: { left: 64, right: 16, top: 28, bottom: 30 },
+                    xAxis: echartsCategoryAxis(pal, { data: d.weeks.map((w) => `${w.weekStart.slice(8, 10)}/${w.weekStart.slice(5, 7)}`) }),
+                    yAxis: echartsValueAxis(pal, (v) => eurAxis(v)),
+                    series: [{
+                      name: scenario === "zonder" ? "Saldo (betaalgedrag-beeld)" : "Saldo bank (kasrealiteit)",
+                      type: "bar", barMaxWidth: 40,
+                      data: vals.map((v, i) => ({
+                        value: v,
+                        itemStyle: { color: v < 0 ? pal.negative : pal.info, borderRadius: v < 0 ? [0, 0, 4, 4] : [4, 4, 0, 0] },
+                        label: i === minIdx ? { show: true, position: (v < 0 ? "bottom" : "top") as "bottom" | "top", formatter: () => `laagste: ${eurS(v)}`, color: v < 0 ? pal.negative : pal.text, fontSize: 10, fontWeight: "bold" as const } : undefined,
+                      })),
+                      markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: pal.warning, width: 1.5 }, data: [{ yAxis: 0 }] },
+                    }],
+                  }} />
+              );
+            })()}
+          </Card>
+
+          <Card title="Detail — in/uit per week en cumulatief saldo" period={`${weekRange(d.weeks[0].weekStart)} → ${weekRange(d.weeks[12].weekStart)}`}
             hint="Balken = verwachte in- en uitstromen per week. Lijnen = cumulatief banksaldo per scenario; onder nul = liquiditeitstekort."
             onSource={() => setKpiSrc({ label: "13-weken prognose", value: "", bron: d.sources.map((s) => `${s.label}: ${s.detail}`).join("\n\n") })}>
             {(() => {
@@ -239,19 +271,24 @@ export function CashForecastView() {
           <Card title="Maandlaag — tot eind volgend jaar + 6 maanden" period={`${d.months.find((m) => !m.isActual)?.month || ""} → ${d.months[d.months.length - 1]?.month || ""}`}
             hint="Seizoensbeeld uit de échte bankmutaties (excl. factorbewegingen): richtinggevend, geen budget. De 12-maanden indirecte prognose blijft EMAsphere."
             onSource={() => setKpiSrc({ label: "Maandlaag", value: "", bron: "Per kalendermaand het gemiddelde van de werkelijke bankin- en uitstromen van de afgelopen 13 maanden (BankAccountLedgerEntries, alle merken behalve Factor), doorgetrokken tot eind volgend jaar + 6 maanden. Cumulatief vanaf de bankstand van vandaag.", caveat: "Puur seizoenspatroon: bevat géén groei, prijsstijgingen, capex-planning of de CO₂-tolverhoging (1/7-effect zit deels in de historiek)." })}>
-            <EChart height={300} ariaLabel="Maandprognose cashflow"
-              option={{
-                tooltip: { ...echartsTooltip(pal), trigger: "axis", valueFormatter: (v) => (v == null ? "—" : eur(Number(v))) },
-                legend: { textStyle: { color: pal.text, fontSize: 10 }, bottom: 0, itemGap: 14, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
-                grid: { left: 64, right: 16, top: 16, bottom: 58 },
-                xAxis: echartsCategoryAxis(pal, { data: d.months.map((m) => m.month) }),
-                yAxis: echartsValueAxis(pal, (v) => eurAxis(v)),
-                series: [
-                  { name: "Netto per maand (historiek)", type: "bar", data: d.months.map((m) => (m.isActual ? m.net : null)), itemStyle: { color: pal.budget, opacity: 0.7 } },
-                  { name: "Netto per maand (projectie)", type: "bar", data: d.months.map((m) => (m.isActual ? null : m.net)), itemStyle: { color: pal.result, opacity: 0.85 } },
-                  { name: "Cumulatief saldo (projectie)", type: "line", data: d.months.map((m) => (m.isActual ? null : m.cum)), lineStyle: { width: 2.5, color: pal.info }, itemStyle: { color: pal.info }, symbolSize: 4 },
-                ],
-              }} />
+            {(() => {
+              const proj = d.months.filter((m) => !m.isActual);
+              return (
+                <EChart height={280} ariaLabel="Maandprognose banksaldo"
+                  option={{
+                    tooltip: { ...echartsTooltip(pal), trigger: "axis", valueFormatter: (v) => (v == null ? "—" : eur(Number(v))) },
+                    grid: { left: 64, right: 16, top: 20, bottom: 30 },
+                    xAxis: echartsCategoryAxis(pal, { data: proj.map((m) => m.month) }),
+                    yAxis: echartsValueAxis(pal, (v) => eurAxis(v)),
+                    series: [{
+                      name: "Verwacht banksaldo (seizoensbeeld)",
+                      type: "bar", barMaxWidth: 34,
+                      data: proj.map((m) => ({ value: m.cum, itemStyle: { color: m.cum < 0 ? pal.negative : pal.info, borderRadius: m.cum < 0 ? [0, 0, 4, 4] : [4, 4, 0, 0] } })),
+                      markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: pal.warning, width: 1.5 }, data: [{ yAxis: 0 }] },
+                    }],
+                  }} />
+              );
+            })()}
           </Card>
 
           <div className="grid gap-4 lg:grid-cols-2">
