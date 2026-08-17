@@ -12,7 +12,12 @@ import { useChartPalette, echartsTooltip, echartsCategoryAxis, echartsValueAxis 
 import { Loader2, RefreshCcw, ArrowLeft, AlertTriangle } from "lucide-react";
 
 const eur = (v: number) => `€ ${Math.round(v).toLocaleString("nl-BE")}`;
-const eurS = (v: number) => `${v < 0 ? "−" : ""}€ ${Math.abs(Math.round(v / 1000)).toLocaleString("nl-BE")}k`;
+// "−€ 1.225k" las als −€1,2 (melding David 18/08) — vanaf ±1M in M-notatie.
+const eurS = (v: number) => {
+  const a = Math.abs(v), sign = v < 0 ? "−" : "";
+  if (a >= 950_000) return `${sign}€ ${(a / 1e6).toLocaleString("nl-BE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
+  return `${sign}€ ${Math.round(a / 1000).toLocaleString("nl-BE")}k`;
+};
 
 // Doorklik per week: de grootste posten (top 15 in/uit) achter het weekcijfer,
 // elk met BC-link — zelfde conventie als de drill op Business Units en de P&L.
@@ -44,14 +49,14 @@ function WeekDrill({ week, weekStart, detail }: { week: number; weekStart: strin
   );
   return (
     <tr>
-      <td colSpan={7} className="bg-muted/30 p-3">
+      <td colSpan={8} className="bg-muted/30 p-3">
         <div className="grid gap-4 md:grid-cols-2">
           {list(inRows, 1, `In — grootste posten week van ${weekStart.slice(8, 10)}/${weekStart.slice(5, 7)} (top 15, volledig openstaand bedrag)`)}
           {list(outRows, -1, "Uit — grootste leveranciersposten (top 15)")}
         </div>
         <p className="mt-2 text-[10px] leading-snug text-muted-foreground">
           Bedragen = het volledige open bedrag van de post; {spreadNote ? "posten met 'gespreid wk 1–6' tellen voor 1/6 per week mee in het weekcijfer erboven. " : ""}
-          Kalenderposten (lonen/btw/leasing) staan niet in deze lijst — die zie je in de kolom &apos;Uit vast&apos;. Doorklikken opent de post in Business Central (BC-login vereist).
+          Kalenderposten (lonen/btw/leasing) en de run-rate-ramingen (nieuwe facturatie/inkopen) staan niet in deze lijst — dat zijn ritmes, geen individuele posten. Doorklikken opent de post in Business Central (BC-login vereist).
         </p>
       </td>
     </tr>
@@ -129,39 +134,73 @@ export function CashForecastView() {
           <Card title="13 weken — in/uit per week en cumulatief saldo" period={`${weekRange(d.weeks[0].weekStart)} → ${weekRange(d.weeks[12].weekStart)}`}
             hint="Balken = verwachte in- en uitstromen per week. Lijnen = cumulatief banksaldo per scenario; onder nul = liquiditeitstekort."
             onSource={() => setKpiSrc({ label: "13-weken prognose", value: "", bron: d.sources.map((s) => `${s.label}: ${s.detail}`).join("\n\n") })}>
-            <EChart height={340} ariaLabel="13-weken cashflowprognose"
-              option={{
-                tooltip: { ...echartsTooltip(pal), trigger: "axis", valueFormatter: (v) => eur(Number(v || 0)) },
-                legend: { textStyle: { color: pal.text, fontSize: 10 }, top: 0 },
-                grid: { left: 64, right: 16, top: 34, bottom: 26 },
-                xAxis: echartsCategoryAxis(pal, { data: d.weeks.map((w) => w.label) }),
-                yAxis: echartsValueAxis(pal, (v) => eurAxis(v)),
-                series: [
-                  ...(scenario !== "met" ? [{ name: "In (zonder factoring)", type: "bar" as const, stack: "in", data: d.weeks.map((w) => w.inNoFactor), itemStyle: { color: pal.income, opacity: 0.85 } }] : []),
-                  ...(scenario !== "zonder" ? [{ name: "In (met factoring, 15%-saldo)", type: "bar" as const, stack: "inF", data: d.weeks.map((w) => w.inWithFactor), itemStyle: { color: pal.info, opacity: 0.7 } }] : []),
-                  { name: "Uit (leveranciers)", type: "bar", stack: "uit", data: d.weeks.map((w) => -w.outAP), itemStyle: { color: pal.expense, opacity: 0.85 } },
-                  { name: "Uit (lonen/btw/leasing)", type: "bar", stack: "uit", data: d.weeks.map((w) => -w.outFixed), itemStyle: { color: pal.warning, opacity: 0.8 } },
-                  ...(scenario !== "met" ? [{ name: "Saldo zonder factoring", type: "line" as const, data: d.weeks.map((w) => w.cumNoFactor), lineStyle: { width: 2.5, color: pal.positive }, itemStyle: { color: pal.positive }, symbolSize: 5 }] : []),
-                  ...(scenario !== "zonder" ? [{ name: "Saldo met factoring", type: "line" as const, data: d.weeks.map((w) => w.cumWithFactor), lineStyle: { width: 2.5, color: pal.info, type: "dashed" as const }, itemStyle: { color: pal.info }, symbolSize: 5 }] : []),
-                  { name: "nul", type: "line", data: d.weeks.map(() => 0), lineStyle: { width: 1, color: pal.negative, type: "dotted" }, symbol: "none", tooltip: { show: false } },
-                ],
-              }} />
-            {(d.negativeWeeks.noFactor.length > 0 || d.negativeWeeks.withFactor.length > 0) && (
-              <p className="mt-2 inline-flex items-start gap-1.5 text-[11px] text-negative">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Kantelpunt: het saldo duikt onder nul {d.negativeWeeks.withFactor.length > 0 && `mét factoring in de week van ${weekRange(d.negativeWeeks.withFactor[0])}`}
-                {d.negativeWeeks.noFactor.length > 0 && `${d.negativeWeeks.withFactor.length > 0 ? " en " : ""}zónder factoring in de week van ${weekRange(d.negativeWeeks.noFactor[0])}`}.
-              </p>
-            )}
+            {(() => {
+              // Balken volgen het gekozen scenario (side-by-side = baseline zonder);
+              // max 5 balkseries + max 2 lijnen, legende onderaan, nul = markLine
+              // (géén nep-reeks in de legende) — dataviz-regels 18/08.
+              const withF = scenario === "met";
+              const inExist = d.weeks.map((w) => (withF ? w.inWithFactor : w.inNoFactor));
+              const inNew = d.weeks.map((w) => (withF ? w.inNewWithFactor : w.inNewNoFactor));
+              // categorical[3] (magenta): blauw↔magenta gevalideerd (CVD ΔE 16,6 /
+              // normaal 26,6 licht; 11,6/25,7 donker) — paars↔blauw faalde (ΔE 12).
+              // De rood/groen-balken krijgen positie (boven/onder nul) + 1px-randen
+              // als tweede encoding.
+              const metColor = pal.categorical[3];
+              const negInfo = (key: "cumNoFactor" | "cumWithFactor") => {
+                const first = d.weeks.find((w) => w[key] < 0);
+                if (!first) return null;
+                const rec = d.weeks.find((w) => w.weekStart > first.weekStart && w[key] >= 0);
+                return { first: first.weekStart, rec: rec?.weekStart || null };
+              };
+              const nZ = negInfo("cumNoFactor"), nM = negInfo("cumWithFactor");
+              const msg = (label: string, n: { first: string; rec: string | null } | null) =>
+                n ? `${label}: onder nul vanaf de week van ${weekRange(n.first)}${n.rec ? `, terug positief in de week van ${weekRange(n.rec)}` : " tot het einde van de horizon"}` : null;
+              return (
+                <>
+                  <EChart height={360} ariaLabel="13-weken cashflowprognose"
+                    option={{
+                      tooltip: { ...echartsTooltip(pal), trigger: "axis", valueFormatter: (v) => (v == null ? "—" : eur(Number(v))) },
+                      legend: { textStyle: { color: pal.text, fontSize: 10 }, bottom: 0, itemGap: 14, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+                      grid: { left: 64, right: 16, top: 16, bottom: 58 },
+                      xAxis: echartsCategoryAxis(pal, { data: d.weeks.map((w) => w.label) }),
+                      yAxis: echartsValueAxis(pal, (v) => eurAxis(v)),
+                      series: [
+                        { name: "In — bestaande posten", type: "bar", stack: "in", data: inExist, itemStyle: { color: pal.income, borderColor: pal.surface, borderWidth: 1 } },
+                        { name: "In — nieuwe facturatie (raming)", type: "bar", stack: "in", data: inNew, itemStyle: { color: pal.income, opacity: 0.45, borderColor: pal.surface, borderWidth: 1 } },
+                        { name: "Uit — leveranciers", type: "bar", stack: "uit", data: d.weeks.map((w) => -w.outAP), itemStyle: { color: pal.expense, borderColor: pal.surface, borderWidth: 1 } },
+                        { name: "Uit — lonen/btw/leasing", type: "bar", stack: "uit", data: d.weeks.map((w) => -w.outFixed), itemStyle: { color: pal.warning, borderColor: pal.surface, borderWidth: 1 } },
+                        { name: "Uit — nieuwe inkopen (raming)", type: "bar", stack: "uit", data: d.weeks.map((w) => -w.outNew), itemStyle: { color: pal.expense, opacity: 0.45, borderColor: pal.surface, borderWidth: 1 } },
+                        ...(scenario !== "met" ? [{
+                          name: "Saldo zonder factoring", type: "line" as const, data: d.weeks.map((w) => w.cumNoFactor),
+                          lineStyle: { width: 2.5, color: pal.info }, itemStyle: { color: pal.info }, symbol: "circle" as const, symbolSize: 6, z: 5,
+                          markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: pal.negative, type: "dotted" as const, width: 1 }, data: [{ yAxis: 0 }] },
+                        }] : []),
+                        ...(scenario !== "zonder" ? [{
+                          name: "Saldo met factoring", type: "line" as const, data: d.weeks.map((w) => w.cumWithFactor),
+                          lineStyle: { width: 2.5, color: metColor, type: "dashed" as const }, itemStyle: { color: metColor }, symbol: "circle" as const, symbolSize: 6, z: 5,
+                          ...(scenario === "met" ? { markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: pal.negative, type: "dotted" as const, width: 1 }, data: [{ yAxis: 0 }] } } : {}),
+                        }] : []),
+                      ],
+                    }} />
+                  {(nZ || nM) && (
+                    <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-snug text-negative">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>{[msg("Zónder factoring", nZ), msg("Mét factoring", nM)].filter(Boolean).join(" · ")}. Diepste punt: {eurS(Math.min(d.lowPoint.noFactor.value, d.lowPoint.withFactor.value))}.</span>
+                    </p>
+                  )}
+                </>
+              );
+            })()}
             <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[860px] text-[11px]">
+              <table className="w-full min-w-[980px] text-[11px]">
                 <thead>
                   <tr className="border-b border-border text-left text-[10px] uppercase tracking-wide text-muted-foreground">
                     <th className="py-1.5 pr-2">Week</th>
-                    <th className="py-1.5 pr-2 text-right">In zonder</th>
-                    <th className="py-1.5 pr-2 text-right">In met (15%)</th>
+                    <th className="py-1.5 pr-2 text-right" title="bestaande posten + nieuwe facturatie (raming), 100%">In zonder</th>
+                    <th className="py-1.5 pr-2 text-right" title="bestaande posten (15%-saldo) + nieuwe facturatie: 85% ~1 week na uitreiking + 15% op betaalgedrag">In met</th>
                     <th className="py-1.5 pr-2 text-right">Uit leveranciers</th>
                     <th className="py-1.5 pr-2 text-right">Uit vast</th>
+                    <th className="py-1.5 pr-2 text-right" title="nieuwe inkopen op 12-weken-ritme, ±30d betaaltermijn (raming)">Uit nieuw</th>
                     <th className="py-1.5 pr-2 text-right">Saldo zonder</th>
                     <th className="py-1.5 pr-2 text-right">Saldo met</th>
                   </tr>
@@ -175,10 +214,11 @@ export function CashForecastView() {
                         className={`cursor-pointer border-b border-border/50 transition hover:bg-primary/5 ${openWeek === wi ? "bg-primary/5" : ""}`}
                       >
                         <td className="py-1 pr-2 font-medium text-foreground">{w.label} · {weekRange(w.weekStart)}</td>
-                        <td className="py-1 pr-2 text-right tabular-nums text-positive">{eurS(w.inNoFactor)}</td>
-                        <td className="py-1 pr-2 text-right tabular-nums" style={{ color: pal.info }}>{eurS(w.inWithFactor)}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums text-positive">{eurS(w.inNoFactor + w.inNewNoFactor)}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums text-positive">{eurS(w.inWithFactor + w.inNewWithFactor)}</td>
                         <td className="py-1 pr-2 text-right tabular-nums text-negative">{eurS(-w.outAP)}</td>
                         <td className="py-1 pr-2 text-right tabular-nums text-warning">{eurS(-w.outFixed)}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums text-negative">{eurS(-w.outNew)}</td>
                         <td className={`py-1 pr-2 text-right font-semibold tabular-nums ${w.cumNoFactor < 0 ? "text-negative" : "text-foreground"}`}>{eurS(w.cumNoFactor)}</td>
                         <td className={`py-1 pr-2 text-right font-semibold tabular-nums ${w.cumWithFactor < 0 ? "text-negative" : "text-foreground"}`}>{eurS(w.cumWithFactor)}</td>
                       </tr>
@@ -186,10 +226,10 @@ export function CashForecastView() {
                     </Fragment>
                   ))}
                   <tr>
-                    <td className="py-1.5 pr-2 text-muted-foreground">ná week 13 nog verwacht</td>
+                    <td className="py-1.5 pr-2 text-muted-foreground">ná week 13 nog verwacht (bestaande posten)</td>
                     <td className="py-1.5 pr-2 text-right tabular-nums text-muted-foreground">{eurS(d.beyond13w.inNoFactor)}</td>
                     <td className="py-1.5 pr-2 text-right tabular-nums text-muted-foreground">{eurS(d.beyond13w.inWithFactor)}</td>
-                    <td colSpan={4} />
+                    <td colSpan={5} />
                   </tr>
                 </tbody>
               </table>
@@ -201,9 +241,9 @@ export function CashForecastView() {
             onSource={() => setKpiSrc({ label: "Maandlaag", value: "", bron: "Per kalendermaand het gemiddelde van de werkelijke bankin- en uitstromen van de afgelopen 13 maanden (BankAccountLedgerEntries, alle merken behalve Factor), doorgetrokken tot eind volgend jaar + 6 maanden. Cumulatief vanaf de bankstand van vandaag.", caveat: "Puur seizoenspatroon: bevat géén groei, prijsstijgingen, capex-planning of de CO₂-tolverhoging (1/7-effect zit deels in de historiek)." })}>
             <EChart height={300} ariaLabel="Maandprognose cashflow"
               option={{
-                tooltip: { ...echartsTooltip(pal), trigger: "axis", valueFormatter: (v) => eur(Number(v || 0)) },
-                legend: { textStyle: { color: pal.text, fontSize: 10 }, top: 0 },
-                grid: { left: 64, right: 16, top: 34, bottom: 26 },
+                tooltip: { ...echartsTooltip(pal), trigger: "axis", valueFormatter: (v) => (v == null ? "—" : eur(Number(v))) },
+                legend: { textStyle: { color: pal.text, fontSize: 10 }, bottom: 0, itemGap: 14, icon: "roundRect", itemWidth: 10, itemHeight: 10 },
+                grid: { left: 64, right: 16, top: 16, bottom: 58 },
                 xAxis: echartsCategoryAxis(pal, { data: d.months.map((m) => m.month) }),
                 yAxis: echartsValueAxis(pal, (v) => eurAxis(v)),
                 series: [

@@ -38,9 +38,16 @@ function mondayOf(d: Date): Date {
 
 export interface FcWeek {
   weekStart: string; label: string;
-  inNoFactor: number;   // verwachte klantontvangsten, CN gesaldeerd, 100% (baseline)
+  inNoFactor: number;   // afwikkeling bestaande posten, CN gesaldeerd, 100% (baseline)
   inWithFactor: number; // idem, maar factoring-klanten alleen 15%-saldo
-  outAP: number;        // leveranciers op vervaldag (CN gesaldeerd)
+  // Run-rate-laag (v6): de prognose zonder nieuwe facturatie/inkopen was een
+  // "we stoppen vandaag"-worstcase — de met-factoringlijn dook daardoor naar −8M
+  // (melding David 18/08). Nieuwe facturatie op het weekritme van de laatste 12
+  // volle weken; nieuwe inkopen op het ritme van de leveranciersfacturen.
+  inNewNoFactor: number;   // inning van ná vandaag uitgereikte facturen (100% op betaalgedrag)
+  inNewWithFactor: number; // idem met factoring: 85% ~1 week na uitreiking + 15% op betaalgedrag
+  outNew: number;          // betaling van ná vandaag ontvangen inkoopfacturen (~30d)
+  outAP: number;        // bestaande leveranciersposten op vervaldag (CN gesaldeerd)
   outFixed: number;     // lonen/RSZ + btw + leasing (kalenderregels)
   netNoFactor: number; netWithFactor: number;
   cumNoFactor: number; cumWithFactor: number; // cumulatief saldo vanaf bankstand nu
@@ -139,7 +146,8 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   // ---- 2. Weekraster (13 weken, ma–zo) ----
   const weeks: FcWeek[] = Array.from({ length: 13 }, (_, i) => ({
     weekStart: iso(addDays(w0, i * 7)), label: `wk ${String(i + 1).padStart(2, "0")}`,
-    inNoFactor: 0, inWithFactor: 0, outAP: 0, outFixed: 0,
+    inNoFactor: 0, inWithFactor: 0, inNewNoFactor: 0, inNewWithFactor: 0, outNew: 0,
+    outAP: 0, outFixed: 0,
     netNoFactor: 0, netWithFactor: 0, cumNoFactor: 0, cumWithFactor: 0,
   }));
   const weekOf = (dateIso: string): number => {
@@ -281,15 +289,54 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     }
   }
 
+  // ---- 6b. Run-rate-laag: nieuwe facturatie & nieuwe inkopen ----
+  // Facturatieritme: gemiddelde van de laatste 12 VOLLE weken (weekFlow is
+  // oplopend; de laatste index is de lopende, onvolledige week — overslaan).
+  const wf = (rcv.weekFlow || []).slice(0, -1).slice(-12);
+  const avgFact = wf.length ? wf.reduce((s, x) => s + x.factored, 0) / wf.length : 0;
+  const avgOther = wf.length ? wf.reduce((s, x) => s + x.other, 0) / wf.length : 0;
+  const behaveWeeks = Math.min(10, Math.max(2, Math.round((rcv.dsoInvoiceLevel?.medianDays ?? 45) / 7)));
+  const ADV_LAG_WEEKS = 1; // uitreiking → 85%-voorschot via E-trans/factor (aanname)
+  // Inkoopritme: nieuwe externe leveranciersfacturen (netto CN) van de laatste
+  // 12 weken; leasing eruit (zit al als kalenderpost, anders dubbel geteld).
+  let newAp12w = 0;
+  const apFrom = iso(addDays(new Date(`${todayIso}T00:00:00Z`), -84));
+  for (const c of companies) {
+    const key = `cf-aprate1-${c.code}-${apFrom}`;
+    const cached = getCache<number>(key);
+    if (cached != null) { newAp12w += cached; continue; }
+    let sum = 0;
+    const filt = encodeURIComponent(`Posting_Date ge ${apFrom} and (Document_Type eq 'Invoice' or Document_Type eq 'Credit Memo')`);
+    await pageAllOData(`${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(c.code)}')/VendorLedgerEntries?$filter=${filt}&$select=Vendor_Name,Amount_LCY`, (e) => {
+      if (isIcName(String(e.Vendor_Name || ""))) return;
+      sum += -((e.Amount_LCY as number) || 0); // factuur = credit → kost positief
+    }, token);
+    setCache(key, sum, 720);
+    newAp12w += sum;
+  }
+  const avgNewAp = Math.max(0, newAp12w / 12 - (leasingMonthly * 12) / 52);
+  for (let w = 0; w < 13; w++) {
+    const landBehave = w + behaveWeeks;   // inning op betaalgedrag
+    const landAdv = w + ADV_LAG_WEEKS;    // 85%-voorschot
+    const landAp = w + 4;                  // inkoop ~30 dagen betaaltermijn
+    if (landBehave < 13) {
+      weeks[landBehave].inNewNoFactor += avgFact + avgOther;
+      weeks[landBehave].inNewWithFactor += avgFact * 0.15 + avgOther;
+    }
+    if (landAdv < 13) weeks[landAdv].inNewWithFactor += avgFact * 0.85;
+    if (landAp < 13) weeks[landAp].outNew += avgNewAp;
+  }
+
   // ---- 7. Cumulatief saldo + kantelpunten (anker = echte bankstand) ----
   const bankNow = bank.totals.cashOwn;
   let cumN = bankNow, cumF = bankNow;
   const negN: string[] = [], negF: string[] = [];
   for (const w of weeks) {
     w.inNoFactor = r0(w.inNoFactor); w.inWithFactor = r0(w.inWithFactor);
-    w.outAP = r0(w.outAP); w.outFixed = r0(w.outFixed);
-    w.netNoFactor = r0(w.inNoFactor - w.outAP - w.outFixed);
-    w.netWithFactor = r0(w.inWithFactor - w.outAP - w.outFixed);
+    w.inNewNoFactor = r0(w.inNewNoFactor); w.inNewWithFactor = r0(w.inNewWithFactor);
+    w.outAP = r0(w.outAP); w.outFixed = r0(w.outFixed); w.outNew = r0(w.outNew);
+    w.netNoFactor = r0(w.inNoFactor + w.inNewNoFactor - w.outAP - w.outFixed - w.outNew);
+    w.netWithFactor = r0(w.inWithFactor + w.inNewWithFactor - w.outAP - w.outFixed - w.outNew);
     cumN += w.netNoFactor; cumF += w.netWithFactor;
     w.cumNoFactor = r0(cumN); w.cumWithFactor = r0(cumF);
     if (cumN < 0) negN.push(w.weekStart);
@@ -359,7 +406,8 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     },
     aannames: ([
       "Betaalmoment per klant = factuurdatum + mediaan betaalgedrag van dié klant (niet de vervaldag) — de grootste accuraatheidswinst volgens best practice.",
-      "Factoring-variant: bij factoring-klanten is 85% verondersteld al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt als komende ontvangst. Door KBC uitgesloten facturen (portaal-export 10/08: €42.518 — achterstal/betwisting/limiet) tellen wél aan 100%; de Belfius- en BNP-uitsluitingslijsten ontbreken nog. Nieuwe facturatie ná vandaag zit nog niet in het weekbeeld.",
+      "Factoring-variant: bij factoring-klanten is 85% van de bestaande posten al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt daar nog. Door KBC uitgesloten facturen (portaal-export 10/08: €42.518) tellen wél aan 100%; de Belfius- en BNP-uitsluitingslijsten ontbreken nog.",
+      "Run-rate-laag: nieuwe facturatie loopt door op het gemiddelde weekritme van de laatste 12 volle weken (gesplitst factoring/niet-factoring); met factoring komt 85% daarvan ±1 week na uitreiking binnen (E-trans-aanname), de rest op betaalgedrag. Nieuwe inkopen lopen door op het 12-weken-ritme van de leveranciersfacturen (excl. leasing, ±30d betaaltermijn). Dit is een ritme-aanname, geen orderboek.",
       "Achterstallige posten (klant én leverancier) worden vlak gespreid over week 1–6 — een inningsaanname, geen belofte per post.",
       "Lonen/RSZ = gemiddelde van de laatste 3 volle maanden op de 62-rekeningen, geboekt op maandeinde. Btw = 451-saldi tot €1M per firma ÉÉN keer op de eerstvolgende 20e; latere aangiftes zijn nog niet geraamd. Leasing = 12m-gemiddelde externe cash-out, begin maand.",
       btwUnclear > 0 ? `€ ${r0(btwUnclear).toLocaleString("nl-BE")} aan 451-saldi (>€1M per firma, o.a. WHS/TDR) staat NIET in het weekprofiel: het oogt opgestapeld (regime btw-provisierekening?) en de betaaltiming is onbekend — [PRIO]-vraag bij finance.` : "",
@@ -386,7 +434,8 @@ function demoCashForecast(): CfoCashForecast {
     const inN = 900_000 + (i % 4) * 120_000, inF = inN * 0.55, outA = 700_000 + (i % 3) * 90_000, outF = i % 4 === 3 ? 950_000 : 60_000;
     return {
       weekStart: iso(addDays(w0, i * 7)), label: `wk ${String(i + 1).padStart(2, "0")}`,
-      inNoFactor: inN, inWithFactor: inF, outAP: outA, outFixed: outF,
+      inNoFactor: inN, inWithFactor: inF, inNewNoFactor: i >= 6 ? 850_000 : 0, inNewWithFactor: i >= 1 ? 700_000 : 0, outNew: i >= 4 ? 780_000 : 0,
+      outAP: outA, outFixed: outF,
       netNoFactor: inN - outA - outF, netWithFactor: inF - outA - outF, cumNoFactor: 0, cumWithFactor: 0,
     };
   });
@@ -405,4 +454,4 @@ function demoCashForecast(): CfoCashForecast {
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v5", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v6", buildCashForecast, demoCashForecast);
