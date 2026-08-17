@@ -31,7 +31,7 @@ import { isIcName } from "./cfo";
 import { custLedgerDocLink, custLedgerByCustomerLink, customerCardLink } from "./bc-links";
 // Factor-uitsluitingen uit het factorportaal ("lelijke excels", 17/08/2026):
 // facturen die de factor niet bevoorschot → in de met-factoring-forecast 100%.
-import factorUitsluitingen from "@/data/factor-uitsluitingen.json";
+import { FACTOR_UITSLUITINGEN } from "./factor-uitsluitingen";
 import { getAppSettings } from "./settings-store";
 
 const ODATA_ROOT = `https://api.businesscentral.dynamics.com/v2.0/${process.env.BC_TENANT_ID}/${process.env.BC_ENVIRONMENT || "production"}`;
@@ -726,7 +726,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   // Door de factor uitgesloten facturen (portaal-export per firma): geen 85%-
   // voorschot, dus in de met-factoring-reeks tellen ze gewoon aan 100%.
   const factorExcluded = new Map<string, Set<string>>(
-    Object.entries(factorUitsluitingen.uitgesloten as Record<string, string[]>).map(([co, docs]) => [co, new Set(docs)])
+    Object.entries(FACTOR_UITSLUITINGEN).map(([co, docs]) => [co, new Set(docs)])
   );
   for (const b of bundles) for (const inv of b.invoices) {
     if (!inv.open || inv.ic) continue;
