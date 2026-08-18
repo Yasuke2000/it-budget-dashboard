@@ -14,6 +14,7 @@ import { getBCToken, fetchBCCompanies } from "./bc-client";
 import { fetchWithRetry } from "./http";
 import { vendorLedgerDocLink, custLedgerDocLink } from "./bc-links";
 import { isIcName } from "./cfo";
+import { isApUitzondering } from "./ap-uitzonderingen";
 
 const ODATA_ROOT = `https://api.businesscentral.dynamics.com/v2.0/${process.env.BC_TENANT_ID}/${process.env.BC_ENVIRONMENT || "production"}`;
 const API_ROOT = `${ODATA_ROOT}/api/v2.0`;
@@ -53,6 +54,9 @@ export interface AgingRow {
   // Klant-leverancier-relatie (vraag finance 12/08/2026): staat deze tegenpartij ook
   // aan de ándere kant in de stamdata (btw-nummer- of naam-match)? Kandidaat saldering.
   alsoOther: boolean;
+  // Apart gezet (lib/ap-uitzonderingen): telt niet in blokken/prognose, wel
+  // zichtbaar op een eigen blad met reden + aansluiting (David 18/08/2026).
+  apart?: string;
 }
 
 async function pageAll(url: string, token: string): Promise<Record<string, unknown>[]> {
@@ -156,6 +160,7 @@ export async function fetchAgingAP(): Promise<AgingRow[]> {
         amountEUR: Math.round(-remLCY * 100) / 100,
         company: co,
         alsoOther: false,
+        apart: isApUitzondering(co, String(e.Document_No || ""))?.reden,
       });
     }
   }
@@ -271,6 +276,11 @@ export async function buildAgingWorkbook(
   const fileStamp = pulledAt.toLocaleString("sv-SE", { timeZone: "Europe/Brussels" }).replace(" ", "_").replace(/:/g, "").slice(0, 15);
   const snapIso = pulledAt.toLocaleDateString("sv-SE", { timeZone: "Europe/Brussels" }); // YYYY-MM-DD
   const isOverdue = (x: AgingRow) => !!x.dueDate && x.dueDate <= snapIso;
+  // Apart gezette posten (geen cash-out, bv. de ES Finance-aktefactuur) blijven
+  // uit de blokken en het groepstotaal, maar staan op een eigen blad mét reden —
+  // de aansluiting met het grootboek = groepstotaal + apart gezet.
+  const apartRows = rows.filter((r) => r.apart);
+  rows = rows.filter((r) => !r.apart);
   const BUCKETS: readonly string[] = isAP ? BUCKETS_AP : BUCKETS_AR;
   const bucketOf = (x: AgingRow) => (isAP ? bucketOfAP(x, snapIso) : bucketOfAR(x, snapIso));
 
@@ -455,6 +465,36 @@ export async function buildAgingWorkbook(
   ws2.autoFilter = { from: { row: 3, column: 1 }, to: { row: r2 - 1, column: h2.length } };
   ws2.views = [{ state: "frozen", ySplit: 3 }];
 
+  // ---- sheet 3b: apart gezette posten (geen cash-out) ----
+  if (apartRows.length > 0) {
+    const wsA = wb.addWorksheet("Apart gezet");
+    wsA.getCell(1, 1).value = `APART GEZET — GEEN CASH-OUT — data getrokken op ${stamp}`;
+    wsA.getCell(1, 1).font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
+    fill(wsA, 1, 7, BLUE);
+    wsA.getRow(3).values = [partyLabel, "Documentnr", "Vennootschap", "Boekdatum", "Vervaldatum", "Bedrag EUR", "Reden"];
+    wsA.getRow(3).font = { bold: true, color: { argb: "FFFFFFFF" } };
+    fill(wsA, 3, 7, BLUE);
+    [34, 16, 13, 12, 12, 16, 110].forEach((w, i) => (wsA.getColumn(i + 1).width = w));
+    let rA = 4;
+    for (const x of apartRows) {
+      wsA.getCell(rA, 1).value = x.party;
+      wsA.getCell(rA, 2).value = { text: x.docNo, hyperlink: isAP ? vendorLedgerDocLink(x.company, x.docNo) : custLedgerDocLink(x.company, x.docNo) };
+      wsA.getCell(rA, 2).font = { color: { argb: "FF1F5FA8" }, underline: true };
+      wsA.getCell(rA, 3).value = x.company;
+      wsA.getCell(rA, 4).value = x.invoiceDate;
+      wsA.getCell(rA, 5).value = x.dueDate;
+      wsA.getCell(rA, 6).value = x.amountEUR; wsA.getCell(rA, 6).numFmt = EUR_FMT;
+      wsA.getCell(rA, 7).value = x.apart || "";
+      wsA.getCell(rA, 7).alignment = { wrapText: true, vertical: "top" };
+      rA++;
+    }
+    const apartTot = r2c(apartRows.reduce((s, x) => s + x.amountEUR, 0));
+    wsA.getCell(rA + 1, 1).value = "TOTAAL APART GEZET"; wsA.getCell(rA + 1, 1).font = { bold: true };
+    wsA.getCell(rA + 1, 6).value = apartTot; wsA.getCell(rA + 1, 6).numFmt = EUR_FMT; wsA.getCell(rA + 1, 6).font = { bold: true };
+    wsA.getCell(rA + 2, 1).value = `Aansluiting grootboek: groepstotaal aging (€ ${grandTotal.toLocaleString("nl-BE")}) + apart gezet (€ ${apartTot.toLocaleString("nl-BE")}) = € ${r2c(grandTotal + apartTot).toLocaleString("nl-BE")}.`;
+    wsA.getCell(rA + 2, 1).font = { italic: true, size: 10 };
+  }
+
   // ---- sheet 4: leeswijzer ----
   const ws3 = wb.addWorksheet("Leeswijzer");
   const notes = [
@@ -482,6 +522,9 @@ export async function buildAgingWorkbook(
     "Soort: IC = intercompany (eigen groepsvennootschap als tegenpartij, naam-gebaseerd).",
     "DOORKLIKKEN: het factuurnummer op het Aging-blad is een link die de post rechtstreeks in Business Central opent (BC-login vereist).",
     "BTW-NUMMER: uit de klanten-/leveranciersstamdata in BC (veld Ondernemingsnr./btw). Leeg = niet ingevuld in BC; bij een naam-groep over meerdere vennootschappen wordt het eerste ingevulde nummer getoond.",
+    ...(apartRows.length > 0
+      ? [`APART GEZET (eigen blad): ${apartRows.length} post(en), € ${r2c(apartRows.reduce((s, x) => s + x.amountEUR, 0)).toLocaleString("nl-BE")} — open posten die géén cash-out worden (bv. de ES Finance-aktefactuur Sint-Niklaas: al in de P&L als uitzonderlijke kost, wordt via de akte verrekend). Ze tellen niet in de blokken; de grootboekaansluiting = groepstotaal + apart gezet.`]
+      : []),
     `Groepstotaal: € ${grandTotal.toLocaleString("nl-BE")} open over ${rows.length} posten en ${groups.size} ${isAP ? "leveranciers" : "klanten"}, waarvan € ${grandOverdue.toLocaleString("nl-BE")} vervallen.`,
   ];
   notes.forEach((t, i) => {

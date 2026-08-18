@@ -28,6 +28,7 @@ import { getBank, type CfoBank } from "./bank";
 import { getMgmtPnl, type CfoMgmtPnl } from "./mgmt-pnl";
 import { isIcName } from "./cfo";
 import { vendorLedgerDocLink, custLedgerDocLink } from "./bc-links";
+import { isApUitzondering, AP_UITZONDERINGEN } from "./ap-uitzonderingen";
 
 const r0 = (n: number) => Math.round(n);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -204,6 +205,9 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       const rem = -((e.Remaining_Amt_LCY as number) || 0); // te betalen = positief
       if (Math.abs(rem) < 1) return;
       if (isIcName(String(e.Vendor_Name || ""))) return;
+      // Apart gezette posten worden géén cash-out (bv. ES Finance-aktefactuur
+      // €1,93M — al in de P&L, verrekend via de akte). Zie lib/ap-uitzonderingen.
+      if (isApUitzondering(c.code, String(e.Document_No || ""))) return;
       const due = String(e.Due_Date || "").slice(0, 10);
       const doc = String(e.Document_Date || "").slice(0, 10);
       const when = (due && !due.startsWith("0001") ? due : doc) || todayIso;
@@ -521,6 +525,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       "Factoring-variant: bij factoring-klanten is 85% van de bestaande posten al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt daar nog. Door KBC uitgesloten facturen (portaal-export 10/08: €42.518) tellen wél aan 100%; de Belfius- en BNP-uitsluitingslijsten ontbreken nog.",
       "Run-rate-laag: nieuwe facturatie loopt door op het gemiddelde weekritme van de laatste 12 volle weken (gesplitst factoring/niet-factoring); met factoring komt 85% daarvan ±1 week na uitreiking binnen (E-trans-aanname), de rest op betaalgedrag. Nieuwe inkopen lopen door op het 12-weken-ritme van de leveranciersfacturen (excl. leasing, ±30d betaaltermijn). Dit is een ritme-aanname, geen orderboek.",
       "Achterstallige posten (klant én leverancier) worden vlak gespreid over week 1–6 — een inningsaanname, geen belofte per post.",
+      `Apart gezette leveranciersposten tellen NIET als cash-out (${AP_UITZONDERINGEN.map((u) => `${u.co} ${u.doc}`).join(", ")} — o.a. de ES Finance-aktefactuur Sint-Niklaas €1,93M: al in de P&L als uitzonderlijke kost, wordt via de akte verrekend). Volledige lijst met reden: blad 'Apart gezet' in de leveranciersaging-export.`,
       "Lonen/RSZ = gemiddelde van de laatste 3 volle maanden op de 62-rekeningen, excl. provisieboekingen (vakantiegeld/13e maand — geen maandcash), geboekt op maandeinde. Btw = 451-saldi tot €1M per firma ÉÉN keer op de eerstvolgende 20e; latere aangiftes zijn nog niet geraamd. Leasing = 12m-gemiddelde externe cash-out, begin maand.",
       btwUnclear > 0 ? `€ ${r0(btwUnclear).toLocaleString("nl-BE")} aan 451-saldi (>€1M per firma, o.a. WHS/TDR) staat NIET in het weekprofiel: het oogt opgestapeld (regime btw-provisierekening?) en de betaaltiming is onbekend — [PRIO]-vraag bij finance.` : "",
       "Maandlaag = seizoensgemiddelde van de échte bankmutaties (excl. factorbewegingen) — dít is de lange-termijnlaag (tot eind volgend jaar + 6 mnd), richtinggevend tot het budgetbronbestand is aangesloten.",
@@ -571,4 +576,4 @@ function demoCashForecast(): CfoCashForecast {
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v13", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v14", buildCashForecast, demoCashForecast);
