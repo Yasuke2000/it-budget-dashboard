@@ -72,6 +72,9 @@ export function CashForecastView() {
   // factorvoorschotten op bestaande facturen nog een keer (inzicht 18/08).
   const [scenario, setScenario] = useState<"beide" | "zonder" | "met">("met");
   const [openWeek, setOpenWeek] = useState<number | null>(null);
+  // Aparte tabs (vraag David 18/08): 13-wekenbeeld en de maandvooruitblik niet
+  // onder elkaar stapelen maar als eigen tabblad.
+  const [tab, setTab] = useState<"weken" | "maanden">("weken");
   const d = fc.data;
 
   return (
@@ -136,6 +139,16 @@ export function CashForecastView() {
               onClick={() => setKpiSrc({ label: "Rekening 433 — factor rekening-courant", value: eur(d.totals.saldo433), bron: "trialBalances per vennootschap, alle 433-rekeningen: het saldo tussen voorgeschoten (85%) en afgerekende facturen. Negatief = opgenomen voorschot (schuld aan de factor).", caveat: "Koppeling van individuele 433-bewegingen aan facturen is fase 2 (factorportaal-rapporten)." })} />
           </div>
 
+          <div className="flex items-center gap-1.5">
+            {([["weken", "Komende 13 weken"], ["maanden", "Maandvooruitblik (6+6)"]] as const).map(([k, lbl]) => (
+              <button key={k} onClick={() => setTab(k)}
+                className={`rounded-t-xl px-4 py-2 text-xs font-bold transition ${tab === k ? "border border-b-0 border-border bg-card text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+
+          {tab === "weken" && <>
           <Card title={scenario === "zonder" ? "Saldo bank per week — wat-als: stoppen met factoring" : "Saldo bank per week — kasrealiteit"} period={`${weekRange(d.weeks[0].weekStart)} → ${weekRange(d.weeks[12].weekStart)}`}
             hint="Eén balk per week = verwacht banksaldo op zondag. Rood = tekort. Week 1–6 op individuele posten, week 7–13 op het bankseizoensritme."
             onSource={() => setKpiSrc({ label: "Saldo bank per week", value: "", bron: "Cumulatief saldo per week: echte bankstand van vandaag + verwachte ontvangsten (bestaande posten op betaalgedrag + nieuwe facturatie op 12-wekenritme) − leveranciers − lonen/btw/leasing − nieuwe inkopen. Kasrealiteit = met factoring: 85% van bestaande factoring-posten is al binnen; nieuwe facturatie geeft wél elke week verse voorschotten.", caveat: "Kredietlijnen/straight-loanopnames zitten er bewust niet in — een rode balk betekent 'financieringsbehoefte', niet 'lege kas'. Het wat-als 'stoppen met factoring' betaalt eerst het 433-voorschot terug en ontvangt daarna 100% per factuur — daarom ligt die lijn láger: factoring is structureel cash-positief." })}>
@@ -274,8 +287,10 @@ export function CashForecastView() {
             </div>
           </Card>
 
-          <Card title="Maandlaag — tot eind volgend jaar + 6 maanden" period={`${d.months.find((m) => !m.isActual)?.month || ""} → ${d.months[d.months.length - 1]?.month || ""}`}
-            hint="De lange-termijnlaag: seizoensbeeld uit de échte bankmutaties (excl. factorbewegingen), tot eind volgend jaar + 6 maanden. Richtinggevend tot het budget per maand is aangesloten."
+          </>}
+
+          {tab === "maanden" && <Card title="Maandvooruitblik — tot eind volgend jaar + 6 maanden" period={`${d.months.find((m) => !m.isActual)?.month || ""} → ${d.months[d.months.length - 1]?.month || ""}`}
+            hint="De lange-termijnlaag: seizoensbeeld uit de échte bankmutaties × omzettrend, tot eind volgend jaar + 6 maanden. Eerste 6 maanden in kleur (concreet), daarna grijs (forecast) — afspraak CFO-sessie 18/08."
             onSource={() => setKpiSrc({ label: "Maandlaag", value: "", bron: "Per kalendermaand het gemiddelde van de werkelijke bankin- en uitstromen van de afgelopen 13 maanden (BankAccountLedgerEntries, alle merken behalve Factor), doorgetrokken tot eind volgend jaar + 6 maanden. Cumulatief vanaf de bankstand van vandaag.", caveat: "Puur seizoenspatroon: bevat géén groei, prijsstijgingen, capex-planning of de CO₂-tolverhoging (1/7-effect zit deels in de historiek)." })}>
             {(() => {
               const proj = d.months.filter((m) => !m.isActual);
@@ -289,13 +304,15 @@ export function CashForecastView() {
                     series: [{
                       name: "Verwacht banksaldo (seizoensbeeld)",
                       type: "bar", barMaxWidth: 34,
-                      data: proj.map((m) => ({ value: m.cum, itemStyle: { color: m.cum < 0 ? pal.negative : pal.info, borderRadius: m.cum < 0 ? [0, 0, 4, 4] : [4, 4, 0, 0] } })),
+                      // CFO-sessie 2 (18/08): eerste 6 maanden concreet gekleurd,
+                      // daarna grijs — verder weg = ritme, geen toezegging.
+                      data: proj.map((m, i) => ({ value: m.cum, itemStyle: { color: i < 6 ? (m.cum < 0 ? pal.negative : pal.info) : pal.budget, opacity: i < 6 ? 1 : 0.75, borderRadius: m.cum < 0 ? [0, 0, 4, 4] : [4, 4, 0, 0] } })),
                       markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: pal.warning, width: 1.5 }, data: [{ yAxis: 0 }] },
                     }],
                   }} />
               );
             })()}
-          </Card>
+          </Card>}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card title="Per vennootschap — 433, btw en niet-toegewezen" period={`stand ${fmtStamp(d.asOf)}`}
