@@ -1489,6 +1489,7 @@ function ExportButton({ kind, label, withRange }: { kind: "ap" | "ar" | "leasing
 // drie kerncijfers uit de échte prognose + één grote knop. Dummy-proof.
 function CashforecastTeaser() {
   const fc = usePolledData<{
+    asOf: string;
     bankNow: number;
     lowPoint: { noFactor: { week: string; value: number }; withFactor: { week: string; value: number } };
   }>("/api/cfo/cashforecast");
@@ -1511,10 +1512,10 @@ function CashforecastTeaser() {
     <section className="rounded-2xl border border-border bg-card p-5 backdrop-blur">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold text-foreground">Cashflowprognose — 13 weken vooruit</h2>
-        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground ring-1 ring-border">live</span>
+        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground ring-1 ring-border">{d ? `data per ${fmtStamp(d.asOf)}` : "live"}</span>
       </div>
       <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-        Wanneer komt het geld binnen, wanneer knelt het — op betaalgedrag per klant, zonder en mét factoring naast elkaar.
+        Wanneer komt het geld binnen en wanneer knelt het — de kasrealiteit mét factoring, plus het wat-als “stoppen met factoring”. Rood = financieringsbehoefte.
       </p>
       {d ? (
         <div className="mt-3 grid gap-2 sm:grid-cols-3">

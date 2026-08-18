@@ -70,8 +70,9 @@ export interface FcCompanyMisc {
   company: string;
   saldo433: number;       // rekening-courant factor (lump-sum "zak met geld")
   btwSaldo: number;       // 451-range: te betalen btw
-  unappliedPayments: number; unappliedCount: number; // open betalingen zonder factuur
+  unappliedPayments: number; unappliedCount: number; // open betalingen/bankontvangsten zonder factuur (incl. blanco documenttype)
   openCn: number;         // open creditnota's
+  degraded?: boolean;     // trialBalances faalde → 433/451 onbekend (niet 0!)
 }
 export interface CfoCashForecast {
   asOf: string; isLive: boolean;
@@ -234,17 +235,25 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
         if (b.no.startsWith("433")) row.saldo433 += b.amount;
         if (b.no.startsWith("451")) row.btwSaldo += b.amount;
       }
-    } catch { /* trialBalances niet beschikbaar → 0, staat in de noot */ }
-    const filt = encodeURIComponent(`Open eq true and (Document_Type eq 'Payment' or Document_Type eq 'Credit Memo')`);
+    } catch {
+      // Audit 18/08: NIET stil op 0 laten staan — dat zette de wat-als-lijn €4,6M
+      // te hoog en schrapte de btw-post, 12h gecachet. Vlag + niet cachen.
+      row.degraded = true;
+    }
+    // Audit 18/08: ALLE open niet-factuurposten meenemen, ook het blanco
+    // documenttype (bankontvangst-documenten op de klantrekening, ±€975k) —
+    // het filter op alleen Payment/Credit Memo miste die en de "niet-toegewezen"
+    // KPI stond daardoor €975k te laag.
+    const filt = encodeURIComponent(`Open eq true and Document_Type ne 'Invoice'`);
     await pageAllOData(`${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(c.code)}')/Cust_LedgerEntries?$filter=${filt}&$select=Document_Type,Remaining_Amt_LCY,Customer_Name`, (e) => {
       const rem = (e.Remaining_Amt_LCY as number) || 0;
       if (Math.abs(rem) < 1 || isIcName(String(e.Customer_Name || ""))) return;
-      if (e.Document_Type === "Payment") { row.unappliedPayments += rem; row.unappliedCount++; }
-      else row.openCn += rem;
+      if (e.Document_Type === "Credit Memo") row.openCn += rem;
+      else { row.unappliedPayments += rem; row.unappliedCount++; }
     }, token);
     row.saldo433 = r0(row.saldo433); row.btwSaldo = r0(row.btwSaldo);
     row.unappliedPayments = r0(row.unappliedPayments); row.openCn = r0(row.openCn);
-    setCache(key, row, 720);
+    if (!row.degraded) setCache(key, row, 720);
     perCompany.push(row);
   }
   perCompany.sort((a, b) => Math.abs(b.saldo433) - Math.abs(a.saldo433));
@@ -257,6 +266,19 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   for (const x of perCompany) {
     const owed = Math.max(0, -x.btwSaldo);
     if (owed <= BTW_CLEAR_MAX) btwPayable += owed; else btwUnclear += owed;
+  }
+
+  // Audit 18/08 (HIGH, geverifieerd tot op de euro): de niet-toegewezen
+  // ontvangsten (open betalingen + blanco-documenttype bankontvangsten, ±−€1,6M)
+  // staan al ín bankNow, maar hun facturen worden hierboven nog aan 100% als
+  // toekomstige instroom geteld — dubbeltelling. Correctie: salderen in de
+  // instroom, gespreid over week 1–6 (zoals achterstallige posten). In de
+  // kasrealiteit is dit licht conservatief: een factuur van een factoring-klant
+  // telde maar aan 15%, de correctie telt aan 100%.
+  const unappliedNet = perCompany.reduce((s, x) => s + x.unappliedPayments, 0); // negatief
+  for (let k = 0; k < 6; k++) {
+    weeks[k].inNoFactor += unappliedNet / 6;
+    weeks[k].inWithFactor += unappliedNet / 6;
   }
 
   // ---- 6. Leasing: gemiddelde maandelijkse externe cash-out (12m) ----
@@ -372,7 +394,8 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     (seasonOut[moY] ??= []).push(histOut[m] || 0);
   }
   const avg = (a: number[] | undefined) => (a && a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
-  const endHorizon = new Date(Date.UTC(today.getUTCFullYear() + 1, 11 + 6, 1)); // eind volgend jaar + 6 mnd
+  // 11 + 7: t/m JUNI van jaar+2 — met +6 eindigde de reeks op mei (audit 18/08).
+  const endHorizon = new Date(Date.UTC(today.getUTCFullYear() + 1, 11 + 7, 1)); // eind volgend jaar + 6 mnd
   const months: FcMonth[] = [];
   // eerst de historiek (echte cijfers), dan de projectie
   for (const m of bank.months) {
@@ -382,7 +405,15 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   for (let d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)); d < endHorizon; d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))) {
     const m = iso(d).slice(0, 7);
     const moY = Number(m.slice(5, 7));
-    const inS = avg(seasonIn[moY]), outS = avg(seasonOut[moY]);
+    let inS = avg(seasonIn[moY]), outS = avg(seasonOut[moY]);
+    // Lopende maand pro-rata (audit 18/08): bankNow bevat de maand-tot-datum-
+    // mutaties al — alleen het RESTANT van deze maand projecteren, anders telt
+    // het verstreken deel dubbel.
+    if (m === todayIso.slice(0, 7)) {
+      const dim = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+      const frac = Math.max(0, dim - today.getUTCDate()) / dim;
+      inS *= frac; outS *= frac;
+    }
     months.push({ month: m, inSeason: r0(inS), outSeason: r0(outS), net: r0(inS - outS), cum: 0, isActual: false });
   }
   // cumulatief vanaf bankstand nu, alleen over de projectiemaanden
@@ -413,7 +444,9 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       payrollMonthly: r0(payrollMonthly), leasingMonthly: r0(leasingMonthly),
     },
     aannames: ([
-      "Betaalmoment per klant = factuurdatum + mediaan betaalgedrag van dié klant (niet de vervaldag) — de grootste accuraatheidswinst volgens best practice.",
+      "Betaalmoment per klant = factuurdatum + de bedrag-gewogen gemiddelde betaalduur van dié klant (gemeten op de betaalde facturen; kleinere klanten vallen terug op de groepsmediaan). Niet de vervaldag — de grootste accuraatheidswinst volgens best practice.",
+      `Niet-toegewezen ontvangsten (open betalingen + bankontvangsten zonder factuurkoppeling, € ${r0(Math.abs(unappliedNet)).toLocaleString("nl-BE")}) staan al in de bankstand en zijn daarom GESALDEERD in de instroom van week 1–6 — anders telden hun facturen dubbel. Bij factoring-klanten is die correctie licht conservatief.`,
+      "Recourse-terugnames door de factor (>90d onbetaalde gefactorde posten) zitten nog niet als uitstroom in het weekprofiel — bekend hiaat, wordt zichtbaar via de 433-monitor.",
       "Wat-als 'stoppen met factoring': die lijn betaalt eerst het opgenomen 433-voorschot terug (conservatief: meteen) en ontvangt daarna 100% van elke factuur op betaalgedrag. Daardoor ligt hij ónder de kasrealiteit — factoring is structureel cash-positief zolang de omzet draait.",
       "Factoring-variant: bij factoring-klanten is 85% van de bestaande posten al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt daar nog. Door KBC uitgesloten facturen (portaal-export 10/08: €42.518) tellen wél aan 100%; de Belfius- en BNP-uitsluitingslijsten ontbreken nog.",
       "Run-rate-laag: nieuwe facturatie loopt door op het gemiddelde weekritme van de laatste 12 volle weken (gesplitst factoring/niet-factoring); met factoring komt 85% daarvan ±1 week na uitreiking binnen (E-trans-aanname), de rest op betaalgedrag. Nieuwe inkopen lopen door op het 12-weken-ritme van de leveranciersfacturen (excl. leasing, ±30d betaaltermijn). Dit is een ritme-aanname, geen orderboek.",
@@ -429,11 +462,14 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       { label: "Bankstand & maandlaag", detail: "BankAccountLedgerEntries per rekening: eigen bankstand (excl. factorkrediet) als anker; maandlaag = seizoensgemiddelde per kalendermaand uit dezelfde mutaties (excl. Factor-merk)." },
       { label: "433 / niet-toegewezen", detail: "trialBalances per vennootschap op vandaag (433*-saldi = factor rekening-courant, 451* = btw) + open betalingen/creditnota's zonder factuurtoewijzing uit Cust_LedgerEntries." },
     ],
-    notes: [
-      "Baseline = ZONDER factoring (meeting 17/08): het zuiverste beeld van wanneer klanten echt betalen. De factoringlijn ernaast toont de kasrealiteit met voorschotten.",
+    notes: ([
+      perCompany.some((x) => x.degraded)
+        ? `LET OP — DATAKWALITEIT: voor ${perCompany.filter((x) => x.degraded).map((x) => x.company).join(", ")} kon het 433/451-saldo NIET worden opgehaald (trialBalances faalde). De wat-als-lijn en de btw-post zijn voor die firma's onvolledig — vernieuw of meld het.`
+        : "",
+      "Kasrealiteit (met factoring) is het echte saldo-pad; het wat-als toont de kost van stoppen met factoring. Rood = financieringsbehoefte (kredietlijnen zitten er bewust niet in).",
       "Nog niet aangesloten (fase 2): E-trans opmaakdatums (moment van aanbieding aan de factor), CODA-dagreconciliatie en de factorportaal-rapporten. Tot dan is de 85/15-timing een modelaanname.",
       "Week 1–4 is operationeel scherp; week 5–13 richtinggevend. De maandlaag is een seizoensbeeld, geen toezegging.",
-    ],
+    ] as string[]).filter(Boolean),
   };
 }
 
@@ -448,13 +484,14 @@ function demoCashForecast(): CfoCashForecast {
       netNoFactor: inN - outA - outF, netWithFactor: inF - outA - outF, cumNoFactor: 0, cumWithFactor: 0,
     };
   });
-  let cn = 1_200_000, cf = 1_200_000;
+  // Demo consistent met het echte mechanisme: wat-als start ná 433-terugbetaling (audit 18/08).
+  let cn = 1_200_000 - 4_100_000, cf = 1_200_000;
   for (const w of weeks) { cn += w.netNoFactor; cf += w.netWithFactor; w.cumNoFactor = cn; w.cumWithFactor = cf; }
   return {
     asOf: new Date().toISOString(), isLive: false,
     bankNow: 1_200_000, factorCredit: -1_350_000,
     weeks, beyond13w: { inNoFactor: 800_000, inWithFactor: 300_000 },
-    months: [], lowPoint: { noFactor: { week: weeks[8].weekStart, value: -240_000 }, withFactor: { week: weeks[6].weekStart, value: -510_000 } },
+    months: [], lowPoint: { noFactor: { week: weeks[8].weekStart, value: -4_100_000 }, withFactor: { week: weeks[6].weekStart, value: -510_000 } },
     negativeWeeks: { noFactor: [weeks[8].weekStart], withFactor: [weeks[6].weekStart, weeks[7].weekStart] },
     perCompany: [{ company: "WHS", saldo433: -1_350_000, btwSaldo: -220_000, unappliedPayments: -180_000, unappliedCount: 14, openCn: -60_000 }],
     weekDetail: { in: [], out: [] },
@@ -463,4 +500,4 @@ function demoCashForecast(): CfoCashForecast {
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v7", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v8", buildCashForecast, demoCashForecast);
