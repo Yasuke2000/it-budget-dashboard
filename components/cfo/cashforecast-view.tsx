@@ -156,7 +156,9 @@ export function CashForecastView() {
                       data: vals.map((v, i) => ({
                         value: v,
                         itemStyle: { color: v < 0 ? pal.negative : pal.info, borderRadius: v < 0 ? [0, 0, 4, 4] : [4, 4, 0, 0] },
-                        label: i === minIdx ? { show: true, position: (v < 0 ? "bottom" : "top") as "bottom" | "top", formatter: () => `laagste: ${eurS(v)}`, color: pal.text, fontSize: 10, fontWeight: "bold" as const } : undefined,
+                        // insideBottom bij negatief: "bottom" viel over de x-aslabels
+                        // heen zodra de balk tot de chartrand reikte (David 18/08).
+                        label: i === minIdx ? { show: true, position: (v < 0 ? "insideBottom" : "top") as "insideBottom" | "top", formatter: () => `laagste: ${eurS(v)}`, color: v < 0 ? "#ffffff" : pal.text, fontSize: 10, fontWeight: "bold" as const } : undefined,
                       })),
                       markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: pal.warning, width: 1.5 }, data: [{ yAxis: 0 }] },
                     }],
