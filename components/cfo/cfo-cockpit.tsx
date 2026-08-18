@@ -1195,6 +1195,9 @@ export function CfoCockpit({ data }: { data: CfoFinancials }) {
               <a href="/cfo/dagbrief" className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-foreground transition hover:bg-primary/10" title="Elke ochtend vers: beschikbaar op de bank, wie gisteren betaalde, dalende outstandings en de blokkeeranalyse +60/+75 dagen">
                 <span>Dagelijkse cashpositie</span><ChevronRight className="h-3.5 w-3.5 text-primary" />
               </a>
+              <a href="/cfo/laura" className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-foreground transition hover:bg-primary/10" title="Supersimpel bouwblokken-dashboard: grote cijfers, smiley-oordelen en 'zo doen we dat' — kies en schuif je eigen blokken">
+                <span>💖 Laura-modus — supersimpel</span><ChevronRight className="h-3.5 w-3.5 text-primary" />
+              </a>
               <a href="/cfo/formularium" className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-foreground transition hover:bg-primary/10" title="Elk begrip op deze pagina's: wat het betekent, de formule, de bron in BC en waarop het gebaseerd is — voor als iemand vraagt 'hoe kom je daaraan?'">
                 <span>Formularium — begrippen &amp; formules</span><ChevronRight className="h-3.5 w-3.5 text-primary" />
               </a>
