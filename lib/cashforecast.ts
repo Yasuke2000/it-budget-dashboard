@@ -10,7 +10,8 @@
 //  - Uitstromen: open leveranciersposten op vervaldag + de grote Belgische
 //    kalenderposten (lonen/RSZ ~maandeinde, btw ~20e, leasing).
 //  - Maandlaag: seizoenspatroon uit de échte bankmutaties (13 mnd historiek) —
-//    RICHTINGGEVEND, geen budget. De 12-maanden indirecte laag blijft EMAsphere.
+//    RICHTINGGEVEND, geen budget. Beslissing David 18/08: OOK de lange-termijnlaag
+//    leeft hier — niets blijft bij EMAsphere.
 //  - 433-saldi en niet-toegewezen betalingen apart zichtbaar (de "zak met geld").
 // Anker: het saldo start op de ECHTE bankstand van vandaag (cashOwn, excl.
 // factorkrediet) — nooit een geprojecteerd saldo doorschuiven (forecast drift).
@@ -482,7 +483,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       "Achterstallige posten (klant én leverancier) worden vlak gespreid over week 1–6 — een inningsaanname, geen belofte per post.",
       "Lonen/RSZ = gemiddelde van de laatste 3 volle maanden op de 62-rekeningen, excl. provisieboekingen (vakantiegeld/13e maand — geen maandcash), geboekt op maandeinde. Btw = 451-saldi tot €1M per firma ÉÉN keer op de eerstvolgende 20e; latere aangiftes zijn nog niet geraamd. Leasing = 12m-gemiddelde externe cash-out, begin maand.",
       btwUnclear > 0 ? `€ ${r0(btwUnclear).toLocaleString("nl-BE")} aan 451-saldi (>€1M per firma, o.a. WHS/TDR) staat NIET in het weekprofiel: het oogt opgestapeld (regime btw-provisierekening?) en de betaaltiming is onbekend — [PRIO]-vraag bij finance.` : "",
-      "Maandlaag = seizoensgemiddelde van de échte bankmutaties (excl. factorbewegingen) — richtinggevend, geen budget. De 12-maanden indirecte prognose blijft EMAsphere.",
+      "Maandlaag = seizoensgemiddelde van de échte bankmutaties (excl. factorbewegingen) — dít is de lange-termijnlaag (tot eind volgend jaar + 6 mnd), richtinggevend tot het budgetbronbestand is aangesloten.",
       `AP-posten met vervaldag ná week 13 (€ ${r0(apBeyond).toLocaleString("nl-BE")}) zitten niet in het weekbeeld.`,
     ] as string[]).filter(Boolean),
     sources: [
@@ -530,4 +531,4 @@ function demoCashForecast(): CfoCashForecast {
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v9", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v10", buildCashForecast, demoCashForecast);

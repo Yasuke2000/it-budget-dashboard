@@ -4,7 +4,7 @@
 
 ## Architectuurbeslissing (uit de research, bevestigd)
 
-- **Tweelagenmodel**: de operationele **13-weken directe forecast bouwen we zelf** (staat nu in het dashboard); de **12-maanden indirecte laag blijft EMAsphere** (al betaald, consolideert, elimineert IC, auditbaar). Onze maandlaag is bewust "richtinggevend seizoensbeeld", geen budget — zo wordt de eigen tool nooit de bron van waarheid voor de jaarrekening.
+- **HERZIEN (beslissing David 18/08): alles in eigen huis — niets blijft bij EMAsphere.** De 13-weken directe forecast én de lange-termijnlaag (maandritme tot eind volgend jaar + 6 mnd) leven in het dashboard. Consequentie: de maandlaag moet doorgroeien van seizoensbeeld naar volwaardige 12-maandenprognose (budget per maand aansluiten, IC-eliminatie zit al in de eigen conso-logica); statutaire rapportering blijft de boekhouding zelf.
 - **Anker élke week op de echte bankstand** (staat erin: cashOwn excl. factorkrediet); nooit een geprojecteerd saldo doorschuiven (forecast drift).
 - Week 1–4 scherp, week 5–13 richtinggevend; 100% accuraatheid najagen is verspilde tijd.
 

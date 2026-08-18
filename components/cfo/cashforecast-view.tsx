@@ -274,7 +274,7 @@ export function CashForecastView() {
           </Card>
 
           <Card title="Maandlaag — tot eind volgend jaar + 6 maanden" period={`${d.months.find((m) => !m.isActual)?.month || ""} → ${d.months[d.months.length - 1]?.month || ""}`}
-            hint="Seizoensbeeld uit de échte bankmutaties (excl. factorbewegingen): richtinggevend, geen budget. De 12-maanden indirecte prognose blijft EMAsphere."
+            hint="De lange-termijnlaag: seizoensbeeld uit de échte bankmutaties (excl. factorbewegingen), tot eind volgend jaar + 6 maanden. Richtinggevend tot het budget per maand is aangesloten."
             onSource={() => setKpiSrc({ label: "Maandlaag", value: "", bron: "Per kalendermaand het gemiddelde van de werkelijke bankin- en uitstromen van de afgelopen 13 maanden (BankAccountLedgerEntries, alle merken behalve Factor), doorgetrokken tot eind volgend jaar + 6 maanden. Cumulatief vanaf de bankstand van vandaag.", caveat: "Puur seizoenspatroon: bevat géén groei, prijsstijgingen, capex-planning of de CO₂-tolverhoging (1/7-effect zit deels in de historiek)." })}>
             {(() => {
               const proj = d.months.filter((m) => !m.isActual);
