@@ -51,6 +51,9 @@ export interface FcWeek {
   outFixed: number;     // lonen/RSZ + btw + leasing (kalenderregels)
   netNoFactor: number; netWithFactor: number;
   cumNoFactor: number; cumWithFactor: number; // cumulatief saldo vanaf bankstand nu
+  // Hybride (audit 18/08): wk 1–6 = individuele posten + kalender (scherp,
+  // doorklikbaar); wk 7–13 = bankseizoensritme (geijkt op 13 mnd echte mutaties).
+  basis: "posten" | "seizoen";
 }
 export interface FcMonth {
   month: string;          // "2026-09"
@@ -150,6 +153,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     inNoFactor: 0, inWithFactor: 0, inNewNoFactor: 0, inNewWithFactor: 0, outNew: 0,
     outAP: 0, outFixed: 0,
     netNoFactor: 0, netWithFactor: 0, cumNoFactor: 0, cumWithFactor: 0,
+    basis: "posten" as const,
   }));
   const weekOf = (dateIso: string): number => {
     const wi = Math.floor((Date.parse(`${dateIso}T00:00:00Z`) - w0.getTime()) / (7 * 86400000));
@@ -210,12 +214,16 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   const lastFullEnd = iso(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 0)));
   let payroll3m = 0;
   for (const c of companies) {
-    const key = `cf-payroll1-${c.code}-${m0Iso}`;
+    const key = `cf-payroll2-${c.code}-${m0Iso}`;
     const cached = getCache<number>(key);
     if (cached != null) { payroll3m += cached; continue; }
     let sum = 0;
     const filt = encodeURIComponent(`Posting_Date ge ${m0Iso} and Posting_Date le ${lastFullEnd} and G_L_Account_No ge '620000' and G_L_Account_No le '629999'`);
-    await pageAllOData(`${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(c.code)}')/Grootboekposten_Excel?$filter=${filt}&$select=Amount`, (e) => {
+    // Provisieboekingen (vakantiegeld/13e mnd, ±4,4% — audit 18/08) zijn geen
+    // maandelijkse cash-out: eruit voor het kasritme.
+    const PROV_RX = /provisie|voorziening|overdracht vakantiegeld|vakantiegeld/i;
+    await pageAllOData(`${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(c.code)}')/Grootboekposten_Excel?$filter=${filt}&$select=Amount,Description`, (e) => {
+      if (PROV_RX.test(String(e.Description || ""))) return;
       sum += (e.Amount as number) || 0;
     }, token);
     setCache(key, sum, 720);
@@ -349,6 +357,45 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     if (landAp < 13) weeks[landAp].outNew += avgNewAp;
   }
 
+  // ---- 6c. Bankseizoen (nodig voor de hybride week 7–13 én de maandlaag) ----
+  // Historiek: bank.byBrand per maand (echte mutaties, alle merken behalve Factor —
+  // factorbewegingen zijn financiering, geen operationele kasstroom).
+  const histIn: Record<string, number> = {}, histOut: Record<string, number> = {};
+  for (const [brand, series] of Object.entries(bank.byBrand)) {
+    if (brand === "Factor") continue;
+    bank.months.forEach((m, i) => {
+      histIn[m] = (histIn[m] || 0) + (series.inflow[i] || 0);
+      histOut[m] = (histOut[m] || 0) + (series.outflow[i] || 0);
+    });
+  }
+  const seasonIn: Record<number, number[]> = {}, seasonOut: Record<number, number[]> = {};
+  for (const m of bank.months) {
+    if (m >= todayIso.slice(0, 7)) continue; // lopende maand is onvolledig
+    const moY = Number(m.slice(5, 7));
+    (seasonIn[moY] ??= []).push(histIn[m] || 0);
+    (seasonOut[moY] ??= []).push(histOut[m] || 0);
+  }
+  const avg = (a: number[] | undefined) => (a && a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
+
+  // HYBRIDE (audit 18/08, geijkt op de bankwerkelijkheid): het itemmodel bleek
+  // in de verre weken structureel te pessimistisch (september: model −€1,72M vs
+  // bankseizoen +€0,09M; oktober klopte wél: −108k vs −86k). Best practice 13WCF:
+  // het nabije venster op individuele posten, het verre venster op het bewezen
+  // ritme. Week 1–6 = posten + kalender (scherp, doorklikbaar); week 7–13 =
+  // bankseizoensritme per kalendermaand, omgerekend naar weken. Zo sluiten
+  // weekmodel en maandlaag per constructie op elkaar aan.
+  for (let i = 6; i < 13; i++) {
+    const w = weeks[i];
+    const mm = Number(w.weekStart.slice(5, 7));
+    const y = Number(w.weekStart.slice(0, 4));
+    const dim = new Date(Date.UTC(y, mm, 0)).getUTCDate();
+    const wIn = (avg(seasonIn[mm]) * 7) / dim, wOut = (avg(seasonOut[mm]) * 7) / dim;
+    w.basis = "seizoen";
+    w.inNoFactor = wIn; w.inWithFactor = wIn;
+    w.inNewNoFactor = 0; w.inNewWithFactor = 0;
+    w.outAP = wOut; w.outFixed = 0; w.outNew = 0;
+  }
+
   // ---- 7. Cumulatief saldo + kantelpunten (anker = echte bankstand) ----
   const bankNow = bank.totals.cashOwn;
   // Wat-als "stoppen met factoring" (fix 18/08, vraag David "hoe kan cash meer
@@ -375,25 +422,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   const lowN = weeks.reduce((a, w) => (w.cumNoFactor < a.value ? { week: w.weekStart, value: w.cumNoFactor } : a), { week: weeks[0].weekStart, value: weeks[0].cumNoFactor });
   const lowF = weeks.reduce((a, w) => (w.cumWithFactor < a.value ? { week: w.weekStart, value: w.cumWithFactor } : a), { week: weeks[0].weekStart, value: weeks[0].cumWithFactor });
 
-  // ---- 8. Maandlaag tot eind volgend jaar + 6 mnd (seizoen uit bankmutaties) ----
-  // Historiek: bank.byBrand per maand (echte mutaties, alle merken behalve Factor —
-  // factorbewegingen zijn financiering, geen operationele kasstroom).
-  const histIn: Record<string, number> = {}, histOut: Record<string, number> = {};
-  for (const [brand, series] of Object.entries(bank.byBrand)) {
-    if (brand === "Factor") continue;
-    bank.months.forEach((m, i) => {
-      histIn[m] = (histIn[m] || 0) + (series.inflow[i] || 0);
-      histOut[m] = (histOut[m] || 0) + (series.outflow[i] || 0);
-    });
-  }
-  const seasonIn: Record<number, number[]> = {}, seasonOut: Record<number, number[]> = {};
-  for (const m of bank.months) {
-    if (m >= todayIso.slice(0, 7)) continue; // lopende maand is onvolledig
-    const moY = Number(m.slice(5, 7));
-    (seasonIn[moY] ??= []).push(histIn[m] || 0);
-    (seasonOut[moY] ??= []).push(histOut[m] || 0);
-  }
-  const avg = (a: number[] | undefined) => (a && a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
+  // ---- 8. Maandlaag tot eind volgend jaar + 6 mnd (zelfde seizoen als 6c) ----
   // 11 + 7: t/m JUNI van jaar+2 — met +6 eindigde de reeks op mei (audit 18/08).
   const endHorizon = new Date(Date.UTC(today.getUTCFullYear() + 1, 11 + 7, 1)); // eind volgend jaar + 6 mnd
   const months: FcMonth[] = [];
@@ -451,7 +480,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       "Factoring-variant: bij factoring-klanten is 85% van de bestaande posten al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt daar nog. Door KBC uitgesloten facturen (portaal-export 10/08: €42.518) tellen wél aan 100%; de Belfius- en BNP-uitsluitingslijsten ontbreken nog.",
       "Run-rate-laag: nieuwe facturatie loopt door op het gemiddelde weekritme van de laatste 12 volle weken (gesplitst factoring/niet-factoring); met factoring komt 85% daarvan ±1 week na uitreiking binnen (E-trans-aanname), de rest op betaalgedrag. Nieuwe inkopen lopen door op het 12-weken-ritme van de leveranciersfacturen (excl. leasing, ±30d betaaltermijn). Dit is een ritme-aanname, geen orderboek.",
       "Achterstallige posten (klant én leverancier) worden vlak gespreid over week 1–6 — een inningsaanname, geen belofte per post.",
-      "Lonen/RSZ = gemiddelde van de laatste 3 volle maanden op de 62-rekeningen, geboekt op maandeinde. Btw = 451-saldi tot €1M per firma ÉÉN keer op de eerstvolgende 20e; latere aangiftes zijn nog niet geraamd. Leasing = 12m-gemiddelde externe cash-out, begin maand.",
+      "Lonen/RSZ = gemiddelde van de laatste 3 volle maanden op de 62-rekeningen, excl. provisieboekingen (vakantiegeld/13e maand — geen maandcash), geboekt op maandeinde. Btw = 451-saldi tot €1M per firma ÉÉN keer op de eerstvolgende 20e; latere aangiftes zijn nog niet geraamd. Leasing = 12m-gemiddelde externe cash-out, begin maand.",
       btwUnclear > 0 ? `€ ${r0(btwUnclear).toLocaleString("nl-BE")} aan 451-saldi (>€1M per firma, o.a. WHS/TDR) staat NIET in het weekprofiel: het oogt opgestapeld (regime btw-provisierekening?) en de betaaltiming is onbekend — [PRIO]-vraag bij finance.` : "",
       "Maandlaag = seizoensgemiddelde van de échte bankmutaties (excl. factorbewegingen) — richtinggevend, geen budget. De 12-maanden indirecte prognose blijft EMAsphere.",
       `AP-posten met vervaldag ná week 13 (€ ${r0(apBeyond).toLocaleString("nl-BE")}) zitten niet in het weekbeeld.`,
@@ -468,7 +497,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
         : "",
       "Kasrealiteit (met factoring) is het echte saldo-pad; het wat-als toont de kost van stoppen met factoring. Rood = financieringsbehoefte (kredietlijnen zitten er bewust niet in).",
       "Nog niet aangesloten (fase 2): E-trans opmaakdatums (moment van aanbieding aan de factor), CODA-dagreconciliatie en de factorportaal-rapporten. Tot dan is de 85/15-timing een modelaanname.",
-      "Week 1–4 is operationeel scherp; week 5–13 richtinggevend. De maandlaag is een seizoensbeeld, geen toezegging.",
+      "Week 1–6 = individuele posten + kalender (scherp, doorklikbaar). Week 7–13 = het bankseizoensritme van de laatste 13 maanden — geijkt op de werkelijkheid (het pure itemmodel bleek daar te pessimistisch: september −€1,7M vs bankwerkelijkheid +€0,1M). De maandlaag gebruikt hetzelfde ritme, dus week- en maandbeeld sluiten op elkaar aan.",
     ] as string[]).filter(Boolean),
   };
 }
@@ -482,6 +511,7 @@ function demoCashForecast(): CfoCashForecast {
       inNoFactor: inN, inWithFactor: inF, inNewNoFactor: i >= 6 ? 850_000 : 0, inNewWithFactor: i >= 1 ? 700_000 : 0, outNew: i >= 4 ? 780_000 : 0,
       outAP: outA, outFixed: outF,
       netNoFactor: inN - outA - outF, netWithFactor: inF - outA - outF, cumNoFactor: 0, cumWithFactor: 0,
+      basis: (i >= 6 ? "seizoen" : "posten") as "posten" | "seizoen",
     };
   });
   // Demo consistent met het echte mechanisme: wat-als start ná 433-terugbetaling (audit 18/08).
@@ -500,4 +530,4 @@ function demoCashForecast(): CfoCashForecast {
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v8", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v9", buildCashForecast, demoCashForecast);

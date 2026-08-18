@@ -136,7 +136,7 @@ export function CashForecastView() {
           </div>
 
           <Card title={scenario === "zonder" ? "Saldo bank per week — wat-als: stoppen met factoring" : "Saldo bank per week — kasrealiteit"} period={`${weekRange(d.weeks[0].weekStart)} → ${weekRange(d.weeks[12].weekStart)}`}
-            hint="Eén balk per week = het verwachte banksaldo op zondag. Rood = tekort: dan is extra financiering of sneller innen nodig."
+            hint="Eén balk per week = verwacht banksaldo op zondag. Rood = tekort. Week 1–6 op individuele posten, week 7–13 op het bankseizoensritme."
             onSource={() => setKpiSrc({ label: "Saldo bank per week", value: "", bron: "Cumulatief saldo per week: echte bankstand van vandaag + verwachte ontvangsten (bestaande posten op betaalgedrag + nieuwe facturatie op 12-wekenritme) − leveranciers − lonen/btw/leasing − nieuwe inkopen. Kasrealiteit = met factoring: 85% van bestaande factoring-posten is al binnen; nieuwe facturatie geeft wél elke week verse voorschotten.", caveat: "Kredietlijnen/straight-loanopnames zitten er bewust niet in — een rode balk betekent 'financieringsbehoefte', niet 'lege kas'. Het wat-als 'stoppen met factoring' betaalt eerst het 433-voorschot terug en ontvangt daarna 100% per factuur — daarom ligt die lijn láger: factoring is structureel cash-positief." })}>
             {(() => {
               const key = scenario === "zonder" ? "cumNoFactor" as const : "cumWithFactor" as const;
@@ -248,7 +248,7 @@ export function CashForecastView() {
                         title="Klik: de grootste posten achter deze week, met BC-link"
                         className={`cursor-pointer border-b border-border/50 transition hover:bg-primary/5 ${openWeek === wi ? "bg-primary/5" : ""}`}
                       >
-                        <td className="py-1 pr-2 font-medium text-foreground">{w.label} · {weekRange(w.weekStart)}</td>
+                        <td className="py-1 pr-2 font-medium text-foreground">{w.label} · {weekRange(w.weekStart)}{w.basis === "seizoen" && <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[9px] font-semibold text-muted-foreground ring-1 ring-border" title="Vanaf week 7 rekent het model op het bankseizoensritme van de laatste 13 maanden — geijkt op de werkelijkheid; individuele posten domineren daar niet meer.">seizoen</span>}</td>
                         <td className="py-1 pr-2 text-right tabular-nums">{eurS(w.inNoFactor + w.inNewNoFactor)}</td>
                         <td className="py-1 pr-2 text-right tabular-nums">{eurS(w.inWithFactor + w.inNewWithFactor)}</td>
                         <td className="py-1 pr-2 text-right tabular-nums">{eurS(-w.outAP)}</td>
