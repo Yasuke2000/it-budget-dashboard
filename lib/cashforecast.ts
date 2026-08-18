@@ -25,6 +25,7 @@ import { fetchWithRetry } from "./http";
 import { getCache, setCache } from "./sync-cache";
 import { getReceivables } from "./receivables";
 import { getBank, type CfoBank } from "./bank";
+import { getMgmtPnl, type CfoMgmtPnl } from "./mgmt-pnl";
 import { isIcName } from "./cfo";
 import { vendorLedgerDocLink, custLedgerDocLink } from "./bc-links";
 
@@ -154,6 +155,22 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   // ---- 1. Onderliggende datasets (delen dezelfde bron van waarheid) ----
   const rcv = await waitFor<CfoReceivables>(() => getReceivables(false, exclude) as Promise<CfoReceivables | { building: true }>);
   const bank = await waitFor<CfoBank>(() => getBank(false, exclude) as Promise<CfoBank | { building: true }>);
+
+  // Omzetgroeifactor (vraag David 18/08: "vergelijk met vorig jaar, volg dezelfde
+  // trends, op basis van jaaromzet"): het seizoensritme is "zelfde maand vorig
+  // jaar" uit de bankmutaties; die schalen we met de omzettrend uit de eigen
+  // Management-P&L (omzet YTD dit jaar / dezelfde maanden vorig jaar, volle
+  // maanden). Begrensd op 0,8–1,25: een groeifactor is een trend, geen hefboom.
+  let groei = 1;
+  try {
+    const y = today.getUTCFullYear();
+    const pnlNow = await waitFor<CfoMgmtPnl>(() => getMgmtPnl(false, exclude, `${y}|ALL`) as Promise<CfoMgmtPnl | { building: true }>, 20);
+    const pnlPrev = await waitFor<CfoMgmtPnl>(() => getMgmtPnl(false, exclude, `${y - 1}|ALL`) as Promise<CfoMgmtPnl | { building: true }>, 20);
+    const lastFull = today.getUTCMonth(); // aantal volle maanden (0-based huidige maand)
+    const som = (p: CfoMgmtPnl) => (p.rows.find((r) => r.id === "omzet")?.monthly || []).slice(0, lastFull).reduce((a, b) => a + b, 0);
+    const nu = som(pnlNow), vorig = som(pnlPrev);
+    if (vorig > 1_000_000 && nu > 0) groei = Math.min(1.25, Math.max(0.8, nu / vorig));
+  } catch { /* P&L niet beschikbaar → groei 1 (puur vorig-jaar-ritme) */ }
 
   // ---- 2. Weekraster (13 weken, ma–zo) ----
   const weeks: FcWeek[] = Array.from({ length: 13 }, (_, i) => ({
@@ -406,7 +423,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     const mm = Number(w.weekStart.slice(5, 7));
     const y = Number(w.weekStart.slice(0, 4));
     const dim = new Date(Date.UTC(y, mm, 0)).getUTCDate();
-    const wIn = (avg(seasonIn[mm]) * 7) / dim, wOut = (avg(seasonOut[mm]) * 7) / dim;
+    const wIn = (avg(seasonIn[mm]) * groei * 7) / dim, wOut = (avg(seasonOut[mm]) * groei * 7) / dim;
     w.basis = "seizoen";
     w.inNoFactor = wIn; w.inWithFactor = wIn;
     w.inNewNoFactor = 0; w.inNewWithFactor = 0;
@@ -451,7 +468,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   for (let d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)); d < endHorizon; d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))) {
     const m = iso(d).slice(0, 7);
     const moY = Number(m.slice(5, 7));
-    let inS = avg(seasonIn[moY]), outS = avg(seasonOut[moY]);
+    let inS = avg(seasonIn[moY]) * groei, outS = avg(seasonOut[moY]) * groei;
     // Lopende maand pro-rata (audit 18/08): bankNow bevat de maand-tot-datum-
     // mutaties al — alleen het RESTANT van deze maand projecteren, anders telt
     // het verstreken deel dubbel.
@@ -521,7 +538,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
         : "",
       "Kasrealiteit (met factoring) is het echte saldo-pad; het wat-als toont de kost van stoppen met factoring. Rood = financieringsbehoefte (kredietlijnen zitten er bewust niet in).",
       "Nog niet aangesloten (fase 2): E-trans opmaakdatums (moment van aanbieding aan de factor), CODA-dagreconciliatie en de factorportaal-rapporten. Tot dan is de 85/15-timing een modelaanname.",
-      "Week 1–6 = individuele posten + kalender (scherp, doorklikbaar). Week 7–13 = het bankseizoensritme van de laatste 13 maanden — geijkt op de werkelijkheid (het pure itemmodel bleek daar te pessimistisch: september −€1,7M vs bankwerkelijkheid +€0,1M). De maandlaag gebruikt hetzelfde ritme, dus week- en maandbeeld sluiten op elkaar aan.",
+      "Week 1–6 = individuele posten + kalender (scherp, doorklikbaar). Week 7–13 en de maandlaag = het bankritme van dezelfde maand vorig jaar, geschaald met de omzettrend uit de Management-P&L (omzet volle maanden dit jaar ÷ zelfde maanden vorig jaar, begrensd 0,8–1,25)" + (typeof groei === "number" && groei !== 1 ? ` — groeifactor nu: ${groei.toFixed(2)}` : "") + ". Geijkt op de werkelijkheid: het pure itemmodel bleek in het verre venster te pessimistisch (september −€1,7M vs bankwerkelijkheid +€0,1M).",
     ] as string[]).filter(Boolean),
   };
 }
@@ -554,4 +571,4 @@ function demoCashForecast(): CfoCashForecast {
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v12", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v13", buildCashForecast, demoCashForecast);
