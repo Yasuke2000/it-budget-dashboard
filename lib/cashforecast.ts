@@ -77,6 +77,9 @@ export interface FcCompanyMisc {
   unappliedPayments: number; unappliedCount: number; // open betalingen/bankontvangsten zonder factuur (incl. blanco documenttype)
   openCn: number;         // open creditnota's
   saldoKrediet: number;   // 43x excl. 433: straight loans/opticash e.d. (schuld = negatief)
+  // Detail HOORT in de gecachete rij: buiten de cache verzameld gaf hij een lege
+  // lijst zodra de firma-cache warm was (bug 18/08 — "detail: 0 posten").
+  topUnapplied?: { party: string; doc: string; type: string; amount: number }[];
   degraded?: boolean;     // trialBalances faalde → 433/451 onbekend (niet 0!)
 }
 export interface CfoCashForecast {
@@ -238,12 +241,12 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
 
   // ---- 5. 433/451-saldi + niet-toegewezen betalingen per firma ----
   const perCompany: FcCompanyMisc[] = [];
-  const unappliedDetail: CfoCashForecast["unappliedDetail"] = [];
+  
   for (const c of companies) {
-    const key = `cf-misc3-${c.code}-${todayIso}`;
+    const key = `cf-misc4-${c.code}-${todayIso}`;
     const cached = getCache<FcCompanyMisc>(key);
     if (cached) { perCompany.push(cached); continue; }
-    const row: FcCompanyMisc = { company: c.code, saldo433: 0, btwSaldo: 0, unappliedPayments: 0, unappliedCount: 0, openCn: 0, saldoKrediet: 0 };
+    const row: FcCompanyMisc = { company: c.code, saldo433: 0, btwSaldo: 0, unappliedPayments: 0, unappliedCount: 0, openCn: 0, saldoKrediet: 0, topUnapplied: [] };
     try {
       for (const b of await fetchAccountBalances(c.id, todayIso, token)) {
         if (b.no.startsWith("433")) row.saldo433 += b.amount;
@@ -266,15 +269,15 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       if (e.Document_Type === "Credit Memo") row.openCn += rem;
       else {
         row.unappliedPayments += rem; row.unappliedCount++;
-        unappliedDetail.push({
-          co: c.code, party: String(e.Customer_Name || "").trim(), doc: String(e.Document_No || ""),
+        row.topUnapplied!.push({
+          party: String(e.Customer_Name || "").trim(), doc: String(e.Document_No || ""),
           type: String(e.Document_Type || "").trim() || "bankontvangst", amount: r0(rem),
-          bcUrl: custLedgerDocLink(c.code, String(e.Document_No || "")),
         });
       }
     }, token);
     row.saldo433 = r0(row.saldo433); row.btwSaldo = r0(row.btwSaldo); row.saldoKrediet = r0(row.saldoKrediet);
     row.unappliedPayments = r0(row.unappliedPayments); row.openCn = r0(row.openCn);
+    row.topUnapplied = (row.topUnapplied || []).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).slice(0, 15);
     if (!row.degraded) setCache(key, row, 720);
     perCompany.push(row);
   }
@@ -474,7 +477,11 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     lowPoint: { noFactor: lowN, withFactor: lowF },
     negativeWeeks: { noFactor: negN, withFactor: negF },
     perCompany,
-    unappliedDetail: unappliedDetail.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).slice(0, 25),
+    // Uit de gecachete rijen samengesteld — overleeft warme caches (bugfix 18/08).
+    unappliedDetail: perCompany
+      .flatMap((x) => (x.topUnapplied || []).map((u) => ({ co: x.company, ...u, bcUrl: custLedgerDocLink(x.company, u.doc) })))
+      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+      .slice(0, 25),
     weekDetail: {
       in: (rcv.forecastDetail || []).map((r) => ({
         week: r.week, co: r.co, party: r.cust, doc: r.doc, amount: r.amount,
@@ -547,4 +554,4 @@ function demoCashForecast(): CfoCashForecast {
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v11", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v12", buildCashForecast, demoCashForecast);
