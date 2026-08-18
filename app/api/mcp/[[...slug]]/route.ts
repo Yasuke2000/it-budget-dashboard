@@ -3,8 +3,11 @@
 // zijn laptop (vraag David 18/08/2026). Beveiliging: statisch bearer-token uit
 // de omgeving (MCP_TOKEN, k8s-secret) — géén token, géén antwoord. Alles
 // ALLEEN-LEZEN: dezelfde regels als de lokale MCP-server (nooit $top, ReadOnly).
-// Client-kant: npx mcp-remote https://itfinance.daviddelporte.com/api/mcp
-//              --header "Authorization: Bearer <token>"
+// Client-kant (vraag David 18/08: géén installatie bij de CFO): custom
+// connector in claude.ai/Claude Desktop met het token ÍN de URL —
+//   https://itfinance.daviddelporte.com/api/mcp/<token>
+// (capability-URL: de URL ís de sleutel; alleen delen met wie mag lezen,
+// intrekken = token in het k8s-secret vervangen). Bearer-header werkt ook.
 
 import { getBCToken } from "@/lib/bc-client";
 import { ODATA_ROOT, API_ROOT, pageAllOData } from "@/lib/bc-odata";
@@ -96,10 +99,12 @@ function rpcErr(id: unknown, code: number, message: string): Response {
   return Response.json({ jsonrpc: "2.0", id, error: { code, message } });
 }
 
-export async function POST(req: Request) {
+export async function POST(req: Request, ctx: { params: Promise<{ slug?: string[] }> }) {
   const expected = process.env.MCP_TOKEN;
-  const got = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
-  if (!expected || got !== expected) return new Response("Unauthorized", { status: 401 });
+  const header = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+  const { slug } = await ctx.params;
+  const pathToken = (slug || [])[0] || "";
+  if (!expected || (header !== expected && pathToken !== expected)) return new Response("Unauthorized", { status: 401 });
 
   let msg: { jsonrpc?: string; id?: unknown; method?: string; params?: Record<string, unknown> };
   try { msg = await req.json(); } catch { return rpcErr(null, -32700, "Parse error"); }
