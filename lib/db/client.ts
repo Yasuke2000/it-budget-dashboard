@@ -128,6 +128,18 @@ CREATE TABLE IF NOT EXISTS cfo_snapshots (
 );
 CREATE INDEX IF NOT EXISTS cfo_snapshots_taken_on ON cfo_snapshots (taken_on DESC);
 
+-- Dagelijkse cashpositie (vraag CFO 18/08/2026): één rij per dag zodat de
+-- dalende outstandings en het credit-control-resultaat als trend zichtbaar zijn.
+CREATE TABLE IF NOT EXISTS cfo_dagstand (
+  dag              DATE PRIMARY KEY,
+  bank_eigen       NUMERIC(18,2) NOT NULL,
+  open_extern      NUMERIC(18,2) NOT NULL,
+  vervallen        NUMERIC(18,2) NOT NULL,
+  ontvangen_gister NUMERIC(18,2) NOT NULL,
+  detail           JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS contracts (
   id                 TEXT PRIMARY KEY,
   vendor             TEXT NOT NULL,
