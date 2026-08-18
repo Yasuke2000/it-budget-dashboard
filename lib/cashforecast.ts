@@ -26,7 +26,7 @@ import { getCache, setCache } from "./sync-cache";
 import { getReceivables } from "./receivables";
 import { getBank, type CfoBank } from "./bank";
 import { isIcName } from "./cfo";
-import { vendorLedgerDocLink } from "./bc-links";
+import { vendorLedgerDocLink, custLedgerDocLink } from "./bc-links";
 
 const r0 = (n: number) => Math.round(n);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -76,6 +76,7 @@ export interface FcCompanyMisc {
   btwSaldo: number;       // 451-range: te betalen btw
   unappliedPayments: number; unappliedCount: number; // open betalingen/bankontvangsten zonder factuur (incl. blanco documenttype)
   openCn: number;         // open creditnota's
+  saldoKrediet: number;   // 43x excl. 433: straight loans/opticash e.d. (schuld = negatief)
   degraded?: boolean;     // trialBalances faalde → 433/451 onbekend (niet 0!)
 }
 export interface CfoCashForecast {
@@ -89,7 +90,10 @@ export interface CfoCashForecast {
   negativeWeeks: { noFactor: string[]; withFactor: string[] };
   perCompany: FcCompanyMisc[];
   weekDetail: { in: FcDetailRow[]; out: FcDetailRow[] }; // top 15 per week, met BC-link
-  totals: { unapplied: number; unappliedCount: number; saldo433: number; btw: number; btwUnclear: number; payrollMonthly: number; leasingMonthly: number };
+  // De grootste niet-toegewezen ontvangsten (de −€1,6M-correctie), met BC-link
+  // per post — vraag David 18/08 ("geef me een linkje").
+  unappliedDetail: { co: string; party: string; doc: string; type: string; amount: number; bcUrl: string }[];
+  totals: { unapplied: number; unappliedCount: number; saldo433: number; btw: number; btwUnclear: number; saldoKrediet: number; payrollMonthly: number; leasingMonthly: number };
   aannames: string[];
   sources: CfoSource[]; notes: string[];
   refreshing?: boolean;
@@ -234,14 +238,16 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
 
   // ---- 5. 433/451-saldi + niet-toegewezen betalingen per firma ----
   const perCompany: FcCompanyMisc[] = [];
+  const unappliedDetail: CfoCashForecast["unappliedDetail"] = [];
   for (const c of companies) {
-    const key = `cf-misc1-${c.code}-${todayIso}`;
+    const key = `cf-misc3-${c.code}-${todayIso}`;
     const cached = getCache<FcCompanyMisc>(key);
     if (cached) { perCompany.push(cached); continue; }
-    const row: FcCompanyMisc = { company: c.code, saldo433: 0, btwSaldo: 0, unappliedPayments: 0, unappliedCount: 0, openCn: 0 };
+    const row: FcCompanyMisc = { company: c.code, saldo433: 0, btwSaldo: 0, unappliedPayments: 0, unappliedCount: 0, openCn: 0, saldoKrediet: 0 };
     try {
       for (const b of await fetchAccountBalances(c.id, todayIso, token)) {
         if (b.no.startsWith("433")) row.saldo433 += b.amount;
+        else if (b.no.startsWith("43")) row.saldoKrediet += b.amount; // straight loans/opticash/vak.geld-krediet
         if (b.no.startsWith("451")) row.btwSaldo += b.amount;
       }
     } catch {
@@ -254,13 +260,20 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     // het filter op alleen Payment/Credit Memo miste die en de "niet-toegewezen"
     // KPI stond daardoor €975k te laag.
     const filt = encodeURIComponent(`Open eq true and Document_Type ne 'Invoice'`);
-    await pageAllOData(`${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(c.code)}')/Cust_LedgerEntries?$filter=${filt}&$select=Document_Type,Remaining_Amt_LCY,Customer_Name`, (e) => {
+    await pageAllOData(`${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(c.code)}')/Cust_LedgerEntries?$filter=${filt}&$select=Document_Type,Document_No,Remaining_Amt_LCY,Customer_Name`, (e) => {
       const rem = (e.Remaining_Amt_LCY as number) || 0;
       if (Math.abs(rem) < 1 || isIcName(String(e.Customer_Name || ""))) return;
       if (e.Document_Type === "Credit Memo") row.openCn += rem;
-      else { row.unappliedPayments += rem; row.unappliedCount++; }
+      else {
+        row.unappliedPayments += rem; row.unappliedCount++;
+        unappliedDetail.push({
+          co: c.code, party: String(e.Customer_Name || "").trim(), doc: String(e.Document_No || ""),
+          type: String(e.Document_Type || "").trim() || "bankontvangst", amount: r0(rem),
+          bcUrl: custLedgerDocLink(c.code, String(e.Document_No || "")),
+        });
+      }
     }, token);
-    row.saldo433 = r0(row.saldo433); row.btwSaldo = r0(row.btwSaldo);
+    row.saldo433 = r0(row.saldo433); row.btwSaldo = r0(row.btwSaldo); row.saldoKrediet = r0(row.saldoKrediet);
     row.unappliedPayments = r0(row.unappliedPayments); row.openCn = r0(row.openCn);
     if (!row.degraded) setCache(key, row, 720);
     perCompany.push(row);
@@ -461,6 +474,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     lowPoint: { noFactor: lowN, withFactor: lowF },
     negativeWeeks: { noFactor: negN, withFactor: negF },
     perCompany,
+    unappliedDetail: unappliedDetail.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).slice(0, 25),
     weekDetail: {
       in: (rcv.forecastDetail || []).map((r) => ({
         week: r.week, co: r.co, party: r.cust, doc: r.doc, amount: r.amount,
@@ -471,11 +485,13 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     totals: {
       unapplied: r0(unappliedTotal), unappliedCount: perCompany.reduce((s, x) => s + x.unappliedCount, 0),
       saldo433: r0(saldo433Total), btw: r0(btwPayable), btwUnclear: r0(btwUnclear),
+      saldoKrediet: r0(perCompany.reduce((s, x) => s + x.saldoKrediet, 0)),
       payrollMonthly: r0(payrollMonthly), leasingMonthly: r0(leasingMonthly),
     },
     aannames: ([
       "Betaalmoment per klant = factuurdatum + de bedrag-gewogen gemiddelde betaalduur van dié klant (gemeten op de betaalde facturen; kleinere klanten vallen terug op de groepsmediaan). Niet de vervaldag — de grootste accuraatheidswinst volgens best practice.",
       `Niet-toegewezen ontvangsten (open betalingen + bankontvangsten zonder factuurkoppeling, € ${r0(Math.abs(unappliedNet)).toLocaleString("nl-BE")}) staan al in de bankstand en zijn daarom GESALDEERD in de instroom van week 1–6 — anders telden hun facturen dubbel. Bij factoring-klanten is die correctie licht conservatief.`,
+      "Straight loans/opticash: de getrokken cash zit al in de bankstand; de schuld zelf (43x excl. 433) en de vervaldagen/rollovers zijn NIET ingepland (rentevoeten en vervaldagen = openstaande vraag bij finance). Rood = behoefte bovenop wat al getrokken is.",
       "Recourse-terugnames door de factor (>90d onbetaalde gefactorde posten) zitten nog niet als uitstroom in het weekprofiel — bekend hiaat, wordt zichtbaar via de 433-monitor.",
       "Wat-als 'stoppen met factoring': die lijn betaalt eerst het opgenomen 433-voorschot terug (conservatief: meteen) en ontvangt daarna 100% van elke factuur op betaalgedrag. Daardoor ligt hij ónder de kasrealiteit — factoring is structureel cash-positief zolang de omzet draait.",
       "Factoring-variant: bij factoring-klanten is 85% van de bestaande posten al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt daar nog. Door KBC uitgesloten facturen (portaal-export 10/08: €42.518) tellen wél aan 100%; de Belfius- en BNP-uitsluitingslijsten ontbreken nog.",
@@ -524,11 +540,11 @@ function demoCashForecast(): CfoCashForecast {
     weeks, beyond13w: { inNoFactor: 800_000, inWithFactor: 300_000 },
     months: [], lowPoint: { noFactor: { week: weeks[8].weekStart, value: -4_100_000 }, withFactor: { week: weeks[6].weekStart, value: -510_000 } },
     negativeWeeks: { noFactor: [weeks[8].weekStart], withFactor: [weeks[6].weekStart, weeks[7].weekStart] },
-    perCompany: [{ company: "WHS", saldo433: -1_350_000, btwSaldo: -220_000, unappliedPayments: -180_000, unappliedCount: 14, openCn: -60_000 }],
-    weekDetail: { in: [], out: [] },
-    totals: { unapplied: -180_000, unappliedCount: 14, saldo433: -1_350_000, btw: 220_000, btwUnclear: 0, payrollMonthly: 1_450_000, leasingMonthly: 410_000 },
+    perCompany: [{ company: "WHS", saldo433: -1_350_000, btwSaldo: -220_000, unappliedPayments: -180_000, unappliedCount: 14, openCn: -60_000, saldoKrediet: -500_000 }],
+    weekDetail: { in: [], out: [] }, unappliedDetail: [],
+    totals: { unapplied: -180_000, unappliedCount: 14, saldo433: -1_350_000, btw: 220_000, btwUnclear: 0, saldoKrediet: -500_000, payrollMonthly: 1_450_000, leasingMonthly: 410_000 },
     aannames: ["Demomodus"], sources: [{ label: "Demo", detail: "Demomodus — live versie leest BC." }], notes: [],
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v10", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v11", buildCashForecast, demoCashForecast);
