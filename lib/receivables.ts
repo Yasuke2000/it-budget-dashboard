@@ -102,6 +102,14 @@ function mondayOf(d: Date): Date {
   return x;
 }
 function addDays(d: Date, n: number): Date { const x = new Date(d); x.setUTCDate(x.getUTCDate() + n); return x; }
+// Echt ISO-weeknummer voor de weeklabels (vraag David 19/08: "de correcte weken").
+function isoWeekNum(d: Date): number {
+  const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7) + 3); // donderdag van de week
+  const jan4 = new Date(Date.UTC(x.getUTCFullYear(), 0, 4));
+  jan4.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7) + 3);
+  return 1 + Math.round((x.getTime() - jan4.getTime()) / (7 * 86400000));
+}
 function monthEndISO(y: number, m0: number): string { return iso(new Date(Date.UTC(y, m0 + 1, 0))); }
 function daysBetween(a: string, b: string): number {
   return Math.round((new Date(`${b}T00:00:00Z`).getTime() - new Date(`${a}T00:00:00Z`).getTime()) / 86400000);
@@ -709,7 +717,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   const globalDays = dsoInvoiceLevel.medianDays ?? 45;
   const w0 = mondayOf(today);
   const cashExpectation: RcvCashWeekExpectation[] = Array.from({ length: 13 }, (_, i) => ({
-    weekStart: iso(addDays(w0, i * 7)), label: `wk ${String(i + 1).padStart(2, "0")}`, expected: 0, onDueDate: 0,
+    weekStart: iso(addDays(w0, i * 7)), label: `wk ${isoWeekNum(addDays(w0, i * 7))}`, expected: 0, onDueDate: 0,
   }));
   const weekOf = (dateIso: string): number => {
     const wi = Math.floor(daysBetween(iso(w0), dateIso) / 7);
@@ -743,17 +751,23 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     // Forecast-reeksen: posten waarvan het verwachte betaalmoment al VERSTREKEN is
     // (achterstallig t.o.v. het eigen betaalgedrag) komen niet allemaal deze week
     // binnen — die spreiden we vlak over week 1–6 (inningsaanname, cf. belwerk).
-    const addFc = (wi: number, amt: number) => {
+    const addFc = (wi: number, amt: number, isSpread = false) => {
       if (wi < 13) {
         cashExpectation[wi].expectedNet = (cashExpectation[wi].expectedNet || 0) + amt;
         cashExpectation[wi].expectedFactor = (cashExpectation[wi].expectedFactor || 0) + amt * factorShare;
+        // Achterstal apart bijhouden (vraag David 19/08): zo kan de prognose
+        // het "verleden" (inhaal op oude posten) scheiden van het day-to-day-ritme.
+        if (isSpread) {
+          cashExpectation[wi].spreadNet = (cashExpectation[wi].spreadNet || 0) + amt;
+          cashExpectation[wi].spreadFactor = (cashExpectation[wi].spreadFactor || 0) + amt * factorShare;
+        }
       } else {
         forecastBeyond.net += amt;
         forecastBeyond.factor += amt * factorShare;
       }
     };
     const spread = expIso < todayIso;
-    if (spread) { for (let k = 0; k < 6; k++) addFc(k, openAmt / 6); }
+    if (spread) { for (let k = 0; k < 6; k++) addFc(k, openAmt / 6, true); }
     else addFc(ei, openAmt);
     forecastDetail.push({
       week: spread ? 0 : Math.min(ei, 13), co: inv.co, cust: inv.rawCust, doc: inv.doc,
@@ -774,6 +788,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   for (const w of cashExpectation) {
     w.expected = r0(w.expected); w.onDueDate = r0(w.onDueDate);
     w.expectedNet = r0(w.expectedNet || 0); w.expectedFactor = r0(w.expectedFactor || 0);
+    w.spreadNet = r0(w.spreadNet || 0); w.spreadFactor = r0(w.spreadFactor || 0);
   }
   forecastBeyond.net = r0(forecastBeyond.net); forecastBeyond.factor = r0(forecastBeyond.factor);
 
@@ -1279,7 +1294,8 @@ export async function getReceivables(
   const excl = [...new Set(exclude.map((x) => x.trim().toUpperCase()).filter(Boolean))].sort();
   // v4: DSO-rijpheid en de uitsluiting van eenmalige verkopen wijzigen de reeksen —
   // een payload van een oudere build mag nooit blijven hangen (die toonde 132.302 dagen).
-  const cacheKey = `rcv-v9-x:${excl.join(",")}`;
+  // v10: spreadNet/spreadFactor per week (achterstal-splitsing 19/08).
+  const cacheKey = `rcv-v10-x:${excl.join(",")}`;
   const cached = getCache<CfoReceivables>(cacheKey);
   if (cached && !force) return cached;
 
@@ -1396,7 +1412,7 @@ function demoReceivables(): CfoReceivables {
       })),
     },
     cashExpectation: Array.from({ length: 13 }, (_, i) => ({
-      weekStart: iso(addDays(m0, i * 7)), label: `wk ${String(i + 1).padStart(2, "0")}`,
+      weekStart: iso(addDays(m0, i * 7)), label: `wk ${isoWeekNum(addDays(m0, i * 7))}`,
       expected: wave(i, 1_050_000, 260_000), onDueDate: wave(i, 1_180_000, 420_000, 2),
     })),
     icShare: { arOpenIcPct: 27.9, salesIcPct: 23.4 },

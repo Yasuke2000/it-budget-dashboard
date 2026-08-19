@@ -789,6 +789,11 @@ export interface RcvCashWeekExpectation {
   // factoring waarbij factoring-klanten alleen het 15%-saldo als kasontvangst geven.
   expectedNet?: number;
   expectedFactor?: number;
+  // Het deel van expectedNet/expectedFactor dat uit ACHTERSTALLIGE posten komt
+  // (verwacht betaalmoment al verstreken → 1/6 gespreid over wk 1–6). Vraag David
+  // 19/08: de prognose moet ook zónder deze "lasten van het verleden" kunnen.
+  spreadNet?: number;
+  spreadFactor?: number;
 }
 
 export interface CfoReceivables {

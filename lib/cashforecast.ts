@@ -38,6 +38,15 @@ function mondayOf(d: Date): Date {
   const wd = (x.getUTCDay() + 6) % 7;
   return addDays(x, -wd);
 }
+// Echt ISO-weeknummer (vraag David 19/08: "gebruik bij alles de correcte weken") —
+// labels tonen de kalenderweek (wk 34, 35, …) i.p.v. een telnummer vanaf 1.
+function isoWeekNum(d: Date): number {
+  const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7) + 3); // donderdag van de week
+  const jan4 = new Date(Date.UTC(x.getUTCFullYear(), 0, 4));
+  jan4.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7) + 3);
+  return 1 + Math.round((x.getTime() - jan4.getTime()) / (7 * 86400000));
+}
 
 export interface FcWeek {
   weekStart: string; label: string;
@@ -57,6 +66,13 @@ export interface FcWeek {
   // Hybride (audit 18/08): wk 1–6 = individuele posten + kalender (scherp,
   // doorklikbaar); wk 7–13 = bankseizoensritme (geijkt op 13 mnd echte mutaties).
   basis: "posten" | "seizoen";
+  // "Lasten van het verleden" (vraag David 19/08): het deel van in/uit dat uit
+  // ACHTERSTAL komt — oude AR-inhaal (incl. de niet-toegewezen-saldering) en
+  // achterstallige AP, beide 1/6 gespreid over wk 1–6. De view kan hiermee een
+  // prognose op het zuivere day-to-day-ritme tonen: in − inOld, outAP − outOldAP.
+  inOldNoFactor: number;
+  inOldWithFactor: number;
+  outOldAP: number;
 }
 export interface FcMonth {
   month: string;          // "2026-09"
@@ -90,6 +106,12 @@ export interface CfoCashForecast {
   factorCredit: number;   // opgenomen factorvoorschot (schuld, geen cash)
   weeks: FcWeek[];        // 13 weken
   beyond13w: { inNoFactor: number; inWithFactor: number }; // AR verwacht ná week 13
+  // Totalen van de "lasten van het verleden" (vraag David 19/08): wat er in
+  // wk 1–6 aan achterstal-inhaal zit. inAR = verwachte inning uit oude klant-
+  // posten (bruto, vóór de niet-toegewezen-saldering; factor-variant ernaast),
+  // uitAP = achterstallige leveranciersposten. De zonder-verleden-weergave
+  // haalt dit (plus de niet-toegewezen-correctie) uit het weekprofiel.
+  verleden: { inAR: number; inARFactor: number; uitAP: number };
   months: FcMonth[];      // historiek + projectie tot eind volgend jaar + 6 mnd
   lowPoint: { noFactor: { week: string; value: number }; withFactor: { week: string; value: number } };
   negativeWeeks: { noFactor: string[]; withFactor: string[] };
@@ -173,13 +195,14 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     if (vorig > 1_000_000 && nu > 0) groei = Math.min(1.25, Math.max(0.8, nu / vorig));
   } catch { /* P&L niet beschikbaar → groei 1 (puur vorig-jaar-ritme) */ }
 
-  // ---- 2. Weekraster (13 weken, ma–zo) ----
+  // ---- 2. Weekraster (13 weken, ma–zo; labels = échte ISO-weeknummers) ----
   const weeks: FcWeek[] = Array.from({ length: 13 }, (_, i) => ({
-    weekStart: iso(addDays(w0, i * 7)), label: `wk ${String(i + 1).padStart(2, "0")}`,
+    weekStart: iso(addDays(w0, i * 7)), label: `wk ${isoWeekNum(addDays(w0, i * 7))}`,
     inNoFactor: 0, inWithFactor: 0, inNewNoFactor: 0, inNewWithFactor: 0, outNew: 0,
     outAP: 0, outFixed: 0,
     netNoFactor: 0, netWithFactor: 0, cumNoFactor: 0, cumWithFactor: 0,
     basis: "posten" as const,
+    inOldNoFactor: 0, inOldWithFactor: 0, outOldAP: 0,
   }));
   const weekOf = (dateIso: string): number => {
     const wi = Math.floor((Date.parse(`${dateIso}T00:00:00Z`) - w0.getTime()) / (7 * 86400000));
@@ -187,8 +210,13 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   };
 
   // Instromen uit de receivables-motor (betaalgedrag per klant, CN gesaldeerd).
+  // spreadNet/spreadFactor = het achterstal-deel (inhaal op oude posten) —
+  // apart bijgehouden zodat de view het "verleden" kan scheiden van het ritme.
   rcv.cashExpectation.forEach((w, i) => {
-    if (i < 13) { weeks[i].inNoFactor = w.expectedNet || 0; weeks[i].inWithFactor = w.expectedFactor || 0; }
+    if (i < 13) {
+      weeks[i].inNoFactor = w.expectedNet || 0; weeks[i].inWithFactor = w.expectedFactor || 0;
+      weeks[i].inOldNoFactor = w.spreadNet || 0; weeks[i].inOldWithFactor = w.spreadFactor || 0;
+    }
   });
   const beyond13w = {
     inNoFactor: rcv.forecastBeyond?.net || 0,
@@ -215,7 +243,8 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       if (when < todayIso) {
         // Achterstallige leveranciers betalen we niet allemaal deze week —
         // inhaalritme gespreid over week 1–6 (eigen keuze, zelfde spreiding als AR).
-        for (let k = 0; k < 6; k++) weeks[k].outAP += rem / 6;
+        // Ook apart geteld als "verleden" (outOldAP) voor de day-to-day-weergave.
+        for (let k = 0; k < 6; k++) { weeks[k].outAP += rem / 6; weeks[k].outOldAP += rem / 6; }
         week = 0;
       } else {
         const wi = weekOf(when);
@@ -325,6 +354,10 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   for (let k = 0; k < 6; k++) {
     weeks[k].inNoFactor += unappliedNet / 6;
     weeks[k].inWithFactor += unappliedNet / 6;
+    // Hoort bij het "verleden": deze ontvangsten corrigeren oude, nog niet
+    // afgepunte posten. Zonder-verleden-weergave haalt beide samen weg.
+    weeks[k].inOldNoFactor += unappliedNet / 6;
+    weeks[k].inOldWithFactor += unappliedNet / 6;
   }
 
   // ---- 6. Leasing: gemiddelde maandelijkse externe cash-out (12m) ----
@@ -432,6 +465,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     w.inNoFactor = wIn; w.inWithFactor = wIn;
     w.inNewNoFactor = 0; w.inNewWithFactor = 0;
     w.outAP = wOut; w.outFixed = 0; w.outNew = 0;
+    w.inOldNoFactor = 0; w.inOldWithFactor = 0; w.outOldAP = 0; // seizoen = ritme, geen achterstal
   }
 
   // ---- 7. Cumulatief saldo + kantelpunten (anker = echte bankstand) ----
@@ -450,6 +484,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     w.inNoFactor = r0(w.inNoFactor); w.inWithFactor = r0(w.inWithFactor);
     w.inNewNoFactor = r0(w.inNewNoFactor); w.inNewWithFactor = r0(w.inNewWithFactor);
     w.outAP = r0(w.outAP); w.outFixed = r0(w.outFixed); w.outNew = r0(w.outNew);
+    w.inOldNoFactor = r0(w.inOldNoFactor); w.inOldWithFactor = r0(w.inOldWithFactor); w.outOldAP = r0(w.outOldAP);
     w.netNoFactor = r0(w.inNoFactor + w.inNewNoFactor - w.outAP - w.outFixed - w.outNew);
     w.netWithFactor = r0(w.inWithFactor + w.inNewWithFactor - w.outAP - w.outFixed - w.outNew);
     cumN += w.netNoFactor; cumF += w.netWithFactor;
@@ -494,6 +529,11 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     asOf: new Date().toISOString(), isLive: true,
     bankNow: r0(bankNow), factorCredit: r0(bank.totals.factorCredit),
     weeks, beyond13w: { inNoFactor: r0(beyond13w.inNoFactor), inWithFactor: r0(beyond13w.inWithFactor) },
+    verleden: {
+      inAR: r0(rcv.cashExpectation.reduce((s, w) => s + (w.spreadNet || 0), 0)),
+      inARFactor: r0(rcv.cashExpectation.reduce((s, w) => s + (w.spreadFactor || 0), 0)),
+      uitAP: r0(weeks.reduce((s, w) => s + w.outOldAP, 0)),
+    },
     months,
     lowPoint: { noFactor: lowN, withFactor: lowF },
     negativeWeeks: { noFactor: negN, withFactor: negF },
@@ -525,6 +565,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       "Factoring-variant: bij factoring-klanten is 85% van de bestaande posten al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt daar nog. Door KBC uitgesloten facturen (portaal-export 10/08: €42.518) tellen wél aan 100%; de Belfius- en BNP-uitsluitingslijsten ontbreken nog.",
       "Run-rate-laag: nieuwe facturatie loopt door op het gemiddelde weekritme van de laatste 12 volle weken (gesplitst factoring/niet-factoring); met factoring komt 85% daarvan ±1 week na uitreiking binnen (E-trans-aanname), de rest op betaalgedrag. Nieuwe inkopen lopen door op het 12-weken-ritme van de leveranciersfacturen (excl. leasing, ±30d betaaltermijn). Dit is een ritme-aanname, geen orderboek.",
       "Achterstallige posten (klant én leverancier) worden vlak gespreid over week 1–6 — een inningsaanname, geen belofte per post.",
+      "Weergave 'zonder achterstal uit het verleden' (schakelaar boven de grafiek): haalt de inhaal op oude posten — achterstallige klantposten, achterstallige leveranciersposten én de niet-toegewezen-saldering — uit het weekprofiel, zodat je het zuivere day-to-day-ritme ziet. De achterstal verdwijnt daarmee NIET: hij staat als aparte pot naast de grafiek en moet bovenop dit ritme worden ingehaald (belwerk) of betaald.",
       `Apart gezette leveranciersposten tellen NIET als cash-out (${AP_UITZONDERINGEN.map((u) => `${u.co} ${u.doc}`).join(", ")} — o.a. de ES Finance-aktefactuur Sint-Niklaas €1,93M: al in de P&L als uitzonderlijke kost, wordt via de akte verrekend). Volledige lijst met reden: blad 'Apart gezet' in de leveranciersaging-export.`,
       "Lonen/RSZ = gemiddelde van de laatste 3 volle maanden op de 62-rekeningen, excl. provisieboekingen (vakantiegeld/13e maand — geen maandcash), geboekt op maandeinde. Btw = 451-saldi tot €1M per firma ÉÉN keer op de eerstvolgende 20e; latere aangiftes zijn nog niet geraamd. Leasing = 12m-gemiddelde externe cash-out, begin maand.",
       btwUnclear > 0 ? `€ ${r0(btwUnclear).toLocaleString("nl-BE")} aan 451-saldi (>€1M per firma, o.a. WHS/TDR) staat NIET in het weekprofiel: het oogt opgestapeld (regime btw-provisierekening?) en de betaaltiming is onbekend — [PRIO]-vraag bij finance.` : "",
@@ -553,11 +594,12 @@ function demoCashForecast(): CfoCashForecast {
   const weeks: FcWeek[] = Array.from({ length: 13 }, (_, i) => {
     const inN = 900_000 + (i % 4) * 120_000, inF = inN * 0.55, outA = 700_000 + (i % 3) * 90_000, outF = i % 4 === 3 ? 950_000 : 60_000;
     return {
-      weekStart: iso(addDays(w0, i * 7)), label: `wk ${String(i + 1).padStart(2, "0")}`,
+      weekStart: iso(addDays(w0, i * 7)), label: `wk ${isoWeekNum(addDays(w0, i * 7))}`,
       inNoFactor: inN, inWithFactor: inF, inNewNoFactor: i >= 6 ? 850_000 : 0, inNewWithFactor: i >= 1 ? 700_000 : 0, outNew: i >= 4 ? 780_000 : 0,
       outAP: outA, outFixed: outF,
       netNoFactor: inN - outA - outF, netWithFactor: inF - outA - outF, cumNoFactor: 0, cumWithFactor: 0,
       basis: (i >= 6 ? "seizoen" : "posten") as "posten" | "seizoen",
+      inOldNoFactor: i < 6 ? 320_000 : 0, inOldWithFactor: i < 6 ? 180_000 : 0, outOldAP: i < 6 ? 260_000 : 0,
     };
   });
   // Demo consistent met het echte mechanisme: wat-als start ná 433-terugbetaling (audit 18/08).
@@ -567,6 +609,8 @@ function demoCashForecast(): CfoCashForecast {
     asOf: new Date().toISOString(), isLive: false,
     bankNow: 1_200_000, factorCredit: -1_350_000,
     weeks, beyond13w: { inNoFactor: 800_000, inWithFactor: 300_000 },
+    // Bruto = weekvelden (incl. saldering) + de niet-toegewezen −180k terug erbij.
+    verleden: { inAR: 6 * 320_000 + 180_000, inARFactor: 6 * 180_000 + 180_000, uitAP: 6 * 260_000 },
     months: [], lowPoint: { noFactor: { week: weeks[8].weekStart, value: -4_100_000 }, withFactor: { week: weeks[6].weekStart, value: -510_000 } },
     negativeWeeks: { noFactor: [weeks[8].weekStart], withFactor: [weeks[6].weekStart, weeks[7].weekStart] },
     perCompany: [{ company: "WHS", saldo433: -1_350_000, btwSaldo: -220_000, unappliedPayments: -180_000, unappliedCount: 14, openCn: -60_000, saldoKrediet: -500_000 }],
@@ -576,4 +620,5 @@ function demoCashForecast(): CfoCashForecast {
   };
 }
 
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v14", buildCashForecast, demoCashForecast);
+// v15: verleden-splitsing (achterstal apart) + ISO-weeknummers (19/08).
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v15", buildCashForecast, demoCashForecast);
