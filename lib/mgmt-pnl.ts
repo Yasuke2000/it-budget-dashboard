@@ -125,7 +125,10 @@ export function mapAccount(acct: string, name: string, company: string): string 
     if (acct === "705200") return company === "GPR" ? "niet_recurrent" : "verkoop_andere";
     if (c3 === "700" || c3 === "701") return "verkoop_transport";
     if (c3 === "702") return "verkoop_magazijn";
-    if (c3 === "704") return "verkoop_garage";
+    // 706-reeks = garagewerking (onderhoud & herstel, truckwash, wax, diesel,
+    // AdBlue, recuperatie, verkoop rollend materieel) — vraag David 19/08:
+    // 706000 stond onder "Verkoop Andere" terwijl het garage-omzet is (GTG/TDR).
+    if (c3 === "704" || c3 === "706") return "verkoop_garage";
     return "verkoop_andere"; // 703 shared services, 705-709 verhuur/kortingen/verschillen
   }
   if (c2 === "71" || c2 === "72") return "verkoop_andere"; // voorraad-/eigen productie (klein)
@@ -203,7 +206,7 @@ async function accountNames(companyId: string, code: string, token: string): Pro
 }
 
 async function buildCompanyPnl(co: { id: string; code: string }, year: number, toIso: string, token: string): Promise<CoPnl> {
-  const key = `pnl-co4-${co.code}-${year}-${toIso}`;
+  const key = `pnl-co5-${co.code}-${year}-${toIso}`;
   const cached = getCache<CoPnl>(key);
   if (cached) return cached;
   const names = await accountNames(co.id, co.code, token);
@@ -376,4 +379,4 @@ function demoMgmtPnl(): CfoMgmtPnl {
   };
 }
 
-export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v4", buildMgmtPnl, demoMgmtPnl);
+export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v5", buildMgmtPnl, demoMgmtPnl);
