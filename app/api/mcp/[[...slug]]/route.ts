@@ -92,11 +92,28 @@ async function runBcQuery(a: { company: string; service: string; filter?: string
   return out.length > MAX_CHARS ? out.slice(0, MAX_CHARS) + "…AFGEKAPT — filter strakker" : out;
 }
 
-function rpc(id: unknown, result: unknown): Response {
-  return Response.json({ jsonrpc: "2.0", id, result });
+// Antwoordvorm volgt de Accept-header (connectorfix 20/08): claude.ai en de
+// officiële MCP-SDK's verwachten bij "Accept: text/event-stream" een
+// SSE-geformatteerd antwoord (event: message / data: {...}) — precies wat de
+// referentieservers doen. Zonder event-stream in Accept blijft het puur JSON
+// (curl, eenvoudige clients). Op initialize geven we ook een Mcp-Session-Id
+// mee; wij zijn stateless en valideren hem daarna bewust niet.
+function wantsSse(req: Request): boolean {
+  return (req.headers.get("accept") || "").includes("text/event-stream");
 }
-function rpcErr(id: unknown, code: number, message: string): Response {
-  return Response.json({ jsonrpc: "2.0", id, error: { code, message } });
+function rpcBody(req: Request, payload: Record<string, unknown>, extraHeaders?: Record<string, string>): Response {
+  if (wantsSse(req)) {
+    return new Response(`event: message\ndata: ${JSON.stringify(payload)}\n\n`, {
+      headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-store", ...extraHeaders },
+    });
+  }
+  return new Response(JSON.stringify(payload), { headers: { "Content-Type": "application/json", ...extraHeaders } });
+}
+function rpc(req: Request, id: unknown, result: unknown, extraHeaders?: Record<string, string>): Response {
+  return rpcBody(req, { jsonrpc: "2.0", id, result }, extraHeaders);
+}
+function rpcErr(req: Request, id: unknown, code: number, message: string): Response {
+  return rpcBody(req, { jsonrpc: "2.0", id, error: { code, message } });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ slug?: string[] }> }) {
@@ -114,23 +131,23 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug?: string[
   }
 
   let msg: { jsonrpc?: string; id?: unknown; method?: string; params?: Record<string, unknown> };
-  try { msg = await req.json(); } catch { console.log(`[mcp] parse-error ua="${ua}"`); return rpcErr(null, -32700, "Parse error"); }
+  try { msg = await req.json(); } catch { console.log(`[mcp] parse-error ua="${ua}"`); return rpcErr(req, null, -32700, "Parse error"); }
   const { id, method, params } = msg;
-  console.log(`[mcp] ${method || "?"} ua="${ua}" auth=${authVorm}`);
+  console.log(`[mcp] ${method || "?"} ua="${ua}" auth=${authVorm} accept="${(req.headers.get("accept") || "?").slice(0, 50)}"`);
 
   if (method === "initialize") {
-    return rpc(id, {
+    return rpc(req, id, {
       protocolVersion: (params?.protocolVersion as string) || "2025-03-26",
       capabilities: { tools: {} },
       serverInfo: { name: "gheeraert-finance", version: "1.0.0" },
       instructions: "Alleen-lezen toegang tot het Gheeraert CFO-dashboard en Business Central. Vermeld bij elk cijfer de bron. Gebruik altijd filter+select bij bc_query.",
-    });
+    }, { "Mcp-Session-Id": crypto.randomUUID() });
   }
   if (method === "notifications/initialized" || String(method || "").startsWith("notifications/")) {
     return new Response(null, { status: 202 });
   }
-  if (method === "ping") return rpc(id, {});
-  if (method === "tools/list") return rpc(id, { tools: TOOLS });
+  if (method === "ping") return rpc(req, id, {});
+  if (method === "tools/list") return rpc(req, id, { tools: TOOLS });
   if (method === "tools/call") {
     const name = String(params?.name || "");
     const args = (params?.arguments || {}) as Record<string, unknown>;
@@ -138,13 +155,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug?: string[
       let text: string;
       if (name === "dashboard") text = await runDashboard(String(args.endpoint || ""));
       else if (name === "bc_query") text = await runBcQuery(args as Parameters<typeof runBcQuery>[0]);
-      else return rpcErr(id, -32602, `Onbekende tool: ${name}`);
-      return rpc(id, { content: [{ type: "text", text }] });
+      else return rpcErr(req, id, -32602, `Onbekende tool: ${name}`);
+      return rpc(req, id, { content: [{ type: "text", text }] });
     } catch (e) {
-      return rpc(id, { content: [{ type: "text", text: `Fout: ${String(e).slice(0, 300)}` }], isError: true });
+      return rpc(req, id, { content: [{ type: "text", text: `Fout: ${String(e).slice(0, 300)}` }], isError: true });
     }
   }
-  return rpcErr(id, -32601, `Onbekende methode: ${method}`);
+  return rpcErr(req, id, -32601, `Onbekende methode: ${method}`);
 }
 
 // Streamable HTTP: GET is optioneel (SSE-stream) — wij ondersteunen alleen POST.

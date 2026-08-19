@@ -338,9 +338,13 @@ async function buildMgmtPnl(exclude: string[], extra?: string): Promise<CfoMgmtP
   const controleRuw = resNaBel - r0(bruto);
   const controlelijn = Math.abs(controleRuw) <= 2 ? 0 : r0(controleRuw);
 
+  // Cap 40→150 (20/08): David pivoteert op het detailblad — met 40 viel per
+  // bucket een staart kleine firma-regels weg (±€228k op Vergoeding aan derden)
+  // en telde de pivot systematisch te weinig. 150 dekt alle buckets volledig
+  // (9 firma's × ~15 rekeningen); de somregel blijft de wachter.
   for (const k of Object.keys(detailAll)) {
     detailAll[k].sort((a, b) => Math.abs(b.ytd) - Math.abs(a.ytd));
-    detailAll[k] = detailAll[k].slice(0, 40);
+    detailAll[k] = detailAll[k].slice(0, 150);
   }
   // P&L-klok: D+7-doel per afgesloten maand; "lonen geboekt" = arbeidersbezoldiging
   // (6202xx) aanwezig — de gebruikelijke laatste ontbrekende post van een maand.
@@ -385,4 +389,5 @@ function demoMgmtPnl(): CfoMgmtPnl {
 }
 
 // v7: detailrijen dragen het maandprofiel — periode-filter werkt door tot in het detail.
-export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v7", buildMgmtPnl, demoMgmtPnl);
+// v8: detailcap 40→150 per bucket (pivot-volledigheid).
+export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v8", buildMgmtPnl, demoMgmtPnl);
