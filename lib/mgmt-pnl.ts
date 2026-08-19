@@ -331,7 +331,10 @@ async function buildMgmtPnl(exclude: string[], extra?: string): Promise<CfoMgmtP
 
   const resNaBel = rows.find((r) => r.id === "res_na_bel")?.ytd || 0;
   const bruto = Object.entries(agg).filter(([k]) => k !== "niet_recurrent" && k !== "_afschr_rollend").reduce((s, [, arr]) => s + arr.slice(0, monthCount).reduce((a, x) => a + x, 0), 0);
-  const controlelijn = r0(resNaBel - r0(bruto)); // hoort 0 te zijn: alle 60-77 gemapt
+  // Hoort 0 te zijn: alle 60-77 gemapt. Tolerantie €2: per-maand-afronding van de
+  // bucketbedragen kan €1 verschil geven (GTG 19/08) — dat is geen mappinggat.
+  const controleRuw = resNaBel - r0(bruto);
+  const controlelijn = Math.abs(controleRuw) <= 2 ? 0 : r0(controleRuw);
 
   for (const k of Object.keys(detailAll)) {
     detailAll[k].sort((a, b) => Math.abs(b.ytd) - Math.abs(a.ytd));
@@ -379,4 +382,4 @@ function demoMgmtPnl(): CfoMgmtPnl {
   };
 }
 
-export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v5", buildMgmtPnl, demoMgmtPnl);
+export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v6", buildMgmtPnl, demoMgmtPnl);
