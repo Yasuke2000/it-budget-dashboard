@@ -23,7 +23,13 @@ export function PnlView() {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
   const [company, setCompany] = useState("ALL");
-  const pnl = usePolledData<CfoMgmtPnl>(`/api/cfo/pnl?year=${year}&company=${company}`);
+  // Periode-selectie op RAPPORTERINGSMAAND (boekingsperiode) — vraag David 19/08,
+  // voor de EMAsphere-check (bv. 01/01 t/m 30/06). Scope: firma's uitvinken.
+  const [mFrom, setMFrom] = useState(1);
+  const [mTo, setMTo] = useState<number | null>(null);
+  const [excluded, setExcluded] = useState<string[]>([]);
+  const exclQs = company === "ALL" && excluded.length ? `&exclude=${excluded.join(",")}` : "";
+  const pnl = usePolledData<CfoMgmtPnl>(`/api/cfo/pnl?year=${year}&company=${company}${exclQs}`);
   const [kpiSrc, setKpiSrc] = useState<KpiSource | null>(null);
   const [open, setOpen] = useState<string | null>(null); // opengeklikte bucket
   const p = pnl.data;
@@ -59,11 +65,44 @@ export function PnlView() {
                 </button>
               ))}
             </div>
+            {p && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="font-semibold">Periode:</span>
+                <select value={Math.min(mFrom, p.months.length)} onChange={(e) => setMFrom(Number(e.target.value))}
+                  className="rounded-lg border border-border bg-card px-1.5 py-0.5 text-[11px] text-foreground">
+                  {p.months.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                </select>
+                <span>t/m</span>
+                <select value={Math.min(mTo ?? p.months.length, p.months.length)} onChange={(e) => setMTo(Number(e.target.value))}
+                  className="rounded-lg border border-border bg-card px-1.5 py-0.5 text-[11px] text-foreground">
+                  {p.months.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                </select>
+                <span className="text-[10px]">(rapporteringsmaand = boekingsperiode in BC, niet het moment van ingave)</span>
+              </div>
+            )}
+            {company === "ALL" && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-muted-foreground">Telt mee:</span>
+                {COMPANIES.filter((c) => c !== "ALL").map((c) => {
+                  const uit = excluded.includes(c);
+                  return (
+                    <button key={c} onClick={() => setExcluded(uit ? excluded.filter((x) => x !== c) : [...excluded, c])}
+                      title={uit ? `${c} telt NIET mee` : `${c} telt mee — klik om uit te sluiten`}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 transition ${uit ? "bg-muted text-muted-foreground/50 line-through ring-border" : "bg-positive/10 text-positive ring-positive/30"}`}>
+                      {c}
+                    </button>
+                  );
+                })}
+                <span className="text-[10px] text-muted-foreground">{11 - excluded.length}/11 geselecteerd</span>
+              </div>
+            )}
           </div>
           {p && (
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
               <span>Data per <b className="text-foreground">{fmtStamp(p.asOf)}</b></span>
               {p.refreshing && <span className="inline-flex items-center gap-1 text-primary"><Loader2 className="h-3 w-3 animate-spin" />vernieuwt…</span>}
+              <a href={`/api/cfo/export/pnl?year=${year}&company=${company}${exclQs}&from=${mFrom}&to=${mTo ?? 99}`}
+                className="inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 font-semibold text-primary-foreground transition hover:opacity-90">Excel</a>
               <button onClick={() => pnl.reload(true)} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 font-semibold ring-1 ring-border hover:text-foreground"><RefreshCcw className="h-3 w-3" />Vernieuwen</button>
             </div>
           )}
@@ -87,10 +126,19 @@ export function PnlView() {
         </div>
       )}
 
-      {p && (
+      {p && (() => {
+        const mA = Math.min(mFrom, p.months.length);
+        const mB = Math.max(mA, Math.min(mTo ?? p.months.length, p.months.length));
+        const zicht = <T,>(arr: T[]) => arr.slice(mA - 1, mB);
+        const somRij = (id: string) => zicht(p.rows.find((r) => r.id === id)?.monthly || []).reduce((a, b) => a + b, 0);
+        const heleJaar = mA === 1 && mB === p.months.length;
+        const totaalVan = (r: (typeof p.rows)[number]) => r.id === "brutomarge_pct"
+          ? (somRij("omzet") ? Math.round((somRij("brutomarge") / somRij("omzet")) * 1000) / 10 : 0)
+          : zicht(r.monthly).reduce((a, b) => a + b, 0);
+        return (
         <Card
-          title={`P&L ${p.year} — ${p.company === "ALL" ? "alle vennootschappen (bruto, incl. IC)" : p.company}`}
-          period={`${p.months[0]} t/m ${p.months[p.months.length - 1]}`}
+          title={`P&L ${p.year} — ${p.company === "ALL" ? `${11 - excluded.length}/11 vennootschappen (bruto, incl. IC)` : p.company}`}
+          period={`${p.months[mA - 1]} t/m ${p.months[mB - 1]}${excluded.length ? ` · zonder ${excluded.join("/")}` : ""}`}
           hint={`Controlelijn: ${p.controlelijn === 0 ? "✓ €0 — alles gemapt" : `⚠ ${formatCurrency(p.controlelijn)} — zie 'Niet gemapt'`}${p.nonRecurringRev ? ` · niet-recurrent apart: ${formatCurrency(p.nonRecurringRev)}` : ""}`}
           onSource={() => setKpiSrc({
             label: `Management-P&L ${p.year} — ${p.company}`,
@@ -121,8 +169,8 @@ export function PnlView() {
               <thead>
                 <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
                   <th className="sticky left-0 bg-card px-2 py-1.5 text-left">Bucket</th>
-                  {p.months.map((m, i) => <th key={m} className="px-2 py-1.5 text-right">{MND[i]} {String(p.year).slice(2)}</th>)}
-                  <th className="px-2 py-1.5 text-right">YtD</th>
+                  {zicht(p.months).map((m) => <th key={m} className="px-2 py-1.5 text-right">{MND[Number(m.slice(5, 7)) - 1]} {String(p.year).slice(2)}</th>)}
+                  <th className="px-2 py-1.5 text-right">{heleJaar ? "YtD" : "Periode"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -144,19 +192,19 @@ export function PnlView() {
                       <td className={`sticky left-0 bg-card px-2 py-1 ${r.indent ? "pl-6" : ""} ${clickable ? "text-primary underline decoration-dotted underline-offset-2" : r.indent ? "text-muted-foreground" : "text-foreground"}`}>
                         {r.label}{clickable ? (open === r.id ? " ▾" : " ▸") : ""}
                       </td>
-                      {r.monthly.map((v, i) => (
+                      {zicht(r.monthly).map((v, i) => (
                         <td key={i} className={`px-2 py-1 text-right tabular-nums ${!isPct && v < 0 && (r.style === "total" || r.id === "brutomarge") ? "text-negative" : ""}`}>
                           {isPct ? (v ? `${v.toLocaleString("nl-BE")}%` : "—") : eurK(v)}
                         </td>
                       ))}
-                      <td className={`px-2 py-1 text-right font-semibold tabular-nums ${!isPct && r.ytd < 0 && r.style === "total" ? "text-negative" : ""}`}>
-                        {isPct ? `${r.ytd.toLocaleString("nl-BE")}%` : formatCurrency(r.ytd)}
+                      <td className={`px-2 py-1 text-right font-semibold tabular-nums ${!isPct && totaalVan(r) < 0 && r.style === "total" ? "text-negative" : ""}`}>
+                        {isPct ? `${totaalVan(r).toLocaleString("nl-BE")}%` : formatCurrency(totaalVan(r))}
                       </td>
                     </tr>
                     {open === r.id && det && (
                       <tr className="border-b border-border bg-muted/20">
-                        <td colSpan={p.months.length + 2} className="px-4 py-2">
-                          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Dat + dat + dat — eerst per rekening, dan per vennootschap (YtD)</p>
+                        <td colSpan={mB - mA + 3} className="px-4 py-2">
+                          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Dat + dat + dat — eerst per rekening, dan per vennootschap (YtD{heleJaar ? "" : " — detail toont het volledige jaar; de kolommen hierboven zijn gefilterd op de gekozen periode"})</p>
                           <div className="grid gap-1 md:grid-cols-2">
                             {det.map((d) => (
                               <div key={`${d.company}-${d.account}`} className="flex items-center justify-between gap-2 rounded bg-card px-2 py-1 text-[11px]">
@@ -167,7 +215,7 @@ export function PnlView() {
                               </div>
                             ))}
                           </div>
-                          <p className="mt-1.5 text-[11px] font-semibold text-foreground">= {formatCurrency(detSum)} {Math.abs(detSum - r.ytd) < 1 ? "✓ sluit op de rij" : `(rij: ${formatCurrency(r.ytd)} — verschil = kleinere rekeningen buiten de top-40)`}</p>
+                          <p className="mt-1.5 text-[11px] font-semibold text-foreground">= {formatCurrency(detSum)} {heleJaar ? (Math.abs(detSum - r.ytd) < 1 ? "✓ sluit op de rij" : `(rij: ${formatCurrency(r.ytd)} — verschil = kleinere rekeningen buiten de top-40)`) : `(jaartotaal van de rij: ${formatCurrency(r.ytd)})`}</p>
                         </td>
                       </tr>
                     )}
@@ -189,7 +237,8 @@ export function PnlView() {
             {p.notes[1]} {p.notes[2]}
           </p>
         </Card>
-      )}
+        );
+      })()}
 
       {kpiSrc && <KpiSourceModal src={kpiSrc} onClose={() => setKpiSrc(null)} />}
     </div>

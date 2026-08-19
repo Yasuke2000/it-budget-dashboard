@@ -33,7 +33,7 @@ const STATUS_UI: Record<Status, { emoji: string; label: string; kleur: string }>
   top: { emoji: "🦄", label: "Dit gaat goed!", kleur: C.groen },
   oke: { emoji: "🌸", label: "Oké, in de gaten houden", kleur: C.geel },
   nietgoed: { emoji: "🚨", label: "Hier doen we het niet goed", kleur: C.rood },
-  laden: { emoji: "🎀", label: "Cijfertjes worden opgehaald…", kleur: C.zacht },
+  laden: { emoji: "🎀", label: "Cijfers worden opgehaald…", kleur: C.zacht },
 };
 
 // ---- heel simpele diagrammen (eigen SVG — groot, rond, één boodschap) ----
@@ -103,7 +103,7 @@ export function LauraView({ mcpUrl }: { mcpUrl: string }) {
 
   const BLOKKEN = useMemo<Blok[]>(() => {
     const d = dag.data, f = fc.data, p = pnl.data, pl = pnlLY.data, u = units.data, r = rcv.data;
-    const laden: BlokUitkomst = { waarde: "…", status: "laden", uitleg: "Even geduld, de cijfertjes komen eraan." };
+    const laden: BlokUitkomst = { waarde: "…", status: "laden", uitleg: "Even geduld, de cijfers komen eraan." };
     const geenDetail: BlokDetail = { vraagjes: [{ q: "Waar blijven de cijfers?", a: "Ze worden nu opgehaald uit Business Central — probeer zo weer. 🎀" }] };
     const som = (x: CfoMgmtPnl | null | undefined, id: string, tm?: number) => x?.rows.find((rr) => rr.id === id)?.monthly.slice(0, tm).reduce((a2, b2) => a2 + b2, 0) ?? null;
     const volleMnd = new Date().getMonth();
@@ -246,7 +246,7 @@ export function LauraView({ mcpUrl }: { mcpUrl: string }) {
         id: "betalers", emoji: "🏆", titel: "Wie heeft er gisteren betaald?",
         kort: !d ? laden : {
           waarde: `${d.ontvangenGister.aantal} klanten`, status: d.ontvangenGister.aantal > 0 ? "top" : "nietgoed",
-          uitleg: "Een dankjewel-lijstje: deze klanten hebben gisteren betaald.",
+          uitleg: "Deze klanten hebben gisteren betaald — een bedankje waard.",
           lijst: d.ontvangenGister.top.slice(0, 5).map((b) => ({ naam: `${b.klant} (${b.co})`, detail: eurS(b.bedrag) })),
         },
         detail: !d ? geenDetail : {
@@ -423,7 +423,7 @@ export function LauraView({ mcpUrl }: { mcpUrl: string }) {
         <div className="text-center">
           <h1 style={{ color: C.titel }} className="text-3xl font-extrabold tracking-tight">💖 Laura-modus 🦄</h1>
           <p style={{ color: C.zacht }} className="mt-1 text-sm">
-            Klik op een blok voor het hele verhaal: een simpel diagram, de vraagjes én waar je verder kan kijken.
+            Klik op een blok voor het hele verhaal: een simpel diagram, de antwoorden op je vragen én waar je verder kan kijken.
             🦄 = goed · 🌸 = oké · 🚨 = niet goed (met <b>zo doen we dat</b>).
           </p>
           <div className="mt-3 flex items-center justify-center gap-2">
@@ -538,7 +538,7 @@ export function LauraView({ mcpUrl }: { mcpUrl: string }) {
 
         {/* Claude koppelen */}
         <div style={{ background: C.card, border: "2px solid #E8D49A", boxShadow: "0 6px 24px -12px rgba(200,160,40,.35)" }} className="mt-8 rounded-3xl p-5">
-          <p style={{ color: C.goud }} className="text-sm font-extrabold">🤖✨ Vraag het gewoon aan Claude (eenmalig instellen, 2 minuutjes)</p>
+          <p style={{ color: C.goud }} className="text-sm font-extrabold">🤖✨ Vraag het gewoon aan Claude (eenmalig instellen, 2 minuten)</p>
           <ol style={{ color: C.tekst }} className="mt-2 list-decimal space-y-1.5 pl-5 text-xs leading-relaxed">
             <li>Open <b>claude.ai</b> → klik op je naam (linksonder) → <b>Settings</b> → <b>Connectors</b>.</li>
             <li>Klik <b>Add custom connector</b>. Naam: <b>Gheeraert Finance</b>. Plak bij URL de knop hieronder. Authenticatie: <b>None</b>. Klik <b>Add</b>.</li>

@@ -29,10 +29,32 @@ export async function GET(
   if (!cfoAllowed(session?.user?.email)) return new Response("Forbidden", { status: 403 });
 
   const { kind } = await params;
-  if (kind !== "ap" && kind !== "ar" && kind !== "leasing" && kind !== "klantencash" && kind !== "uitgaven") return new Response("Unknown export", { status: 404 });
+  if (kind !== "ap" && kind !== "ar" && kind !== "leasing" && kind !== "klantencash" && kind !== "uitgaven" && kind !== "pnl") return new Response("Unknown export", { status: 404 });
 
   try {
     const pulledAt = new Date();
+
+    // Management-P&L met periode- en scopekeuze (vraag David 19/08/2026).
+    // ?year=&company=&exclude=A,B&from=1&to=6 (rapporteringsmaanden).
+    if (kind === "pnl") {
+      const url = new URL(req.url);
+      const year = /^\d{4}$/.test(url.searchParams.get("year") || "") ? url.searchParams.get("year")! : String(pulledAt.getUTCFullYear());
+      const company = /^([A-Z]{2,5}|ALL)$/.test((url.searchParams.get("company") || "ALL").toUpperCase()) ? (url.searchParams.get("company") || "ALL").toUpperCase() : "ALL";
+      const exclude = (url.searchParams.get("exclude") || "").split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
+      const from = Number(url.searchParams.get("from")) || 1;
+      const to = Number(url.searchParams.get("to")) || 99;
+      const { getMgmtPnl } = await import("@/lib/mgmt-pnl");
+      const { buildPnlWorkbook } = await import("@/lib/pnl-export");
+      // Meestal warm (de pagina heeft de data al); kort wachten als hij nog bouwt.
+      let data = await getMgmtPnl(false, exclude, `${year}|${company}`);
+      for (let i = 0; i < 20 && "building" in data && data.building; i++) {
+        await new Promise((r) => setTimeout(r, 6000));
+        data = await getMgmtPnl(false, exclude, `${year}|${company}`);
+      }
+      if ("building" in data && data.building) return new Response("P&L wordt nog opgebouwd — probeer zo opnieuw via de pagina.", { status: 503 });
+      const { buffer, filename } = await buildPnlWorkbook(data as import("@/lib/mgmt-pnl").CfoMgmtPnl, from, to, exclude, pulledAt);
+      return xlsxResponse(buffer, filename, pulledAt);
+    }
 
     // Overzicht uitgaven per categorie × firma × maand (FINSIT/OVZ-stijl, live).
     // Optioneel ?from=YYYY-MM-DD&to=YYYY-MM-DD; default = 1 jan t/m laatste volledige maand.
