@@ -104,11 +104,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug?: string[
   const header = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   const { slug } = await ctx.params;
   const pathToken = (slug || [])[0] || "";
-  if (!expected || (header !== expected && pathToken !== expected)) return new Response("Unauthorized", { status: 401 });
+  // Diagnose-logging (connectorprobleem 19/08): methode + user-agent + auth-vorm,
+  // NOOIT het token zelf — zo is in de pod-logs te zien wat claude.ai stuurt.
+  const ua = (req.headers.get("user-agent") || "?").slice(0, 80);
+  const authVorm = header ? "header" : pathToken ? "url" : "geen";
+  if (!expected || (header !== expected && pathToken !== expected)) {
+    console.log(`[mcp] 401 ua="${ua}" auth=${authVorm}`);
+    return new Response("Unauthorized", { status: 401 });
+  }
 
   let msg: { jsonrpc?: string; id?: unknown; method?: string; params?: Record<string, unknown> };
-  try { msg = await req.json(); } catch { return rpcErr(null, -32700, "Parse error"); }
+  try { msg = await req.json(); } catch { console.log(`[mcp] parse-error ua="${ua}"`); return rpcErr(null, -32700, "Parse error"); }
   const { id, method, params } = msg;
+  console.log(`[mcp] ${method || "?"} ua="${ua}" auth=${authVorm}`);
 
   if (method === "initialize") {
     return rpc(id, {
@@ -140,5 +148,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug?: string[
 }
 
 // Streamable HTTP: GET is optioneel (SSE-stream) — wij ondersteunen alleen POST.
-export async function GET() { return new Response("Method Not Allowed", { status: 405 }); }
+export async function GET(req: Request) {
+  console.log(`[mcp] GET ua="${(req.headers.get("user-agent") || "?").slice(0, 80)}" accept="${(req.headers.get("accept") || "?").slice(0, 60)}"`);
+  return new Response("Method Not Allowed", { status: 405 });
+}
 export async function DELETE() { return new Response(null, { status: 200 }); }

@@ -183,7 +183,16 @@ export function PnlView() {
                     : r.style === "subtotal" ? "border-b border-border font-semibold"
                     : r.style === "memo" ? "border-b border-border/40 text-muted-foreground italic"
                     : "border-b border-border/40";
-                  const detSum = det ? det.reduce((s, d) => s + d.ytd, 0) : 0;
+                  // Detail volgt de gekozen periode (vraag David 19/08): per rekening
+                  // het maandprofiel over [mA..mB] optellen; rijen die in de periode
+                  // op 0 staan verdwijnen; sortering op |periodebedrag|.
+                  const perVan = (d: { monthly?: number[]; ytd: number }) =>
+                    d.monthly && d.monthly.length ? d.monthly.slice(mA - 1, mB).reduce((s, x) => s + x, 0) : (heleJaar ? d.ytd : 0);
+                  const detP = det
+                    ? det.map((d) => ({ ...d, per: perVan(d) })).filter((d) => Math.abs(d.per) >= 0.5)
+                        .sort((a, b) => Math.abs(b.per) - Math.abs(a.per))
+                    : [];
+                  const detSum = detP.reduce((s, d) => s + d.per, 0);
                   return (
                     <Fragment key={r.id}>
                     <tr className={`${rowCls} ${clickable ? "cursor-pointer transition hover:bg-primary/5" : ""}`}
@@ -204,18 +213,18 @@ export function PnlView() {
                     {open === r.id && det && (
                       <tr className="border-b border-border bg-muted/20">
                         <td colSpan={mB - mA + 3} className="px-4 py-2">
-                          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Dat + dat + dat — eerst per rekening, dan per vennootschap (YtD{heleJaar ? "" : " — detail toont het volledige jaar; de kolommen hierboven zijn gefilterd op de gekozen periode"})</p>
+                          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Dat + dat + dat — eerst per rekening, dan per vennootschap ({heleJaar ? "YtD" : `${MND[mA - 1]}–${MND[mB - 1]} ${p.year}`})</p>
                           <div className="grid gap-1 md:grid-cols-2">
-                            {det.map((d) => (
+                            {detP.map((d) => (
                               <div key={`${d.company}-${d.account}`} className="flex items-center justify-between gap-2 rounded bg-card px-2 py-1 text-[11px]">
                                 <span className="truncate"><span className="font-mono font-semibold text-foreground">{d.account}</span> <span className="text-muted-foreground">{d.name.slice(0, 34)}</span> <span className="rounded bg-muted px-1 text-[9px] font-bold">{d.company}</span></span>
-                                <span className="flex shrink-0 items-center gap-2 tabular-nums font-semibold">{formatCurrency(d.ytd)}
+                                <span className="flex shrink-0 items-center gap-2 tabular-nums font-semibold" title={heleJaar ? undefined : `volledig jaar: ${formatCurrency(d.ytd)}`}>{formatCurrency(d.per)}
                                   <a href={d.bcUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-primary hover:underline">BC↗</a>
                                 </span>
                               </div>
                             ))}
                           </div>
-                          <p className="mt-1.5 text-[11px] font-semibold text-foreground">= {formatCurrency(detSum)} {heleJaar ? (Math.abs(detSum - r.ytd) < 1 ? "✓ sluit op de rij" : `(rij: ${formatCurrency(r.ytd)} — verschil = kleinere rekeningen buiten de top-40)`) : `(jaartotaal van de rij: ${formatCurrency(r.ytd)})`}</p>
+                          <p className="mt-1.5 text-[11px] font-semibold text-foreground">= {formatCurrency(detSum)} {Math.abs(detSum - totaalVan(r)) < 1 ? "✓ sluit op de rij" : `(rij: ${formatCurrency(totaalVan(r))} — verschil = kleinere rekeningen buiten de top-40 van het jaar)`}</p>
                         </td>
                       </tr>
                     )}

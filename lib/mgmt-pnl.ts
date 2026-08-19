@@ -35,7 +35,7 @@ export interface PnlRow {
   monthly: number[];
   ytd: number;
 }
-export interface PnlDetailRow { account: string; name: string; company: string; ytd: number; bcUrl: string }
+export interface PnlDetailRow { account: string; name: string; company: string; ytd: number; monthly: number[]; bcUrl: string }
 export interface CfoMgmtPnl {
   asOf: string; isLive: boolean;
   year: number; company: string;          // "ALL" of firmacode
@@ -184,7 +184,7 @@ export function mapAccount(acct: string, name: string, company: string): string 
   return "niet_gemapt";
 }
 
-interface CoPnl { agg: Record<string, number[]>; unmapped: Record<string, { name: string; ytd: number }>; nonRec: number; acct: Record<string, { bucket: string; name: string; ytd: number }>; loon: number[] }
+interface CoPnl { agg: Record<string, number[]>; unmapped: Record<string, { name: string; ytd: number }>; nonRec: number; acct: Record<string, { bucket: string; name: string; ytd: number; monthly: number[] }>; loon: number[] }
 
 async function accountNames(companyId: string, code: string, token: string): Promise<Record<string, string>> {
   const key = `pnl-acctnames-${code}`;
@@ -206,7 +206,9 @@ async function accountNames(companyId: string, code: string, token: string): Pro
 }
 
 async function buildCompanyPnl(co: { id: string; code: string }, year: number, toIso: string, token: string): Promise<CoPnl> {
-  const key = `pnl-co5-${co.code}-${year}-${toIso}`;
+  // co6: per rekening ook het maandprofiel (detail moet de gekozen periode
+  // volgen, vraag David 19/08 — "detail moet overeenkomen met gekozen periode").
+  const key = `pnl-co6-${co.code}-${year}-${toIso}`;
   const cached = getCache<CoPnl>(key);
   if (cached) return cached;
   const names = await accountNames(co.id, co.code, token);
@@ -237,7 +239,7 @@ async function buildCompanyPnl(co: { id: string; code: string }, year: number, t
   for (const [acct, arr] of perAcct) {
     const bucket = mapAccount(acct, names[acct] || "", co.code);
     const ytdA = arr.reduce((s, x) => s + x, 0);
-    if (Math.abs(ytdA) >= 0.5) acctOut[acct] = { bucket, name: names[acct] || "", ytd: r0(ytdA) };
+    if (Math.abs(ytdA) >= 0.5) acctOut[acct] = { bucket, name: names[acct] || "", ytd: r0(ytdA), monthly: arr.map(r0) };
     if (acct.startsWith("6202")) for (let m = 0; m < 12; m++) loon[m] += arr[m];
     if (bucket === "niet_recurrent") { nonRec += arr.reduce((s, x) => s + x, 0); }
     if (bucket === "niet_gemapt") {
@@ -287,7 +289,7 @@ async function buildMgmtPnl(exclude: string[], extra?: string): Promise<CfoMgmtP
       }
       for (const [acct, u] of Object.entries(b.unmapped)) unmappedAll.push({ account: acct, name: u.name, company: code, ytd: u.ytd });
       for (const [acct, d] of Object.entries(b.acct)) {
-        (detailAll[MERGE[d.bucket] || d.bucket] ??= []).push({ account: acct, name: d.name, company: code, ytd: d.ytd, bcUrl: glAccountLink(code, acct) });
+        (detailAll[MERGE[d.bucket] || d.bucket] ??= []).push({ account: acct, name: d.name, company: code, ytd: d.ytd, monthly: (d.monthly || []).slice(0, monthCount), bcUrl: glAccountLink(code, acct) });
       }
       for (let m = 0; m < 12; m++) loonAll[m] += b.loon[m];
       nonRec += b.nonRec;
@@ -382,4 +384,5 @@ function demoMgmtPnl(): CfoMgmtPnl {
   };
 }
 
-export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v6", buildMgmtPnl, demoMgmtPnl);
+// v7: detailrijen dragen het maandprofiel — periode-filter werkt door tot in het detail.
+export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v7", buildMgmtPnl, demoMgmtPnl);

@@ -59,32 +59,42 @@ export async function buildPnlWorkbook(
   }
   ws.views = [{ state: "frozen", xSplit: 1, ySplit: 3 }];
 
-  // Detailblad: rekeningen per bucket (top-40, YtD volledig jaar) met BC-link.
+  // Detailblad: rekeningen per bucket (top-40 van het jaar) — het bedrag volgt
+  // de GEKOZEN PERIODE (vraag David 19/08); het jaartotaal staat er als extra
+  // kolom naast. Rijen die in de periode op 0 staan blijven weg.
+  const heleJaar2 = mA === 1 && mB >= p.months.length;
+  const perLbl = heleJaar2 ? `YtD ${p.year}` : `${p.months[mA - 1]} t/m ${p.months[mB - 1]}`;
+  const perVan = (d: { monthly?: number[]; ytd: number }) =>
+    d.monthly && d.monthly.length ? d.monthly.slice(mA - 1, mB).reduce((s, x) => s + x, 0) : (heleJaar2 ? d.ytd : 0);
   const ws2 = wb.addWorksheet("Detail per bucket");
-  ws2.getCell(1, 1).value = `DETAIL PER BUCKET — rekeningen per vennootschap (YtD VOLLEDIG JAAR ${p.year} — het P&L-blad kan op een kortere periode gefilterd zijn)`;
+  ws2.getCell(1, 1).value = `DETAIL PER BUCKET — rekeningen per vennootschap (periode: ${perLbl})`;
   ws2.getCell(1, 1).font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
-  for (let c = 1; c <= 5; c++) ws2.getCell(1, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLUE } };
-  ws2.getRow(3).values = ["Bucket", "Rekening (BC-link)", "Naam", "Vennootschap", `YtD ${p.year}`];
+  for (let c = 1; c <= 6; c++) ws2.getCell(1, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLUE } };
+  ws2.getRow(3).values = ["Bucket", "Rekening (BC-link)", "Naam", "Vennootschap", perLbl, `YtD ${p.year}`];
   ws2.getRow(3).font = { bold: true, color: { argb: "FFFFFFFF" } };
-  for (let c = 1; c <= 5; c++) ws2.getCell(3, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLUE } };
-  [26, 16, 36, 13, 15].forEach((w, i) => (ws2.getColumn(i + 1).width = w));
+  for (let c = 1; c <= 6; c++) ws2.getCell(3, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLUE } };
+  [26, 16, 36, 13, 15, 15].forEach((w, i) => (ws2.getColumn(i + 1).width = w));
   let r2 = 4;
   for (const row of p.rows) {
     const det = p.detail[row.id];
     if (!det || det.length === 0) continue;
-    for (const d of det) {
+    const detP = det.map((d) => ({ ...d, per: perVan(d) })).filter((d) => Math.abs(d.per) >= 0.5)
+      .sort((a, b) => Math.abs(b.per) - Math.abs(a.per));
+    for (const d of detP) {
       ws2.getCell(r2, 1).value = row.label;
       ws2.getCell(r2, 2).value = { text: d.account, hyperlink: d.bcUrl };
       ws2.getCell(r2, 2).font = { color: { argb: BLUE }, underline: true };
       ws2.getCell(r2, 3).value = d.name;
       ws2.getCell(r2, 4).value = d.company;
-      ws2.getCell(r2, 5).value = Math.round(d.ytd);
+      ws2.getCell(r2, 5).value = Math.round(d.per);
       ws2.getCell(r2, 5).numFmt = EUR;
+      ws2.getCell(r2, 6).value = Math.round(d.ytd);
+      ws2.getCell(r2, 6).numFmt = EUR;
       r2++;
     }
   }
   ws2.views = [{ state: "frozen", ySplit: 3 }];
-  ws2.autoFilter = { from: { row: 3, column: 1 }, to: { row: r2 - 1, column: 5 } };
+  ws2.autoFilter = { from: { row: 3, column: 1 }, to: { row: r2 - 1, column: 6 } };
 
   // Leeswijzer
   const ws3 = wb.addWorksheet("Leeswijzer");
@@ -95,7 +105,7 @@ export async function buildPnlWorkbook(
     "PERIODE = rapporteringsmaand (boekingsperiode/Posting Date in BC), niet het moment waarop de boeking is ingegeven — zelfde afbakening als EMAsphere.",
     `SCOPE: ${scope}. Bedragen zijn de BRUTO som van de geselecteerde vennootschappen, inclusief onderlinge facturatie (IC wordt hier niet geëlimineerd — de echte IC-eliminatie staat op de Business Units-pagina).`,
     `Controlelijn: ${p.controlelijn === 0 ? "€0 — alle grootboekposten zijn gemapt" : `€${p.controlelijn.toLocaleString("nl-BE")} — zie niet-gemapte rekeningen op de pagina`}. Niet-recurrente omzet (GPR gebouwenverkoop) staat apart en zit niet in de omzet.`,
-    "Detailblad: de rekeningen achter elke bucket (top-40 per bucket), YtD van het VOLLEDIGE jaar — ook als het P&L-blad op een kortere periode is gefilterd. Rekeningnummer = link naar Business Central.",
+    "Detailblad: de rekeningen achter elke bucket, met het bedrag van de GEKOZEN PERIODE (zelfde filter als het P&L-blad) én het jaartotaal ernaast. Selectie = top-40 van het jaar per bucket; rekeningen die in de periode op 0 staan zijn weggelaten. Rekeningnummer = link naar Business Central.",
     ...p.notes,
   ];
   notes.forEach((t, i) => {
