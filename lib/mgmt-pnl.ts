@@ -62,7 +62,8 @@ const BUCKETS: { id: string; label: string; style: PnlRow["style"]; indent: 0 | 
   { id: "verkoop_andere", label: "Verkoop Andere", style: "normal", indent: 1 },
   { id: "diverse", label: "Diverse Bedrijfsopbrengsten", style: "subtotal", indent: 0 },
   { id: "accijns", label: "Accijnsrecuperatie", style: "normal", indent: 1 },
-  { id: "meerwaarden", label: "Meerwaarden", style: "normal", indent: 1 },
+  // "Meerwaarden" verwijderd (finance 20/08): 741000 telt als niet-recurrent,
+  // niet als bedrijfsopbrengst — zit dus niet meer in diverse/brutomarge.
   { id: "andere_opbr", label: "Andere Opbrengsten", style: "normal", indent: 1 },
   { id: "variabel", label: "Variabele Kosten", style: "subtotal", indent: 0 },
   { id: "onderaanneming", label: "Onderaanneming & aankopen", style: "normal", indent: 1 },
@@ -101,7 +102,7 @@ const BUCKETS: { id: string; label: string; style: PnlRow["style"]; indent: 0 | 
 // Somrijen: uit welke detailrijen bestaat elk (sub)totaal.
 const SUMS: Record<string, string[]> = {
   omzet: ["verkoop_transport", "verkoop_magazijn", "verkoop_garage", "verkoop_andere"],
-  diverse: ["accijns", "meerwaarden", "andere_opbr"],
+  diverse: ["accijns", "andere_opbr"],
   variabel: ["onderaanneming", "voorraadwijziging", "ddg_var", "personeel_var"],
   brutomarge: ["omzet", "diverse", "variabel"],
   vast: ["huur_gebouwen", "lease_rollend", "onderhoud_gebouwen", "onderhoud_materieel", "software_it", "nutsvoorzieningen", "kantoor", "vergoeding_derden", "verzekeringen", "personeel_vast", "afschrijvingen", "voorzieningen", "andere_kosten"],
@@ -134,7 +135,10 @@ export function mapAccount(acct: string, name: string, company: string): string 
   if (c2 === "71" || c2 === "72") return "verkoop_andere"; // voorraad-/eigen productie (klein)
   if (c2 === "74") {
     if (acct === "740600") return "accijns";
-    if (c3 === "741" || /meerwaarde/.test(n)) return "meerwaarden";
+    // Finance 20/08/2026 (via Micheline/boekhouding): meerwaarden op courante
+    // realisatie (741000) zijn GEEN bedrijfsopbrengst — eerder uitzonderlijk.
+    // Uit de brutomarge, bij de niet-recurrente posten (zoals de GPR-verkoop).
+    if (c3 === "741" || /meerwaarde/.test(n)) return "niet_recurrent";
     return "andere_opbr";
   }
   if (c2 === "75") return "fin_opbr";
@@ -208,7 +212,8 @@ async function accountNames(companyId: string, code: string, token: string): Pro
 async function buildCompanyPnl(co: { id: string; code: string }, year: number, toIso: string, token: string): Promise<CoPnl> {
   // co6: per rekening ook het maandprofiel (detail moet de gekozen periode
   // volgen, vraag David 19/08 — "detail moet overeenkomen met gekozen periode").
-  const key = `pnl-co6-${co.code}-${year}-${toIso}`;
+  // co7: meerwaarden→niet_recurrent (bucket zit in de gecachete rij gebakken).
+  const key = `pnl-co7-${co.code}-${year}-${toIso}`;
   const cached = getCache<CoPnl>(key);
   if (cached) return cached;
   const names = await accountNames(co.id, co.code, token);
@@ -390,4 +395,5 @@ function demoMgmtPnl(): CfoMgmtPnl {
 
 // v7: detailrijen dragen het maandprofiel — periode-filter werkt door tot in het detail.
 // v8: detailcap 40→150 per bucket (pivot-volledigheid).
-export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v8", buildMgmtPnl, demoMgmtPnl);
+// v9: meerwaarden (741000) uit de brutomarge → niet-recurrent (finance 20/08).
+export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v9", buildMgmtPnl, demoMgmtPnl);
