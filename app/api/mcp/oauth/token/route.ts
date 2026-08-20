@@ -2,11 +2,16 @@
 // het bestaande MCP_TOKEN als access token. Vereisten uit de claude.ai-docs:
 // Content-Type application/x-www-form-urlencoded, antwoord < 10s, RFC 6749-
 // foutcodes (invalid_grant). PKCE S256 is verplicht en wordt hier afgedwongen.
-import { jsonResp, verifieerCode } from "@/lib/mcp-oauth";
+import { jsonResp, verifieerCode, corsPreflight } from "@/lib/mcp-oauth";
 
 export const dynamic = "force-dynamic";
 
+// Browser-side code-exchange (SPA/PKCE) vereist een CORS-preflight-antwoord.
+export async function OPTIONS() { return corsPreflight(); }
+
 export async function POST(req: Request) {
+  // Diagnose (connectorprobleem): komt de exchange uit de browser of van de broker?
+  console.log(`[oauth] token-request ua="${(req.headers.get("user-agent") || "?").slice(0, 80)}" origin="${req.headers.get("origin") || "-"}"`);
   let form: FormData;
   try {
     form = await req.formData();

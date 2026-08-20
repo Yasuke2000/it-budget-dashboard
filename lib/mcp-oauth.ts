@@ -63,9 +63,25 @@ export function nieuwClientId(): string {
   return `cc-${randomBytes(12).toString("hex")}`;
 }
 
+// CORS op de OAuth-endpoints (fix 20/08 avond): als claude.ai de code-exchange
+// in de BROWSER doet (standaard SPA/PKCE-patroon), dan bereikt het POST-verzoek
+// ons wél (server logt "token uitgegeven") maar mag de browser het antwoord
+// zonder Access-Control-Allow-Origin niet LEZEN → "Authorization failed" zonder
+// dat er ooit nog een verzoek volgt — exact het waargenomen patroon. "*" is hier
+// veilig: geen cookies/credentials, de echte bescherming is PKCE + de
+// redirect-allowlist + Authelia op /oauth/authorize.
+export const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, Mcp-Protocol-Version",
+  "Access-Control-Max-Age": "86400",
+};
+export function corsPreflight(): Response {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
 export function jsonResp(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...CORS_HEADERS },
   });
 }

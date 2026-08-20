@@ -2,11 +2,14 @@
 // verbinding een nieuwe (publieke) client; wij bewaren niets — het client_id is
 // puur cosmetisch, de echte controle zit in de redirect-allowlist + Authelia op
 // /oauth/authorize + PKCE op het token-endpoint.
-import { jsonResp, nieuwClientId, redirectUriToegestaan } from "@/lib/mcp-oauth";
+import { jsonResp, nieuwClientId, redirectUriToegestaan, corsPreflight } from "@/lib/mcp-oauth";
 
 export const dynamic = "force-dynamic";
 
+export async function OPTIONS() { return corsPreflight(); }
+
 export async function POST(req: Request) {
+  console.log(`[oauth] register-request ua="${(req.headers.get("user-agent") || "?").slice(0, 80)}" origin="${req.headers.get("origin") || "-"}"`);
   let body: { redirect_uris?: unknown; client_name?: unknown };
   try {
     body = await req.json();
