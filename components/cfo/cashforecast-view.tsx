@@ -95,7 +95,10 @@ export function CashForecastView() {
   // Driestand (vraag David 20/08 avond): alles meegerekend / oude achterstal
   // (>60d) apart / alle achterstal apart — zodat Laura zelf kan schuiven welk
   // beeld naar de bank gaat.
-  const [achterstalMode, setAchterstalMode] = useState<"alles" | "oud" | "alle">("alles");
+  // Standaard = "alle achterstal apart" (beslissing David 20/08 avond: de
+  // achterstand wordt gefinancierd en hoort dus niet in de operationele
+  // prognose — de pot ernaast is het financieringsblok).
+  const [achterstalMode, setAchterstalMode] = useState<"alles" | "oud" | "alle">("alle");
   const zonderVerleden = achterstalMode !== "alles";
   // Maandhorizon (meeting 20/08: prognoseperiode 2 jaar vs 48 mnd nog te
   // beslissen — beide beschikbaar). 0 = de standaard server-horizon (~22 mnd);
@@ -321,7 +324,7 @@ export function CashForecastView() {
             const potLbl = achterstalMode === "alle" ? "Alle achterstal" : "Oude achterstal (>60 dagen)";
             return (
               <div className="rounded-2xl border border-warning/40 bg-warning/10 p-3 text-[11px] leading-snug text-foreground">
-                <b>{potLbl} staat APART</b> (telt hieronder niet mee, maar verdwijnt niet):
+                <b>{potLbl} staat APART — dit is het te financieren blok</b> (beslissing 20/08: de achterstand wordt via de bank gefinancierd en zit dus niet in de operationele prognose):
                 nog te innen uit achterstallige klantposten <b>{eurS(pot?.inAR ?? 0)}</b>
                 {" "}(kasrealiteit na factorvoorschot: <b>{eurS(pot?.inARFactor ?? 0)}</b>),
                 nog te betalen achterstallige leveranciersposten <b>{eurS(-(pot?.uitAP ?? 0))}</b>,
