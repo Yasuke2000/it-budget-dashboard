@@ -139,7 +139,18 @@ export function mapAccount(acct: string, name: string, company: string): string 
     // realisatie (741000) zijn GEEN bedrijfsopbrengst — eerder uitzonderlijk.
     // Uit de brutomarge, bij de niet-recurrente posten (zoals de GPR-verkoop).
     if (c3 === "741" || /meerwaarde/.test(n)) return "niet_recurrent";
-    return "andere_opbr";
+    // David 20/08 ("de brutomarge moet de echte core business tonen"): de
+    // personeels- en verzekeringsrecuperaties zijn KOSTENVERMINDERINGEN, geen
+    // opbrengsten — gesaldeerd op de kostenlijn waar ze bijhoren (recurrent,
+    // dus NIET bij niet_recurrent; bedrijfsresultaat blijft identiek).
+    // 743000 vermindering BV, 7441xx recup. gewaarborgd loon/opleiding,
+    // 7443xx maaltijdcheques/bedrijfswagen eigen aandeel, 7444xx VAA,
+    // 7445xx recup. boetes → personeelskost.
+    if (c3 === "743" || acct.startsWith("7441") || acct.startsWith("7443") || acct.startsWith("7444") || acct.startsWith("7445")) return "personeel_vast";
+    // 7454xx-7456xx vergoedingen verzekeringen/schadegevallen/arbeidsongevallen
+    // → saldering op de verzekeringskost.
+    if (acct.startsWith("7454") || acct.startsWith("7455") || acct.startsWith("7456")) return "verzekeringen";
+    return "andere_opbr"; // o.a. 749000 blijft wél een echte bedrijfsopbrengst
   }
   if (c2 === "75") return "fin_opbr";
   if (c2 === "76") return "uitz_opbr";
@@ -213,7 +224,9 @@ async function buildCompanyPnl(co: { id: string; code: string }, year: number, t
   // co6: per rekening ook het maandprofiel (detail moet de gekozen periode
   // volgen, vraag David 19/08 — "detail moet overeenkomen met gekozen periode").
   // co7: meerwaarden→niet_recurrent (bucket zit in de gecachete rij gebakken).
-  const key = `pnl-co7-${co.code}-${year}-${toIso}`;
+  // co8: personeels-/verzekeringsrecuperaties (743x/744x/7454-7456) gesaldeerd
+  // op de kostenlijn i.p.v. Andere Opbrengsten.
+  const key = `pnl-co8-${co.code}-${year}-${toIso}`;
   const cached = getCache<CoPnl>(key);
   if (cached) return cached;
   const names = await accountNames(co.id, co.code, token);
@@ -396,4 +409,5 @@ function demoMgmtPnl(): CfoMgmtPnl {
 // v7: detailrijen dragen het maandprofiel — periode-filter werkt door tot in het detail.
 // v8: detailcap 40→150 per bucket (pivot-volledigheid).
 // v9: meerwaarden (741000) uit de brutomarge → niet-recurrent (finance 20/08).
-export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v9", buildMgmtPnl, demoMgmtPnl);
+// v10: personeels-/verzekeringsrecuperaties uit de brutomarge → saldering op de kostenlijn.
+export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v10", buildMgmtPnl, demoMgmtPnl);
