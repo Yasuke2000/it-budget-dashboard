@@ -112,6 +112,9 @@ export interface CfoCashForecast {
   // uitAP = achterstallige leveranciersposten. De zonder-verleden-weergave
   // haalt dit (plus de niet-toegewezen-correctie) uit het weekprofiel.
   verleden: { inAR: number; inARFactor: number; uitAP: number };
+  // Omzettrendfactor waarmee het seizoensritme geschaald is (0,8–1,25) —
+  // nodig voor de maand-drill ("laat zien wat erin zit", vraag David 20/08).
+  groeiFactor: number;
   months: FcMonth[];      // historiek + projectie tot eind volgend jaar + 6 mnd
   lowPoint: { noFactor: { week: string; value: number }; withFactor: { week: string; value: number } };
   negativeWeeks: { noFactor: string[]; withFactor: string[] };
@@ -534,6 +537,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       inARFactor: r0(rcv.cashExpectation.reduce((s, w) => s + (w.spreadFactor || 0), 0)),
       uitAP: r0(weeks.reduce((s, w) => s + w.outOldAP, 0)),
     },
+    groeiFactor: Math.round(groei * 100) / 100,
     months,
     lowPoint: { noFactor: lowN, withFactor: lowF },
     negativeWeeks: { noFactor: negN, withFactor: negF },
@@ -611,6 +615,7 @@ function demoCashForecast(): CfoCashForecast {
     weeks, beyond13w: { inNoFactor: 800_000, inWithFactor: 300_000 },
     // Bruto = weekvelden (incl. saldering) + de niet-toegewezen −180k terug erbij.
     verleden: { inAR: 6 * 320_000 + 180_000, inARFactor: 6 * 180_000 + 180_000, uitAP: 6 * 260_000 },
+    groeiFactor: 1,
     months: [], lowPoint: { noFactor: { week: weeks[8].weekStart, value: -4_100_000 }, withFactor: { week: weeks[6].weekStart, value: -510_000 } },
     negativeWeeks: { noFactor: [weeks[8].weekStart], withFactor: [weeks[6].weekStart, weeks[7].weekStart] },
     perCompany: [{ company: "WHS", saldo433: -1_350_000, btwSaldo: -220_000, unappliedPayments: -180_000, unappliedCount: 14, openCn: -60_000, saldoKrediet: -500_000 }],
@@ -621,4 +626,4 @@ function demoCashForecast(): CfoCashForecast {
 }
 
 // v15: verleden-splitsing (achterstal apart) + ISO-weeknummers (19/08).
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v15", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v16", buildCashForecast, demoCashForecast);

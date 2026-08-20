@@ -94,6 +94,9 @@ export function CashForecastView() {
   // beslissen — beide beschikbaar). 0 = de standaard server-horizon (~22 mnd);
   // langere horizonten verlengen het seizoensritme client-side.
   const [horizon, setHorizon] = useState<number>(0);
+  // Maand-drill (vraag David 20/08: "ze willen kunnen kijken wat erin zit"):
+  // klik een maand open voor de opbouw — referentiemaanden, trendfactor, aanpassingen.
+  const [openMaand, setOpenMaand] = useState<string | null>(null);
   const d = fc.data;
   const vandaag = new Date().toISOString().slice(0, 10);
 
@@ -490,6 +493,12 @@ export function CashForecastView() {
                   </div>
                 }
                 onSource={() => setKpiSrc({ label: "Maandlaag", value: "", bron: "Per kalendermaand het gemiddelde van de werkelijke bankin- en uitstromen van de afgelopen 13 maanden (BankAccountLedgerEntries, alle merken behalve Factor), geschaald met de omzettrend en doorgetrokken tot de gekozen horizon (verlenging = herhaling van hetzelfde seizoensritme). Cumulatief vanaf de bankstand van vandaag." + (hasAdj ? " Plus de actieve prognose-aanpassingen (scenario-invoer) per maand." : ""), caveat: "Puur seizoenspatroon: bevat géén prijsstijgingen, capex-planning of de CO₂-tolverhoging (1/7-effect zit deels in de historiek). Groei, besparingen en financiering steek je er zelf in via de prognose-aanpassingen — gedocumenteerd, zodat het bankverhaal controleerbaar blijft." })}>
+                <div className="mb-2 rounded-lg bg-muted/40 p-2.5 text-[11px] leading-snug text-foreground/90">
+                  <b>Wat zit hier wél en niet in:</b> deze laag is het <b>day-to-day-ritme</b> (bankseizoen × omzettrend). De inhaal van de historische achterstal
+                  — nog te innen {eurS(d.verleden?.inAR ?? 0)} (kasrealiteit {eurS(d.verleden?.inARFactor ?? 0)}), nog te betalen {eurS(-(d.verleden?.uitAP ?? 0))}, niet-toegewezen {eurS(d.totals.unapplied)} —
+                  zit alléén in het 13-wekenbeeld (week 1–6). Daarom kan het wekenbeeld dieper negatief staan dan deze laag: dat is de put, dit is het ritme.
+                  <b> Klik op een maand</b> in de tabel hieronder om de opbouw te zien.
+                </div>
                 <EChart height={280} ariaLabel="Maandprognose banksaldo"
                   option={{
                     tooltip: { ...echartsTooltip(pal), trigger: "axis", valueFormatter: (v) => (v == null ? "—" : eur(Number(v))) },
@@ -534,8 +543,11 @@ export function CashForecastView() {
                     </thead>
                     <tbody>
                       {monthsView.map((m, i) => (
-                        <tr key={m.month} className="border-b border-border/40">
-                          <td className="py-1 pl-2 pr-2 font-medium text-foreground">
+                        <Fragment key={m.month}>
+                        <tr onClick={() => setOpenMaand(openMaand === m.month ? null : m.month)}
+                          title="Klik: waar dit maandcijfer vandaan komt"
+                          className={`cursor-pointer border-b border-border/40 transition hover:bg-primary/5 ${openMaand === m.month ? "bg-primary/5" : ""}`}>
+                          <td className="py-1 pl-2 pr-2 font-medium text-primary underline decoration-dotted underline-offset-2">
                             {m.month}
                             {i === 0 && <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[9px] font-semibold text-muted-foreground ring-1 ring-border" title="Lopende maand pro-rata: alleen het restant vanaf vandaag — wat al gebeurd is zit in de bankstand">rest v/d maand</span>}
                             {m.extended && <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[9px] font-semibold text-muted-foreground ring-1 ring-border" title="Voorbij de standaardhorizon: herhaling van het seizoensritme van dezelfde kalendermaand">verlengd</span>}
@@ -546,6 +558,44 @@ export function CashForecastView() {
                           <td className="py-1 pr-2 text-right tabular-nums">{eurS(m.net + m.adjNet)}</td>
                           <td className={`py-1 pr-2 text-right font-semibold tabular-nums ${m.cum < 0 ? "text-negative" : "text-foreground"}`}>{eurS(m.cum)}</td>
                         </tr>
+                        {openMaand === m.month && (() => {
+                          // Opbouw van dit maandcijfer: de échte bankmaanden van
+                          // dezelfde kalendermaand (de seizoensreferentie), de
+                          // omzettrendfactor en de aanpassingen die hier landen.
+                          const mm = m.month.slice(5, 7);
+                          const refs = d.months.filter((x) => x.isActual && x.month.slice(5, 7) === mm);
+                          const avgIn = refs.length ? refs.reduce((s, x) => s + x.inSeason, 0) / refs.length : 0;
+                          const avgOut = refs.length ? refs.reduce((s, x) => s + x.outSeason, 0) / refs.length : 0;
+                          const gf = d.groeiFactor ?? 1;
+                          const adjHier = actieveAdjs
+                            .map((a) => ({ a, eff: Math.round(pasToeOpMaanden([a], [m.month], vandaag).net[0] || 0) }))
+                            .filter((x) => x.eff !== 0);
+                          return (
+                            <tr>
+                              <td colSpan={6} className="bg-muted/30 p-3 text-[11px] leading-relaxed">
+                                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Waar komt dit vandaan?</p>
+                                {refs.length > 0 ? (
+                                  <p>
+                                    <b>Basis = de échte bankmutaties van dezelfde kalendermaand:</b>{" "}
+                                    {refs.map((x) => `${x.month}: in ${eurS(x.inSeason)} / uit ${eurS(-x.outSeason)}`).join(" · ")}
+                                    {refs.length > 1 ? ` → gemiddeld in ${eurS(avgIn)} / uit ${eurS(-avgOut)}` : ""}
+                                    {gf !== 1 ? <> × omzettrend <b>{gf.toLocaleString("nl-BE")}</b> (omzet volle maanden dit jaar ÷ zelfde maanden vorig jaar, begrensd 0,8–1,25)</> : " (omzettrend 1,00 — geen schaling)"}
+                                    {" "}= <b>in {eurS(m.inSeason)} / uit {eurS(-m.outSeason)}</b>.
+                                  </p>
+                                ) : (
+                                  <p>Geen bankhistoriek voor deze kalendermaand — projectie op het beschikbare ritme.</p>
+                                )}
+                                {i === 0 && <p className="mt-1">Lopende maand: alleen het <b>restant vanaf vandaag</b> telt (pro-rata op resterende dagen) — wat al gebeurd is, zit in de bankstand (het anker).</p>}
+                                {m.extended && <p className="mt-1">Verlengde maand (voorbij de standaardhorizon): kopie van de projectie van dezelfde kalendermaand — ritme, geen toezegging.</p>}
+                                {adjHier.length > 0 && (
+                                  <p className="mt-1"><b>Aanpassingen in deze maand (scenario-invoer):</b> {adjHier.map((x) => `${x.a.label} (${x.a.categorie}): ${eurS(x.eff)}`).join(" · ")}</p>
+                                )}
+                                <p className="mt-1 text-muted-foreground">Niet in deze laag: de inhaal van de historische achterstal en de btw-/loonkalenderposten van week 1–6 — die zitten in het 13-wekenbeeld. Bron van de bankhistoriek: BankAccountLedgerEntries, alle merken behalve Factor.</p>
+                              </td>
+                            </tr>
+                          );
+                        })()}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
