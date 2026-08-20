@@ -449,7 +449,7 @@ export function CashForecastView() {
                 <div className="flex justify-between"><span>Leasing (12m-gemiddelde externe cash-out, begin maand)</span><span className="tabular-nums">≈ {eurS(-d.totals.leasingMonthly * maandEindes)}</span></div>
                 <p className="mt-1 text-muted-foreground">Kalenderregels, geen individuele facturen. Grote 451-saldi (&gt;€1M, o.a. WHS/TDR) staan bewust NIET in het profiel — timing onbekend, PRIO-vraag bij finance.</p>
               </div>,
-              uitNieuw: <p>Raming: nieuwe inkoopfacturen op het 12-weken-ritme van de leveranciersfacturen (excl. leasing), betaald op ±30 dagen. Ritme, geen orderboek.</p>,
+              uitNieuw: <p>Raming: nieuwe inkoopfacturen op het 12-weken-ritme van de leveranciersfacturen (excl. leasing), betaald op 35 dagen (beslissing 20/08). Ritme, geen orderboek.</p>,
               eind: <p>Startsaldo plus alle bovenstaande componenten = het laagste cumulatieve punt van het gekozen scenario. Rood betekent financieringsbehoefte in de tijd, geen verlies.</p>,
             };
             const maxAbs = Math.max(...rows.map((r) => Math.abs(r.v)), 1);
@@ -577,7 +577,7 @@ export function CashForecastView() {
                     <th className="py-1.5 pr-2 text-right" title="bestaande posten (10%-saldo gefactord) + nieuwe facturatie: 90% ~1 week na uitreiking + 10% op betaalgedrag">In kasrealiteit</th>
                     <th className="py-1.5 pr-2 text-right">Uit leveranciers</th>
                     <th className="py-1.5 pr-2 text-right">Uit vast</th>
-                    <th className="py-1.5 pr-2 text-right" title="nieuwe inkopen op 12-weken-ritme, ±30d betaaltermijn (raming)">Uit nieuw</th>
+                    <th className="py-1.5 pr-2 text-right" title="nieuwe inkopen op 12-weken-ritme, betaald op 35 dagen (raming)">Uit nieuw</th>
                     <th className="py-1.5 pr-2 text-right" title="netto-effect van de prognose-aanpassingen (scenario-invoer, blok onderaan) in deze week">Aanpassingen</th>
                     <th className="py-1.5 pr-2 text-right">Saldo wat-als</th>
                     <th className="py-1.5 pr-2 text-right">Saldo kasrealiteit</th>

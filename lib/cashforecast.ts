@@ -57,7 +57,7 @@ export interface FcWeek {
   // volle weken; nieuwe inkopen op het ritme van de leveranciersfacturen.
   inNewNoFactor: number;   // inning van ná vandaag uitgereikte facturen (100% op betaalgedrag)
   inNewWithFactor: number; // idem met factoring: 85% ~1 week na uitreiking + 15% op betaalgedrag
-  outNew: number;          // betaling van ná vandaag ontvangen inkoopfacturen (~30d)
+  outNew: number;          // betaling van ná vandaag ontvangen inkoopfacturen (35 dagen)
   outAP: number;        // bestaande leveranciersposten op vervaldag (CN gesaldeerd)
   outFixed: number;     // lonen/RSZ + btw + leasing (kalenderregels)
   netNoFactor: number; netWithFactor: number;
@@ -458,7 +458,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   for (let w = 0; w < 13; w++) {
     const landBehave = w + behaveWeeks;   // inning op betaalgedrag
     const landAdv = w + ADV_LAG_WEEKS;    // 85%-voorschot
-    const landAp = w + 4;                  // inkoop ~30 dagen betaaltermijn
+    const landAp = w + 5;                  // inkoop op 35 dagen (beslissing David 20/08 — tussen contract 30d en gemeten DPO 48d)
     if (landBehave < 13) {
       weeks[landBehave].inNewNoFactor += avgFact + avgOther;
       weeks[landBehave].inNewWithFactor += avgFact * 0.10 + avgOther;
@@ -611,7 +611,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       "Recourse-terugnames door de factor (>90d onbetaalde gefactorde posten) zitten nog niet als uitstroom in het weekprofiel — bekend hiaat, wordt zichtbaar via de 433-monitor.",
       "Wat-als 'stoppen met factoring': die lijn betaalt eerst het opgenomen 433-voorschot terug (conservatief: meteen) en ontvangt daarna 100% van elke factuur op betaalgedrag. Daardoor ligt hij ónder de kasrealiteit — factoring is structureel cash-positief zolang de omzet draait.",
       "Factoring-variant (beslissing David 20/08): álle vennootschappen worden behandeld volgens het KBC-model — gefactorde klanten zijn voor 90% voorgeschoten, alleen het 10%-saldo telt nog als komende kasontvangst. Door de factor uitgesloten facturen (KBC-portaal-export 10/08: €42.518) tellen aan 100%.",
-      "Run-rate-laag: nieuwe facturatie loopt door op het gemiddelde weekritme van de laatste 12 volle weken (gesplitst factoring/niet-factoring); met factoring komt 85% daarvan ±1 week na uitreiking binnen (E-trans-aanname), de rest op betaalgedrag (voorschotpercentage 90%, alleen WHS/KBC). Nieuwe inkopen lopen door op het 12-weken-ritme van de leveranciersfacturen (excl. leasing, ±30d betaaltermijn). Dit is een ritme-aanname, geen orderboek.",
+      "Run-rate-laag: nieuwe facturatie loopt door op het gemiddelde weekritme van de laatste 12 volle weken (gesplitst factoring/niet-factoring); met factoring komt 85% daarvan ±1 week na uitreiking binnen (E-trans-aanname), de rest op betaalgedrag (voorschotpercentage 90%, alleen WHS/KBC). Nieuwe inkopen lopen door op het 12-weken-ritme van de leveranciersfacturen (excl. leasing), betaald op 35 dagen (beslissing 20/08 — tussen de contractuele 30 en de gemeten DPO 48). Dit is een ritme-aanname, geen orderboek.",
       "Achterstallige posten (klant én leverancier) worden vlak gespreid over week 1–6 — een inningsaanname, geen belofte per post.",
       "Weergave 'zonder achterstal uit het verleden' (schakelaar boven de grafiek): haalt de inhaal op OUDE posten — meer dan 60 dagen achterstallig (cutoff-beslissing 20/08), klant én leverancier, plus de niet-toegewezen-saldering — uit het weekprofiel, zodat je het zuivere day-to-day-ritme ziet. Achterstal tot 60 dagen blijft in het profiel (hoort bij het normale ritme). De oude achterstal verdwijnt NIET: hij staat als aparte pot naast de grafiek — het financieringsblok/belwerk. De cutoff zelf bepalen jullie met de cutoff-Excel (exports/financiering).",
       `Apart gezette leveranciersposten tellen NIET als cash-out (${AP_UITZONDERINGEN.map((u) => `${u.co} ${u.doc}`).join(", ")} — o.a. de ES Finance-aktefactuur Sint-Niklaas €1,93M: al in de P&L als uitzonderlijke kost, wordt via de akte verrekend). Volledige lijst met reden: blad 'Apart gezet' in de leveranciersaging-export.`,
@@ -672,4 +672,4 @@ function demoCashForecast(): CfoCashForecast {
 }
 
 // v15: verleden-splitsing (achterstal apart) + ISO-weeknummers (19/08).
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v22", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v23", buildCashForecast, demoCashForecast);
