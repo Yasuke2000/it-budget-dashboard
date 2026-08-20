@@ -619,8 +619,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     if (inv.ic || inv.amt <= 0) continue;
     const wi = Math.floor(daysBetween(iso(weekStart0), inv.invDate) / 7);
     if (wi < 0 || wi >= 26) continue;
-    // Run-rate-splitsing volgt de ACTIEVE factoring (alleen WHS/KBC, 20/08).
-    if (inv.co === "WHS" && isFactored(inv.cust)) weekFlow[wi].factored += inv.amt; else weekFlow[wi].other += inv.amt;
+    if (isFactored(inv.cust)) weekFlow[wi].factored += inv.amt; else weekFlow[wi].other += inv.amt;
     weekFlow[wi].count++;
   }
   for (const w of weekFlow) { w.factored = r0(w.factored); w.other = r0(w.other); }
@@ -744,11 +743,9 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     const behaveDays = custMedianDays[inv.cust] ?? globalDays;
     const expIso = iso(addDays(new Date(`${inv.invDate}T00:00:00Z`), Math.max(behaveDays, 7)));
     const ei = weekOf(expIso);
-    // Correctie David 20/08 avond: actieve factoring = ALLEEN WHS via KBC, en
-    // het voorschot is 90% (niet 85). GTR/BNP- en GDI/Belfius-arrangementen
-    // lopen niet meer voor nieuwe posten: die facturen tellen aan 100% op
-    // betaalgedrag. Rest-share bij WHS/KBC = 10%.
-    const factorShare = inv.co === "WHS" && isFactored(inv.cust) && !factorExcluded.get(inv.co)?.has(inv.doc) ? 0.10 : 1;
+    // David 20/08 avond (2e correctie): ALLE vennootschappen behandelen volgens
+    // het KBC-model — gefactorde klanten krijgen 90% voorschot, rest-share 10%.
+    const factorShare = isFactored(inv.cust) && !factorExcluded.get(inv.co)?.has(inv.doc) ? 0.10 : 1;
     if (openAmt > 0) {
       if (ei < 13) cashExpectation[ei].expected += openAmt;
       const di = weekOf(inv.due || todayIso); if (di < 13) cashExpectation[di].onDueDate += openAmt;
@@ -1307,7 +1304,7 @@ export async function getReceivables(
   // v4: DSO-rijpheid en de uitsluiting van eenmalige verkopen wijzigen de reeksen —
   // een payload van een oudere build mag nooit blijven hangen (die toonde 132.302 dagen).
   // v10: spreadNet/spreadFactor per week (achterstal-splitsing 19/08).
-  const cacheKey = `rcv-v13-x:${excl.join(",")}`;
+  const cacheKey = `rcv-v14-x:${excl.join(",")}`;
   const cached = getCache<CfoReceivables>(cacheKey);
   if (cached && !force) return cached;
 
