@@ -2,6 +2,18 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  async rewrites() {
+    // OAuth-discovery voor de claude.ai MCP-connector (RFC 9728/8414): de
+    // /.well-known-paden zijn door de spec vastgelegd, maar App Router-routes
+    // kunnen niet in een dot-map wonen — dus herschrijven naar /api/oauth/*.
+    // De pad-suffixvariant (…/oauth-protected-resource/api/mcp) hoort erbij.
+    return [
+      { source: "/.well-known/oauth-protected-resource", destination: "/api/oauth/prm" },
+      { source: "/.well-known/oauth-protected-resource/:path*", destination: "/api/oauth/prm" },
+      { source: "/.well-known/oauth-authorization-server", destination: "/api/oauth/asm" },
+      { source: "/.well-known/oauth-authorization-server/:path*", destination: "/api/oauth/asm" },
+    ];
+  },
   async headers() {
     return [
       {

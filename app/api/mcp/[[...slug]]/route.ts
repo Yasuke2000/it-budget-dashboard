@@ -12,6 +12,7 @@
 import { getBCToken } from "@/lib/bc-client";
 import { ODATA_ROOT, API_ROOT, pageAllOData } from "@/lib/bc-odata";
 import { fetchWithRetry } from "@/lib/http";
+import { ORIGIN } from "@/lib/mcp-oauth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -127,7 +128,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug?: string[
   const authVorm = header ? "header" : pathToken ? "url" : "geen";
   if (!expected || (header !== expected && pathToken !== expected)) {
     console.log(`[mcp] 401 ua="${ua}" auth=${authVorm}`);
-    return new Response("Unauthorized", { status: 401 });
+    // WWW-Authenticate met resource_metadata-pointer: zo vindt claude.ai de
+    // OAuth-flow (docs: lazy authentication). Zonder deze header + metadata
+    // breekt de connector-broker af met "Couldn't reach".
+    return new Response("Unauthorized", {
+      status: 401,
+      headers: { "WWW-Authenticate": `Bearer resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/api/mcp", scope="mcp"` },
+    });
   }
 
   let msg: { jsonrpc?: string; id?: unknown; method?: string; params?: Record<string, unknown> };
