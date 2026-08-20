@@ -86,6 +86,7 @@ export interface FcDetailRow {
   when: string;           // verwacht betaalmoment (in) of vervaldag (uit)
   factored?: boolean;     // in: factoring-klant (85% al voorgeschoten)
   spread: boolean;        // achterstallig → 1/6 per week over wk 1–6
+  oud?: boolean;          // >60 dagen achterstallig → telt als "verleden" (cutoff David 20/08)
   bcUrl: string;
 }
 export interface FcCompanyMisc {
@@ -243,11 +244,13 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       const doc = String(e.Document_Date || "").slice(0, 10);
       const when = (due && !due.startsWith("0001") ? due : doc) || todayIso;
       let week: number;
+      const oud = when < iso(addDays(today, -60));
       if (when < todayIso) {
         // Achterstallige leveranciers betalen we niet allemaal deze week —
         // inhaalritme gespreid over week 1–6 (eigen keuze, zelfde spreiding als AR).
-        // Ook apart geteld als "verleden" (outOldAP) voor de day-to-day-weergave.
-        for (let k = 0; k < 6; k++) { weeks[k].outAP += rem / 6; weeks[k].outOldAP += rem / 6; }
+        // Alleen >60 dagen achterstallig telt als "verleden" (cutoff David 20/08);
+        // recentere achterstal hoort bij het day-to-day-ritme.
+        for (let k = 0; k < 6; k++) { weeks[k].outAP += rem / 6; if (oud) weeks[k].outOldAP += rem / 6; }
         week = 0;
       } else {
         const wi = weekOf(when);
@@ -255,7 +258,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       }
       outDetail.push({
         week, co: c.code, party: String(e.Vendor_Name || "").trim(), doc: String(e.Document_No || ""),
-        amount: r0(rem), when, spread: when < todayIso,
+        amount: r0(rem), when, spread: when < todayIso, oud,
         bcUrl: vendorLedgerDocLink(c.code, String(e.Document_No || "")),
       });
     }, token);
@@ -550,7 +553,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     weekDetail: {
       in: (rcv.forecastDetail || []).map((r) => ({
         week: r.week, co: r.co, party: r.cust, doc: r.doc, amount: r.amount,
-        when: r.expected, factored: r.factored, spread: r.spread, bcUrl: r.bcUrl,
+        when: r.expected, factored: r.factored, spread: r.spread, oud: r.oud, bcUrl: r.bcUrl,
       })),
       out: capPerWeek(outDetail),
     },
@@ -569,7 +572,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       "Factoring-variant: bij factoring-klanten is 85% van de bestaande posten al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt daar nog. Door KBC uitgesloten facturen (portaal-export 10/08: €42.518) tellen wél aan 100%; de Belfius- en BNP-uitsluitingslijsten ontbreken nog.",
       "Run-rate-laag: nieuwe facturatie loopt door op het gemiddelde weekritme van de laatste 12 volle weken (gesplitst factoring/niet-factoring); met factoring komt 85% daarvan ±1 week na uitreiking binnen (E-trans-aanname), de rest op betaalgedrag. Nieuwe inkopen lopen door op het 12-weken-ritme van de leveranciersfacturen (excl. leasing, ±30d betaaltermijn). Dit is een ritme-aanname, geen orderboek.",
       "Achterstallige posten (klant én leverancier) worden vlak gespreid over week 1–6 — een inningsaanname, geen belofte per post.",
-      "Weergave 'zonder achterstal uit het verleden' (schakelaar boven de grafiek): haalt de inhaal op oude posten — achterstallige klantposten, achterstallige leveranciersposten én de niet-toegewezen-saldering — uit het weekprofiel, zodat je het zuivere day-to-day-ritme ziet. De achterstal verdwijnt daarmee NIET: hij staat als aparte pot naast de grafiek en moet bovenop dit ritme worden ingehaald (belwerk) of betaald.",
+      "Weergave 'zonder achterstal uit het verleden' (schakelaar boven de grafiek): haalt de inhaal op OUDE posten — meer dan 60 dagen achterstallig (cutoff-beslissing 20/08), klant én leverancier, plus de niet-toegewezen-saldering — uit het weekprofiel, zodat je het zuivere day-to-day-ritme ziet. Achterstal tot 60 dagen blijft in het profiel (hoort bij het normale ritme). De oude achterstal verdwijnt NIET: hij staat als aparte pot naast de grafiek — het financieringsblok/belwerk. De cutoff zelf bepalen jullie met de cutoff-Excel (exports/financiering).",
       `Apart gezette leveranciersposten tellen NIET als cash-out (${AP_UITZONDERINGEN.map((u) => `${u.co} ${u.doc}`).join(", ")} — o.a. de ES Finance-aktefactuur Sint-Niklaas €1,93M: al in de P&L als uitzonderlijke kost, wordt via de akte verrekend). Volledige lijst met reden: blad 'Apart gezet' in de leveranciersaging-export.`,
       "Lonen/RSZ = gemiddelde van de laatste 3 volle maanden op de 62-rekeningen, excl. provisieboekingen (vakantiegeld/13e maand — geen maandcash), geboekt op maandeinde. Btw = 451-saldi tot €1M per firma ÉÉN keer op de eerstvolgende 20e; latere aangiftes zijn nog niet geraamd. Leasing = 12m-gemiddelde externe cash-out, begin maand.",
       btwUnclear > 0 ? `€ ${r0(btwUnclear).toLocaleString("nl-BE")} aan 451-saldi (>€1M per firma, o.a. WHS/TDR) staat NIET in het weekprofiel: het oogt opgestapeld (regime btw-provisierekening?) en de betaaltiming is onbekend — [PRIO]-vraag bij finance.` : "",
@@ -626,4 +629,4 @@ function demoCashForecast(): CfoCashForecast {
 }
 
 // v15: verleden-splitsing (achterstal apart) + ISO-weeknummers (19/08).
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v17", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v18", buildCashForecast, demoCashForecast);

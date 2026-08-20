@@ -789,9 +789,10 @@ export interface RcvCashWeekExpectation {
   // factoring waarbij factoring-klanten alleen het 15%-saldo als kasontvangst geven.
   expectedNet?: number;
   expectedFactor?: number;
-  // Het deel van expectedNet/expectedFactor dat uit ACHTERSTALLIGE posten komt
-  // (verwacht betaalmoment al verstreken → 1/6 gespreid over wk 1–6). Vraag David
-  // 19/08: de prognose moet ook zónder deze "lasten van het verleden" kunnen.
+  // Het deel van expectedNet/expectedFactor dat uit OUDE achterstal komt:
+  // verwacht betaalmoment MEER DAN 60 DAGEN verstreken (cutoff David 20/08 —
+  // recente achterstal ≤60d hoort bij het day-to-day-ritme). 1/6 gespreid
+  // over wk 1–6, net als alle achterstal.
   spreadNet?: number;
   spreadFactor?: number;
 }
@@ -833,7 +834,7 @@ export interface CfoReceivables {
   forecastBeyond?: { net: number; factor: number }; // open AR die pas ná week 13 verwacht wordt
   // Doorklik-detail cashforecast: de grootste posten (top 15/week) achter elke
   // forecast-week. week 13 = "ná week 13"; spread = achterstallig, gespreid wk 1–6.
-  forecastDetail?: { week: number; co: string; cust: string; doc: string; amount: number; expected: string; factored: boolean; spread: boolean; bcUrl: string }[];
+  forecastDetail?: { week: number; co: string; cust: string; doc: string; amount: number; expected: string; factored: boolean; spread: boolean; oud?: boolean; bcUrl: string }[];
   behaviour?: CfoBehaviour;                   // betaalgedrag-analyse (norm 30 dagen)
   icShare: { arOpenIcPct: number; salesIcPct: number };
   dataQuality: string[];                      // bv. INTERCO-dim ontbreekt bij X; beginbalans ontbreekt

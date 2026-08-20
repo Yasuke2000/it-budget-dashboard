@@ -63,6 +63,26 @@ export function nieuwClientId(): string {
   return `cc-${randomBytes(12).toString("hex")}`;
 }
 
+// Spiegeling van het bewezen EMAsphere-patroon (probe 20/08 avond): hun
+// werkende connector gebruikt een CONFIDENTIAL client (client_secret) en
+// refresh tokens — wij waren een public client ("none"). Vermoeden: de
+// claude.ai-broker struikelt over public clients ná de token-uitgifte.
+// Stateless: het secret is een HMAC over het client_id, dus niets te bewaren.
+export function clientSecretVoor(clientId: string, secret: string): string {
+  return b64url(createHmac("sha256", `mcp-clientsecret:${secret}`).update(clientId).digest());
+}
+export function maakRefreshToken(clientId: string, secret: string): string {
+  const payload = b64url(Buffer.from(JSON.stringify({ c: clientId, t: "refresh" })));
+  return `${payload}.${b64url(createHmac("sha256", `mcp-refresh:${secret}`).update(payload).digest())}`;
+}
+export function verifieerRefreshToken(token: string, secret: string): boolean {
+  const [payload, sig] = String(token).split(".");
+  if (!payload || !sig) return false;
+  const verwacht = createHmac("sha256", `mcp-refresh:${secret}`).update(payload).digest();
+  const geleverd = Buffer.from(sig, "base64url");
+  return geleverd.length === verwacht.length && timingSafeEqual(geleverd, verwacht);
+}
+
 // CORS op de OAuth-endpoints (fix 20/08 avond): als claude.ai de code-exchange
 // in de BROWSER doet (standaard SPA/PKCE-patroon), dan bereikt het POST-verzoek
 // ons wél (server logt "token uitgegeven") maar mag de browser het antwoord

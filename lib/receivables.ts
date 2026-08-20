@@ -751,13 +751,14 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     // Forecast-reeksen: posten waarvan het verwachte betaalmoment al VERSTREKEN is
     // (achterstallig t.o.v. het eigen betaalgedrag) komen niet allemaal deze week
     // binnen — die spreiden we vlak over week 1–6 (inningsaanname, cf. belwerk).
-    const addFc = (wi: number, amt: number, isSpread = false) => {
+    const addFc = (wi: number, amt: number, isOud = false) => {
       if (wi < 13) {
         cashExpectation[wi].expectedNet = (cashExpectation[wi].expectedNet || 0) + amt;
         cashExpectation[wi].expectedFactor = (cashExpectation[wi].expectedFactor || 0) + amt * factorShare;
-        // Achterstal apart bijhouden (vraag David 19/08): zo kan de prognose
-        // het "verleden" (inhaal op oude posten) scheiden van het day-to-day-ritme.
-        if (isSpread) {
+        // Oude achterstal apart bijhouden (David 19/08 + cutoff 20/08): alleen
+        // posten >60 dagen over hun verwachte betaalmoment tellen als "verleden";
+        // recentere achterstal hoort bij het day-to-day-ritme.
+        if (isOud) {
           cashExpectation[wi].spreadNet = (cashExpectation[wi].spreadNet || 0) + amt;
           cashExpectation[wi].spreadFactor = (cashExpectation[wi].spreadFactor || 0) + amt * factorShare;
         }
@@ -767,11 +768,12 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
       }
     };
     const spread = expIso < todayIso;
-    if (spread) { for (let k = 0; k < 6; k++) addFc(k, openAmt / 6, true); }
+    const oud = expIso < iso(addDays(today, -60));
+    if (spread) { for (let k = 0; k < 6; k++) addFc(k, openAmt / 6, oud); }
     else addFc(ei, openAmt);
     forecastDetail.push({
       week: spread ? 0 : Math.min(ei, 13), co: inv.co, cust: inv.rawCust, doc: inv.doc,
-      amount: r0(openAmt), expected: expIso, factored: factorShare !== 1, spread,
+      amount: r0(openAmt), expected: expIso, factored: factorShare !== 1, spread, oud,
       bcUrl: custLedgerDocLink(inv.co, inv.doc),
     });
   }
@@ -1295,7 +1297,7 @@ export async function getReceivables(
   // v4: DSO-rijpheid en de uitsluiting van eenmalige verkopen wijzigen de reeksen —
   // een payload van een oudere build mag nooit blijven hangen (die toonde 132.302 dagen).
   // v10: spreadNet/spreadFactor per week (achterstal-splitsing 19/08).
-  const cacheKey = `rcv-v10-x:${excl.join(",")}`;
+  const cacheKey = `rcv-v11-x:${excl.join(",")}`;
   const cached = getCache<CfoReceivables>(cacheKey);
   if (cached && !force) return cached;
 

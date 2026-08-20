@@ -131,9 +131,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug?: string[
     // WWW-Authenticate met resource_metadata-pointer: zo vindt claude.ai de
     // OAuth-flow (docs: lazy authentication). Zonder deze header + metadata
     // breekt de connector-broker af met "Couldn't reach".
+    // Root-variant zonder padsuffix — exact zoals de bewezen werkende
+    // EMAsphere-connector (probe 20/08); beide varianten serveren dezelfde JSON.
     return new Response("Unauthorized", {
       status: 401,
-      headers: { "WWW-Authenticate": `Bearer resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/api/mcp", scope="mcp"` },
+      headers: { "WWW-Authenticate": `Bearer resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource", scope="mcp"` },
     });
   }
 

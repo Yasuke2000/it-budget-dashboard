@@ -2,7 +2,7 @@
 // verbinding een nieuwe (publieke) client; wij bewaren niets — het client_id is
 // puur cosmetisch, de echte controle zit in de redirect-allowlist + Authelia op
 // /oauth/authorize + PKCE op het token-endpoint.
-import { jsonResp, nieuwClientId, redirectUriToegestaan, corsPreflight } from "@/lib/mcp-oauth";
+import { jsonResp, nieuwClientId, redirectUriToegestaan, corsPreflight, clientSecretVoor } from "@/lib/mcp-oauth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,13 +23,17 @@ export async function POST(req: Request) {
   }
   const clientId = nieuwClientId();
   console.log(`[oauth] register ok client_id=${clientId} naam="${String(body.client_name || "?").slice(0, 60)}"`);
+  // Confidential client + refresh (EMAsphere-patroon, 20/08): stateless secret
+  // = HMAC over het client_id; de echte bescherming blijft PKCE + Authelia.
+  const secret = process.env.MCP_TOKEN;
   return jsonResp(
     {
       client_id: clientId,
+      ...(secret ? { client_secret: clientSecretVoor(clientId, secret), client_secret_expires_at: 0 } : {}),
       client_id_issued_at: Math.floor(Date.now() / 1000),
       redirect_uris: uris,
-      token_endpoint_auth_method: "none",
-      grant_types: ["authorization_code"],
+      token_endpoint_auth_method: secret ? "client_secret_post" : "none",
+      grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
     },
     201,

@@ -29,8 +29,10 @@ const newId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? c
 // Doorklik per week: de grootste posten (top 15 in/uit) achter het weekcijfer,
 // elk met BC-link — zelfde conventie als de drill op Business Units en de P&L.
 function WeekDrill({ week, weekStart, detail, verbergSpread }: { week: number; weekStart: string; detail: CfoCashForecast["weekDetail"]; verbergSpread?: boolean }) {
-  const inRows = detail.in.filter((r) => r.week === week && !(verbergSpread && r.spread));
-  const outRows = detail.out.filter((r) => r.week === week && !(verbergSpread && r.spread));
+  // Bij "zonder verleden" verbergen we alleen de OUDE achterstal (>60 dagen,
+  // cutoff 20/08); recentere gespreide posten horen bij het day-to-day-ritme.
+  const inRows = detail.in.filter((r) => r.week === week && !(verbergSpread && (r.oud ?? r.spread)));
+  const outRows = detail.out.filter((r) => r.week === week && !(verbergSpread && (r.oud ?? r.spread)));
   const spreadNote = week < 6 && (inRows.some((r) => r.spread) || outRows.some((r) => r.spread));
   const list = (rows: FcDetailRow[], sign: 1 | -1, title: string) => (
     <div>
@@ -62,7 +64,7 @@ function WeekDrill({ week, weekStart, detail, verbergSpread }: { week: number; w
           {list(outRows, -1, "Uit — grootste leveranciersposten (top 15)")}
         </div>
         <p className="mt-2 text-[10px] leading-snug text-muted-foreground">
-          {verbergSpread ? "Achterstallige (gespreide) posten zijn hier verborgen — ze tellen in deze weergave niet mee en staan als aparte pot boven de grafiek. " : ""}
+          {verbergSpread ? "Oude achterstal (>60 dagen) is hier verborgen — die telt in deze weergave niet mee en staat als aparte pot boven de grafiek; recentere achterstal blijft gewoon meetellen. " : ""}
           Bedragen = het volledige open bedrag van de post; {spreadNote ? "posten met 'gespreid wk 1–6' tellen voor 1/6 per week mee in het weekcijfer erboven. " : ""}
           Kalenderposten (lonen/btw/leasing), de run-rate-ramingen (nieuwe facturatie/inkopen) en prognose-aanpassingen (scenario) staan niet in deze lijst — dat zijn ritmes of aannames, geen individuele posten. Doorklikken opent de post in Business Central (BC-login vereist).
         </p>
@@ -249,7 +251,7 @@ export function CashForecastView() {
               <span className="mx-1 h-3 w-px bg-border" aria-hidden />
               {([[false, "Met achterstal (volledig beeld)"], [true, "Zonder achterstal uit het verleden"]] as const).map(([k, lbl]) => (
                 <button key={String(k)} onClick={() => setZonderVerleden(k)}
-                  title={k ? "Day-to-day-ritme: inhaal op oude posten (achterstallige klanten én leveranciers + niet-toegewezen-saldering) uit het profiel — de achterstal staat dan als aparte pot boven de grafiek" : "Volledig beeld: inclusief de inhaal op achterstallige posten, gespreid over week 1–6"}
+                  title={k ? "Day-to-day-ritme: de OUDE achterstal (>60 dagen — cutoff 20/08, klant én leverancier + niet-toegewezen-saldering) uit het profiel — die staat dan als aparte pot boven de grafiek. Achterstal tot 60 dagen blijft meetellen." : "Volledig beeld: inclusief de inhaal op alle achterstallige posten, gespreid over week 1–6"}
                   className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ring-1 transition ${zonderVerleden === k ? "bg-warning/20 text-foreground ring-warning" : "bg-muted text-muted-foreground ring-border hover:text-foreground"}`}>
                   {lbl}
                 </button>
@@ -304,7 +306,7 @@ export function CashForecastView() {
           {tab === "weken" && <>
           {zonderVerleden && (
             <div className="rounded-2xl border border-warning/40 bg-warning/10 p-3 text-[11px] leading-snug text-foreground">
-              <b>Achterstal uit het verleden staat APART</b> (telt hieronder niet mee, maar verdwijnt niet):
+              <b>Oude achterstal (&gt;60 dagen) staat APART</b> (telt hieronder niet mee, maar verdwijnt niet):
               nog te innen uit oude klantposten <b>{eurS(d.verleden?.inAR ?? 0)}</b>
               {" "}(kasrealiteit na factorvoorschot: <b>{eurS(d.verleden?.inARFactor ?? 0)}</b>),
               nog te betalen oude leveranciersposten <b>{eurS(-(d.verleden?.uitAP ?? 0))}</b>,
