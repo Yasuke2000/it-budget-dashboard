@@ -643,8 +643,26 @@ export function CashForecastView() {
                   <b> Klik op een maand</b> in de tabel hieronder om de opbouw te zien.
                 </div>
                 <EChart height={280} ariaLabel="Maandprognose banksaldo"
+                  onSelect={(pt) => { const m = monthsView[pt.dataIndex ?? -1]; if (m) setOpenMaand(openMaand === m.month ? null : m.month); }}
                   option={{
-                    tooltip: { ...echartsTooltip(pal), trigger: "axis", valueFormatter: (v) => (v == null ? "—" : eur(Number(v))) },
+                    tooltip: { ...echartsTooltip(pal), trigger: "axis", valueFormatter: (v) => (v == null ? "—" : eur(Number(v))),
+                      // Zelfde plus/min-lijst als het wekenbeeld (vraag David 20/08
+                      // avond: "de maand moet net zo detailed en insightful zijn").
+                      formatter: (prs: unknown) => {
+                        const arr = prs as { dataIndex: number }[];
+                        const m = monthsView[arr[0]?.dataIndex ?? -1];
+                        if (!m) return "";
+                        const regels: string[] = [];
+                        regels.push(`+ instroom (bankseizoen × trend): <b>${eurS(m.inSeason)}</b>`);
+                        regels.push(`− uitstroom (bankseizoen × trend): <b>${eurS(-m.outSeason)}</b>`);
+                        if (m.adjNet) regels.push(`± aanpassingen (scenario): <b>${eurS(m.adjNet)}</b>`);
+                        regels.push(`= netto deze maand: <b>${eurS(m.net + m.adjNet)}</b>`);
+                        regels.push(`Saldo eind maand: <b>${eurS(m.cum)}</b>`);
+                        const extra: string[] = [];
+                        if (arr[0]?.dataIndex === 0) extra.push("lopende maand: alleen het restant vanaf vandaag");
+                        if (m.extended) extra.push("verlengd: herhaling seizoensritme");
+                        return `<b>${m.month}</b>${extra.length ? ` <i>(${extra.join(" · ")})</i>` : ""}<br/>${regels.join("<br/>")}<br/><i>klik voor de bronmaanden en de opbouw</i>`;
+                      } },
                     grid: { left: 64, right: 16, top: 20, bottom: 30 },
                     xAxis: echartsCategoryAxis(pal, { data: monthsView.map((m) => m.month) }),
                     yAxis: echartsValueAxis(pal, (v) => eurS(v)),
