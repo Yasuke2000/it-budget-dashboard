@@ -2,7 +2,7 @@
 // het bestaande MCP_TOKEN als access token. Vereisten uit de claude.ai-docs:
 // Content-Type application/x-www-form-urlencoded, antwoord < 10s, RFC 6749-
 // foutcodes (invalid_grant). PKCE S256 is verplicht en wordt hier afgedwongen.
-import { jsonResp, verifieerCode, corsPreflight, clientSecretVoor, maakRefreshToken, verifieerRefreshToken } from "@/lib/mcp-oauth";
+import { jsonResp, verifieerCode, corsPreflight, clientSecretVoor, maakRefreshToken, verifieerRefreshToken, maakAccessToken } from "@/lib/mcp-oauth";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       return jsonResp({ error: "invalid_grant" }, 400);
     }
     console.log(`[oauth] token vernieuwd (refresh) client_id=${clientId.slice(0, 40)}`);
-    return jsonResp({ access_token: secret, token_type: "Bearer", expires_in: 31_536_000, scope: "mcp", refresh_token: maakRefreshToken(clientId, secret) });
+    return jsonResp({ access_token: maakAccessToken(secret), token_type: "Bearer", expires_in: 31_536_000, scope: "mcp", refresh_token: maakRefreshToken(clientId, secret) });
   }
   if (grant !== "authorization_code") {
     return jsonResp({ error: "unsupported_grant_type" }, 400);
@@ -59,5 +59,5 @@ export async function POST(req: Request) {
     return jsonResp({ error: "invalid_grant" }, 400);
   }
   console.log(`[oauth] token uitgegeven client_id=${clientId.slice(0, 40)} auth=${clientSecret ? "secret" : "public"}`);
-  return jsonResp({ access_token: secret, token_type: "Bearer", expires_in: 31_536_000, scope: "mcp", refresh_token: maakRefreshToken(clientId, secret) });
+  return jsonResp({ access_token: maakAccessToken(secret), token_type: "Bearer", expires_in: 31_536_000, scope: "mcp", refresh_token: maakRefreshToken(clientId, secret) });
 }

@@ -12,7 +12,7 @@
 import { getBCToken } from "@/lib/bc-client";
 import { ODATA_ROOT, API_ROOT, pageAllOData } from "@/lib/bc-odata";
 import { fetchWithRetry } from "@/lib/http";
-import { ORIGIN } from "@/lib/mcp-oauth";
+import { ORIGIN, verifieerAccessToken } from "@/lib/mcp-oauth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -126,7 +126,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug?: string[
   // NOOIT het token zelf — zo is in de pod-logs te zien wat claude.ai stuurt.
   const ua = (req.headers.get("user-agent") || "?").slice(0, 80);
   const authVorm = header ? "header" : pathToken ? "url" : "geen";
-  if (!expected || (header !== expected && pathToken !== expected)) {
+  if (!expected || (header !== expected && pathToken !== expected && !verifieerAccessToken(header, expected))) {
     console.log(`[mcp] 401 ua="${ua}" auth=${authVorm}`);
     // WWW-Authenticate met resource_metadata-pointer: zo vindt claude.ai de
     // OAuth-flow (docs: lazy authentication). Zonder deze header + metadata
@@ -135,7 +135,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug?: string[
     // EMAsphere-connector (probe 20/08); beide varianten serveren dezelfde JSON.
     return new Response("Unauthorized", {
       status: 401,
-      headers: { "WWW-Authenticate": `Bearer resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource", scope="mcp"` },
+      headers: { "WWW-Authenticate": `Bearer resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource"` },
     });
   }
 

@@ -83,6 +83,31 @@ export function verifieerRefreshToken(token: string, secret: string): boolean {
   return geleverd.length === verwacht.length && timingSafeEqual(geleverd, verwacht);
 }
 
+// JWT-vormig access token (laatste verschil met het werkende EMAsphere-oppervlak,
+// 20/08 avond): zij geven JWT's uit; een broker die het token als JWT parseert
+// crasht op onze ruwe hex-string. HS256, gesigneerd met een van MCP_TOKEN
+// afgeleide sleutel; de MCP-route accepteert zowel dit JWT als het ruwe token
+// (capability-URL/Desktop blijft werken). Tokens zijn per RFC 6749 opaak voor
+// de client — dit MAG dus, het is puur vormgeving.
+export function maakAccessToken(secret: string): string {
+  const nu = Math.floor(Date.now() / 1000);
+  const kop = b64url(Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })));
+  const body = b64url(Buffer.from(JSON.stringify({ iss: ORIGIN, aud: RESOURCE, sub: "cfo", scope: "mcp", iat: nu, exp: nu + 31_536_000 })));
+  const sig = b64url(createHmac("sha256", `mcp-jwt:${secret}`).update(`${kop}.${body}`).digest());
+  return `${kop}.${body}.${sig}`;
+}
+export function verifieerAccessToken(token: string, secret: string): boolean {
+  const delen = String(token).split(".");
+  if (delen.length !== 3) return false;
+  const verwacht = createHmac("sha256", `mcp-jwt:${secret}`).update(`${delen[0]}.${delen[1]}`).digest();
+  const geleverd = Buffer.from(delen[2], "base64url");
+  if (geleverd.length !== verwacht.length || !timingSafeEqual(geleverd, verwacht)) return false;
+  try {
+    const p = JSON.parse(Buffer.from(delen[1], "base64url").toString());
+    return !p.exp || Date.now() / 1000 < p.exp;
+  } catch { return false; }
+}
+
 // CORS op de OAuth-endpoints (fix 20/08 avond): als claude.ai de code-exchange
 // in de BROWSER doet (standaard SPA/PKCE-patroon), dan bereikt het POST-verzoek
 // ons wél (server logt "token uitgegeven") maar mag de browser het antwoord
