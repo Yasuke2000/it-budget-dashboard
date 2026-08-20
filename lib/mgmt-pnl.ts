@@ -96,7 +96,7 @@ const BUCKETS: { id: string; label: string; style: PnlRow["style"]; indent: 0 | 
   { id: "res_na_bel", label: "Resultaat ná belastingen", style: "total", indent: 0 },
   { id: "ebitda", label: "EBITDA", style: "total", indent: 0 },
   { id: "niet_gemapt", label: "Niet gemapt (hoort €0 te zijn)", style: "memo", indent: 0 },
-  { id: "niet_recurrent", label: "Niet-recurrent apart: verkoop gebouwen (GPR 705200)", style: "memo", indent: 0 },
+  { id: "niet_recurrent", label: "Niet-recurrent apart: verkoop gebouwen (GPR 705200) + meerwaarden (741000)", style: "memo", indent: 0 },
 ];
 
 // Somrijen: uit welke detailrijen bestaat elk (sub)totaal.
@@ -410,4 +410,4 @@ function demoMgmtPnl(): CfoMgmtPnl {
 // v8: detailcap 40→150 per bucket (pivot-volledigheid).
 // v9: meerwaarden (741000) uit de brutomarge → niet-recurrent (finance 20/08).
 // v10: personeels-/verzekeringsrecuperaties uit de brutomarge → saldering op de kostenlijn.
-export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v10", buildMgmtPnl, demoMgmtPnl);
+export const getMgmtPnl = makePolledGetter<CfoMgmtPnl>("mgmtpnl-v11", buildMgmtPnl, demoMgmtPnl);
