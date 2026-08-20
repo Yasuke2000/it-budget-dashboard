@@ -461,9 +461,9 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     const landAp = w + 4;                  // inkoop ~30 dagen betaaltermijn
     if (landBehave < 13) {
       weeks[landBehave].inNewNoFactor += avgFact + avgOther;
-      weeks[landBehave].inNewWithFactor += avgFact * 0.15 + avgOther;
+      weeks[landBehave].inNewWithFactor += avgFact * 0.10 + avgOther;
     }
-    if (landAdv < 13) weeks[landAdv].inNewWithFactor += avgFact * 0.85;
+    if (landAdv < 13) weeks[landAdv].inNewWithFactor += avgFact * 0.90;
     if (landAp < 13) weeks[landAp].outNew += avgNewAp;
   }
 
@@ -610,8 +610,8 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       "Straight loans/opticash: de getrokken cash zit al in de bankstand; de schuld zelf (43x excl. 433) en de vervaldagen/rollovers zijn NIET ingepland (rentevoeten en vervaldagen = openstaande vraag bij finance). Rood = behoefte bovenop wat al getrokken is.",
       "Recourse-terugnames door de factor (>90d onbetaalde gefactorde posten) zitten nog niet als uitstroom in het weekprofiel — bekend hiaat, wordt zichtbaar via de 433-monitor.",
       "Wat-als 'stoppen met factoring': die lijn betaalt eerst het opgenomen 433-voorschot terug (conservatief: meteen) en ontvangt daarna 100% van elke factuur op betaalgedrag. Daardoor ligt hij ónder de kasrealiteit — factoring is structureel cash-positief zolang de omzet draait.",
-      "Factoring-variant: bij factoring-klanten is 85% van de bestaande posten al voorgeschoten (bevestigd percentage, alle drie de factors); alleen het 15%-saldo telt daar nog. Door KBC uitgesloten facturen (portaal-export 10/08: €42.518) tellen wél aan 100%; de Belfius- en BNP-uitsluitingslijsten ontbreken nog.",
-      "Run-rate-laag: nieuwe facturatie loopt door op het gemiddelde weekritme van de laatste 12 volle weken (gesplitst factoring/niet-factoring); met factoring komt 85% daarvan ±1 week na uitreiking binnen (E-trans-aanname), de rest op betaalgedrag. Nieuwe inkopen lopen door op het 12-weken-ritme van de leveranciersfacturen (excl. leasing, ±30d betaaltermijn). Dit is een ritme-aanname, geen orderboek.",
+      "Factoring-variant (correctie David 20/08): actieve factoring loopt ALLEEN bij WHS via KBC, met een voorschot van 90% — daar telt enkel het 10%-saldo nog als komende kasontvangst. Posten van andere vennootschappen (incl. historisch via BNP/Belfius gefactorde klanten) tellen aan 100% op betaalgedrag. Door KBC uitgesloten facturen (portaal-export 10/08: €42.518) tellen ook aan 100%.",
+      "Run-rate-laag: nieuwe facturatie loopt door op het gemiddelde weekritme van de laatste 12 volle weken (gesplitst factoring/niet-factoring); met factoring komt 85% daarvan ±1 week na uitreiking binnen (E-trans-aanname), de rest op betaalgedrag (voorschotpercentage 90%, alleen WHS/KBC). Nieuwe inkopen lopen door op het 12-weken-ritme van de leveranciersfacturen (excl. leasing, ±30d betaaltermijn). Dit is een ritme-aanname, geen orderboek.",
       "Achterstallige posten (klant én leverancier) worden vlak gespreid over week 1–6 — een inningsaanname, geen belofte per post.",
       "Weergave 'zonder achterstal uit het verleden' (schakelaar boven de grafiek): haalt de inhaal op OUDE posten — meer dan 60 dagen achterstallig (cutoff-beslissing 20/08), klant én leverancier, plus de niet-toegewezen-saldering — uit het weekprofiel, zodat je het zuivere day-to-day-ritme ziet. Achterstal tot 60 dagen blijft in het profiel (hoort bij het normale ritme). De oude achterstal verdwijnt NIET: hij staat als aparte pot naast de grafiek — het financieringsblok/belwerk. De cutoff zelf bepalen jullie met de cutoff-Excel (exports/financiering).",
       `Apart gezette leveranciersposten tellen NIET als cash-out (${AP_UITZONDERINGEN.map((u) => `${u.co} ${u.doc}`).join(", ")} — o.a. de ES Finance-aktefactuur Sint-Niklaas €1,93M: al in de P&L als uitzonderlijke kost, wordt via de akte verrekend). Volledige lijst met reden: blad 'Apart gezet' in de leveranciersaging-export.`,
@@ -672,4 +672,4 @@ function demoCashForecast(): CfoCashForecast {
 }
 
 // v15: verleden-splitsing (achterstal apart) + ISO-weeknummers (19/08).
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v20", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v21", buildCashForecast, demoCashForecast);
