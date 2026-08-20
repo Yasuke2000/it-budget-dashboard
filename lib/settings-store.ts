@@ -172,6 +172,15 @@ async function setSetting(key: string, value: unknown): Promise<void> {
   await writeFileStore(key, value);
 }
 
+// Generieke JSON-opslag voor andere modules (bv. de prognose-aanpassingen van
+// de cashflowpagina) — zelfde DB → file → memory-resilience als de settings.
+export async function getStoredJson<T>(key: string): Promise<T | null> {
+  return getSetting<T>(key);
+}
+export async function setStoredJson(key: string, value: unknown): Promise<void> {
+  return setSetting(key, value);
+}
+
 /** Settings merged over the compiled defaults. */
 export async function getAppSettings(): Promise<AppSettings> {
   const [gl, prices, vendors, budgets, opVendors, includeOp, consolidatedRev, benchmarkPct, showPeppol, licBuffer, cfoRev, cfoCost] = await Promise.all([
