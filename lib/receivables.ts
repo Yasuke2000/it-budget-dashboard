@@ -751,13 +751,17 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     // Forecast-reeksen: posten waarvan het verwachte betaalmoment al VERSTREKEN is
     // (achterstallig t.o.v. het eigen betaalgedrag) komen niet allemaal deze week
     // binnen — die spreiden we vlak over week 1–6 (inningsaanname, cf. belwerk).
-    const addFc = (wi: number, amt: number, isOud = false) => {
+    const addFc = (wi: number, amt: number, isSpread = false, isOud = false) => {
       if (wi < 13) {
         cashExpectation[wi].expectedNet = (cashExpectation[wi].expectedNet || 0) + amt;
         cashExpectation[wi].expectedFactor = (cashExpectation[wi].expectedFactor || 0) + amt * factorShare;
-        // Oude achterstal apart bijhouden (David 19/08 + cutoff 20/08): alleen
-        // posten >60 dagen over hun verwachte betaalmoment tellen als "verleden";
-        // recentere achterstal hoort bij het day-to-day-ritme.
+        // Achterstal in twee lagen (David 19/08 + cutoff 20/08 + driestand):
+        // spreadAlle = elke verstreken verwachte betaaldatum; spread = alleen
+        // >60 dagen (het "verleden"). De view kiest welke laag apart gaat.
+        if (isSpread) {
+          cashExpectation[wi].spreadAlleNet = (cashExpectation[wi].spreadAlleNet || 0) + amt;
+          cashExpectation[wi].spreadAlleFactor = (cashExpectation[wi].spreadAlleFactor || 0) + amt * factorShare;
+        }
         if (isOud) {
           cashExpectation[wi].spreadNet = (cashExpectation[wi].spreadNet || 0) + amt;
           cashExpectation[wi].spreadFactor = (cashExpectation[wi].spreadFactor || 0) + amt * factorShare;
@@ -769,7 +773,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     };
     const spread = expIso < todayIso;
     const oud = expIso < iso(addDays(today, -60));
-    if (spread) { for (let k = 0; k < 6; k++) addFc(k, openAmt / 6, oud); }
+    if (spread) { for (let k = 0; k < 6; k++) addFc(k, openAmt / 6, true, oud); }
     else addFc(ei, openAmt);
     forecastDetail.push({
       week: spread ? 0 : Math.min(ei, 13), co: inv.co, cust: inv.rawCust, doc: inv.doc,
@@ -791,6 +795,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     w.expected = r0(w.expected); w.onDueDate = r0(w.onDueDate);
     w.expectedNet = r0(w.expectedNet || 0); w.expectedFactor = r0(w.expectedFactor || 0);
     w.spreadNet = r0(w.spreadNet || 0); w.spreadFactor = r0(w.spreadFactor || 0);
+    w.spreadAlleNet = r0(w.spreadAlleNet || 0); w.spreadAlleFactor = r0(w.spreadAlleFactor || 0);
   }
   forecastBeyond.net = r0(forecastBeyond.net); forecastBeyond.factor = r0(forecastBeyond.factor);
 
@@ -1297,7 +1302,7 @@ export async function getReceivables(
   // v4: DSO-rijpheid en de uitsluiting van eenmalige verkopen wijzigen de reeksen —
   // een payload van een oudere build mag nooit blijven hangen (die toonde 132.302 dagen).
   // v10: spreadNet/spreadFactor per week (achterstal-splitsing 19/08).
-  const cacheKey = `rcv-v11-x:${excl.join(",")}`;
+  const cacheKey = `rcv-v12-x:${excl.join(",")}`;
   const cached = getCache<CfoReceivables>(cacheKey);
   if (cached && !force) return cached;
 

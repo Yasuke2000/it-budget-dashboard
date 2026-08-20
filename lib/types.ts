@@ -795,6 +795,10 @@ export interface RcvCashWeekExpectation {
   // over wk 1–6, net als alle achterstal.
   spreadNet?: number;
   spreadFactor?: number;
+  // Alle achterstal (elke verstreken verwachte betaaldatum, ook ≤60d) — voor de
+  // driestand-weergave "alle achterstal apart" (vraag David 20/08 avond).
+  spreadAlleNet?: number;
+  spreadAlleFactor?: number;
 }
 
 export interface CfoReceivables {

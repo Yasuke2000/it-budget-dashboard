@@ -72,6 +72,13 @@ export interface FcWeek {
   inOldNoFactor: number;
   inOldWithFactor: number;
   outOldAP: number;
+  // Driestand (20/08 avond): ook ALLE achterstal (elke vervallen post, incl.
+  // ≤60d) apart beschikbaar, plus de niet-toegewezen-saldering als eigen veld
+  // (zit NIET meer in inOld* gebakken) — de view kiest wat apart gaat.
+  inSpreadAllNoFactor: number;
+  inSpreadAllWithFactor: number;
+  outSpreadAllAP: number;
+  inUnapplied: number;
 }
 export interface FcMonth {
   month: string;          // "2026-09"
@@ -112,6 +119,8 @@ export interface CfoCashForecast {
   // uitAP = achterstallige leveranciersposten. De zonder-verleden-weergave
   // haalt dit (plus de niet-toegewezen-correctie) uit het weekprofiel.
   verleden: { inAR: number; inARFactor: number; uitAP: number };
+  // Totalen van ALLE achterstal (ook ≤60d) — voor de driestand-weergave.
+  verledenAlle: { inAR: number; inARFactor: number; uitAP: number };
   // Omzettrendfactor waarmee het seizoensritme geschaald is (0,8–1,25) —
   // nodig voor de maand-drill ("laat zien wat erin zit", vraag David 20/08).
   groeiFactor: number;
@@ -230,6 +239,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     netNoFactor: 0, netWithFactor: 0, cumNoFactor: 0, cumWithFactor: 0,
     basis: "posten" as const,
     inOldNoFactor: 0, inOldWithFactor: 0, outOldAP: 0,
+    inSpreadAllNoFactor: 0, inSpreadAllWithFactor: 0, outSpreadAllAP: 0, inUnapplied: 0,
   }));
   const weekOf = (dateIso: string): number => {
     const wi = Math.floor((Date.parse(`${dateIso}T00:00:00Z`) - w0.getTime()) / (7 * 86400000));
@@ -243,6 +253,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     if (i < 13) {
       weeks[i].inNoFactor = w.expectedNet || 0; weeks[i].inWithFactor = w.expectedFactor || 0;
       weeks[i].inOldNoFactor = w.spreadNet || 0; weeks[i].inOldWithFactor = w.spreadFactor || 0;
+      weeks[i].inSpreadAllNoFactor = w.spreadAlleNet || 0; weeks[i].inSpreadAllWithFactor = w.spreadAlleFactor || 0;
     }
   });
   const beyond13w = {
@@ -273,7 +284,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
         // inhaalritme gespreid over week 1–6 (eigen keuze, zelfde spreiding als AR).
         // Alleen >60 dagen achterstallig telt als "verleden" (cutoff David 20/08);
         // recentere achterstal hoort bij het day-to-day-ritme.
-        for (let k = 0; k < 6; k++) { weeks[k].outAP += rem / 6; if (oud) weeks[k].outOldAP += rem / 6; }
+        for (let k = 0; k < 6; k++) { weeks[k].outAP += rem / 6; weeks[k].outSpreadAllAP += rem / 6; if (oud) weeks[k].outOldAP += rem / 6; }
         week = 0;
       } else {
         const wi = weekOf(when);
@@ -383,10 +394,9 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   for (let k = 0; k < 6; k++) {
     weeks[k].inNoFactor += unappliedNet / 6;
     weeks[k].inWithFactor += unappliedNet / 6;
-    // Hoort bij het "verleden": deze ontvangsten corrigeren oude, nog niet
-    // afgepunte posten. Zonder-verleden-weergave haalt beide samen weg.
-    weeks[k].inOldNoFactor += unappliedNet / 6;
-    weeks[k].inOldWithFactor += unappliedNet / 6;
+    // Eigen veld (v20): de saldering corrigeert oude, nog niet afgepunte
+    // posten — de view haalt hem weg samen met welke achterstal-laag dan ook.
+    weeks[k].inUnapplied += unappliedNet / 6;
   }
 
   // ---- 6. Leasing: gemiddelde maandelijkse externe cash-out (12m) ----
@@ -495,6 +505,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     w.inNewNoFactor = 0; w.inNewWithFactor = 0;
     w.outAP = wOut; w.outFixed = 0; w.outNew = 0;
     w.inOldNoFactor = 0; w.inOldWithFactor = 0; w.outOldAP = 0; // seizoen = ritme, geen achterstal
+    w.inSpreadAllNoFactor = 0; w.inSpreadAllWithFactor = 0; w.outSpreadAllAP = 0; w.inUnapplied = 0;
   }
 
   // ---- 7. Cumulatief saldo + kantelpunten (anker = echte bankstand) ----
@@ -514,6 +525,8 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     w.inNewNoFactor = r0(w.inNewNoFactor); w.inNewWithFactor = r0(w.inNewWithFactor);
     w.outAP = r0(w.outAP); w.outFixed = r0(w.outFixed); w.outNew = r0(w.outNew);
     w.inOldNoFactor = r0(w.inOldNoFactor); w.inOldWithFactor = r0(w.inOldWithFactor); w.outOldAP = r0(w.outOldAP);
+    w.inSpreadAllNoFactor = r0(w.inSpreadAllNoFactor); w.inSpreadAllWithFactor = r0(w.inSpreadAllWithFactor);
+    w.outSpreadAllAP = r0(w.outSpreadAllAP); w.inUnapplied = r0(w.inUnapplied);
     w.netNoFactor = r0(w.inNoFactor + w.inNewNoFactor - w.outAP - w.outFixed - w.outNew);
     w.netWithFactor = r0(w.inWithFactor + w.inNewWithFactor - w.outAP - w.outFixed - w.outNew);
     cumN += w.netNoFactor; cumF += w.netWithFactor;
@@ -562,6 +575,11 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       inAR: r0(rcv.cashExpectation.reduce((s, w) => s + (w.spreadNet || 0), 0)),
       inARFactor: r0(rcv.cashExpectation.reduce((s, w) => s + (w.spreadFactor || 0), 0)),
       uitAP: r0(weeks.reduce((s, w) => s + w.outOldAP, 0)),
+    },
+    verledenAlle: {
+      inAR: r0(rcv.cashExpectation.reduce((s, w) => s + (w.spreadAlleNet || 0), 0)),
+      inARFactor: r0(rcv.cashExpectation.reduce((s, w) => s + (w.spreadAlleFactor || 0), 0)),
+      uitAP: r0(weeks.reduce((s, w) => s + w.outSpreadAllAP, 0)),
     },
     groeiFactor: Math.round(groei * 100) / 100,
     months,
@@ -630,6 +648,7 @@ function demoCashForecast(): CfoCashForecast {
       netNoFactor: inN - outA - outF, netWithFactor: inF - outA - outF, cumNoFactor: 0, cumWithFactor: 0,
       basis: (i >= 6 ? "seizoen" : "posten") as "posten" | "seizoen",
       inOldNoFactor: i < 6 ? 320_000 : 0, inOldWithFactor: i < 6 ? 180_000 : 0, outOldAP: i < 6 ? 260_000 : 0,
+      inSpreadAllNoFactor: i < 6 ? 420_000 : 0, inSpreadAllWithFactor: i < 6 ? 240_000 : 0, outSpreadAllAP: i < 6 ? 400_000 : 0, inUnapplied: i < 6 ? -30_000 : 0,
     };
   });
   // Demo consistent met het echte mechanisme: wat-als start ná 433-terugbetaling (audit 18/08).
@@ -640,7 +659,8 @@ function demoCashForecast(): CfoCashForecast {
     bankNow: 1_200_000, factorCredit: -1_350_000,
     weeks, beyond13w: { inNoFactor: 800_000, inWithFactor: 300_000 },
     // Bruto = weekvelden (incl. saldering) + de niet-toegewezen −180k terug erbij.
-    verleden: { inAR: 6 * 320_000 + 180_000, inARFactor: 6 * 180_000 + 180_000, uitAP: 6 * 260_000 },
+    verleden: { inAR: 6 * 320_000, inARFactor: 6 * 180_000, uitAP: 6 * 260_000 },
+    verledenAlle: { inAR: 6 * 420_000, inARFactor: 6 * 240_000, uitAP: 6 * 400_000 },
     groeiFactor: 1,
     months: [], lowPoint: { noFactor: { week: weeks[8].weekStart, value: -4_100_000 }, withFactor: { week: weeks[6].weekStart, value: -510_000 } },
     negativeWeeks: { noFactor: [weeks[8].weekStart], withFactor: [weeks[6].weekStart, weeks[7].weekStart] },
@@ -652,4 +672,4 @@ function demoCashForecast(): CfoCashForecast {
 }
 
 // v15: verleden-splitsing (achterstal apart) + ISO-weeknummers (19/08).
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v19", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v20", buildCashForecast, demoCashForecast);
