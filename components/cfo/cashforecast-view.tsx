@@ -344,7 +344,28 @@ export function CashForecastView() {
                   onSelect={(pt) => { if (typeof pt.dataIndex === "number") setOpenWeek(openWeek === pt.dataIndex ? null : pt.dataIndex); }}
                   option={{
                     tooltip: { ...echartsTooltip(pal), trigger: "axis", valueFormatter: (v) => (v == null ? "—" : eur(Number(v))),
-                      formatter: (prs: unknown) => { const arr = prs as { seriesName: string; value: unknown; dataIndex: number; marker: string }[]; const w = weeksView[arr[0]?.dataIndex ?? 0]; return `<b>${w ? `${w.label} · ${weekRange(w.weekStart)}` : ""}</b><br/>${arr.filter((x) => x.value != null).map((x) => `${x.marker}${x.seriesName}: <b>${eur(Number(x.value))}</b>`).join("<br/>")}`; } },
+                      // Hover = korte plus/min-lijst van de weekcomponenten (vraag
+                      // David 20/08 avond: "een soort korte lijst met values").
+                      formatter: (prs: unknown) => {
+                        const arr = prs as { dataIndex: number }[];
+                        const w = weeksView[arr[0]?.dataIndex ?? 0];
+                        if (!w) return "";
+                        const zonder = scenario === "zonder";
+                        const inB = zonder ? w.inNoFactor : w.inWithFactor;
+                        const inN = zonder ? w.inNewNoFactor : w.inNewWithFactor;
+                        const net = zonder ? w.netNoFactor : w.netWithFactor;
+                        const cum = zonder ? w.cumNoFactor : w.cumWithFactor;
+                        const regels: string[] = [];
+                        if (inB) regels.push(`+ bestaande facturen: <b>${eurS(inB)}</b>`);
+                        if (inN) regels.push(`+ nieuwe facturatie (ritme): <b>${eurS(inN)}</b>`);
+                        if (w.adjNet) regels.push(`± aanpassingen: <b>${eurS(w.adjNet)}</b>`);
+                        if (w.outAP) regels.push(`− leveranciers: <b>${eurS(-w.outAP)}</b>`);
+                        if (w.outFixed) regels.push(`− vast (btw/lonen/leasing): <b>${eurS(-w.outFixed)}</b>`);
+                        if (w.outNew) regels.push(`− nieuwe inkopen (ritme): <b>${eurS(-w.outNew)}</b>`);
+                        regels.push(`= netto deze week: <b>${eurS(net)}</b>`);
+                        regels.push(`Saldo eind week: <b>${eurS(cum)}</b>`);
+                        return `<b>${w.label} · ${weekRange(w.weekStart)}</b><br/>${regels.join("<br/>")}`;
+                      } },
                     grid: { left: 64, right: 16, top: 28, bottom: 30 },
                     xAxis: echartsCategoryAxis(pal, { data: weeksView.map((w) => w.label) }),
                     yAxis: echartsValueAxis(pal, (v) => eurS(v)),
