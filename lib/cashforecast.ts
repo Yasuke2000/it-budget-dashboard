@@ -246,7 +246,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     return wi < 0 ? 0 : wi;
   };
 
-  // Instromen uit de receivables-motor (betaalgedrag per klant, CN gesaldeerd).
+  // Instromen uit de receivables-motor (KBC-referentieprofiel 36 dagen, CN gesaldeerd).
   // spreadNet/spreadFactor = het achterstal-deel (inhaal op oude posten) —
   // apart bijgehouden zodat de view het "verleden" kan scheiden van het ritme.
   rcv.cashExpectation.forEach((w, i) => {
@@ -435,7 +435,9 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   const wf = (rcv.weekFlow || []).slice(0, -1).slice(-12);
   const avgFact = wf.length ? wf.reduce((s, x) => s + x.factored, 0) / wf.length : 0;
   const avgOther = wf.length ? wf.reduce((s, x) => s + x.other, 0) / wf.length : 0;
-  const behaveWeeks = Math.min(10, Math.max(2, Math.round((rcv.dsoInvoiceLevel?.medianDays ?? 45) / 7)));
+  // KBC-referentieprofiel (beslissing 20/08): inning van nieuwe facturatie op
+  // 36 dagen — zelfde kam als de bestaande posten.
+  const behaveWeeks = Math.round(36 / 7);
   const ADV_LAG_WEEKS = 1; // uitreiking → 85%-voorschot via E-trans/factor (aanname)
   // Inkoopritme: nieuwe externe leveranciersfacturen (netto CN) van de laatste
   // 12 weken; leasing eruit (zit al als kalenderpost, anders dubbel geteld).
@@ -605,7 +607,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
       payrollMonthly: r0(payrollMonthly), leasingMonthly: r0(leasingMonthly),
     },
     aannames: ([
-      "Betaalmoment per klant = factuurdatum + de bedrag-gewogen gemiddelde betaalduur van dié klant (gemeten op de betaalde facturen; kleinere klanten vallen terug op de groepsmediaan). Niet de vervaldag — de grootste accuraatheidswinst volgens best practice.",
+      "Betaalmoment = factuurdatum + 36 dagen voor ALLE klanten: het KBC-referentieprofiel, bedrag-gewogen gemeten op de WHS/KBC-portefeuille (314 klanten, €14,4M volume, meting 20/08) — beslissing 20/08: iedereen wordt behandeld zoals WHS/KBC. LET OP: dit is het proces-profiel; klanten die vandaag trager betalen moeten daar via credit control naartoe. Het gemeten gedrag per klant blijft zichtbaar op de klantenpagina.",
       `Niet-toegewezen ontvangsten (open betalingen + bankontvangsten zonder factuurkoppeling, € ${r0(Math.abs(unappliedNet)).toLocaleString("nl-BE")}) staan al in de bankstand en zijn daarom GESALDEERD in de instroom van week 1–6 — anders telden hun facturen dubbel. Bij factoring-klanten is die correctie licht conservatief.`,
       "Straight loans/opticash: de getrokken cash zit al in de bankstand; de schuld zelf (43x excl. 433) en de vervaldagen/rollovers zijn NIET ingepland (rentevoeten en vervaldagen = openstaande vraag bij finance). Rood = behoefte bovenop wat al getrokken is.",
       "Recourse-terugnames door de factor (>90d onbetaalde gefactorde posten) zitten nog niet als uitstroom in het weekprofiel — bekend hiaat, wordt zichtbaar via de 433-monitor.",
@@ -672,4 +674,4 @@ function demoCashForecast(): CfoCashForecast {
 }
 
 // v15: verleden-splitsing (achterstal apart) + ISO-weeknummers (19/08).
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v23", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v24", buildCashForecast, demoCashForecast);

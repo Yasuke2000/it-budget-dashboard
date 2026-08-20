@@ -712,9 +712,8 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
   openItems.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
 
   // ---- inningsverwachting 13 weken (betaalgedrag per klant) ----
-  const custMedianDays: Record<string, number> = {};
-  for (const c of customers) if (c.avgDaysToPay != null) custMedianDays[c.name] = c.avgDaysToPay;
-  const globalDays = dsoInvoiceLevel.medianDays ?? 45;
+  // (per-klant-betaalduur wordt sinds 20/08 niet meer gebruikt voor de
+  // forecast-timing — het KBC-referentieprofiel geldt voor iedereen)
   const w0 = mondayOf(today);
   const cashExpectation: RcvCashWeekExpectation[] = Array.from({ length: 13 }, (_, i) => ({
     weekStart: iso(addDays(w0, i * 7)), label: `wk ${isoWeekNum(addDays(w0, i * 7))}`, expected: 0, onDueDate: 0,
@@ -740,7 +739,13 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
     if (!inv.open || inv.ic) continue;
     const openAmt = inv.rem || inv.amt - inv.applied;
     if (Math.abs(openAmt) < 1) continue;
-    const behaveDays = custMedianDays[inv.cust] ?? globalDays;
+    // Beslissing David 20/08 avond: iedereen "wordt betaald zoals WHS/KBC" —
+    // het bewezen KBC-referentieprofiel (36 dagen, bedrag-gewogen gemeten op de
+    // WHS/KBC-portefeuille: 314 klanten, EUR 14,4M volume, meting 20/08) is de
+    // basis voor ALLE klanten. Per-klant-gedrag blijft gemeten op de
+    // klantenpagina; credit control moet dit profiel waarmaken.
+    const KBC_REF_DAGEN = 36;
+    const behaveDays = KBC_REF_DAGEN;
     const expIso = iso(addDays(new Date(`${inv.invDate}T00:00:00Z`), Math.max(behaveDays, 7)));
     const ei = weekOf(expIso);
     // David 20/08 avond (2e correctie): ALLE vennootschappen behandelen volgens
@@ -1304,7 +1309,7 @@ export async function getReceivables(
   // v4: DSO-rijpheid en de uitsluiting van eenmalige verkopen wijzigen de reeksen —
   // een payload van een oudere build mag nooit blijven hangen (die toonde 132.302 dagen).
   // v10: spreadNet/spreadFactor per week (achterstal-splitsing 19/08).
-  const cacheKey = `rcv-v14-x:${excl.join(",")}`;
+  const cacheKey = `rcv-v15-x:${excl.join(",")}`;
   const cached = getCache<CfoReceivables>(cacheKey);
   if (cached && !force) return cached;
 

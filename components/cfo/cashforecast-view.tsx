@@ -248,7 +248,7 @@ export function CashForecastView() {
               {hasAdj && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary" title="Er zitten eigen scenario-waarden in de prognose — zie het blok 'Prognose-aanpassingen' onderaan. Het basismodel blijft als stippellijn zichtbaar.">{actieveAdjs.length} aanpassing{actieveAdjs.length > 1 ? "en" : ""} actief</span>}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              13 weken vooruit op betaalgedrag per klant (week 1–4 scherp, 5–13 richtinggevend), creditnota&apos;s gesaldeerd,
+              13 weken vooruit op het KBC-referentieprofiel — iedereen betaalt op 36 dagen, zoals de WHS/KBC-portefeuille bewijst (week 1–4 scherp, 5–13 richtinggevend), creditnota&apos;s gesaldeerd,
               nieuwe facturatie en inkopen op het werkelijke weekritme. <b>Kasrealiteit</b> = het echte saldo-pad mét factoring.
               <b> Wat-als stoppen met factoring</b> = eerst het 433-voorschot terugbetalen, daarna 100% van elke factuur op betaalgedrag.
               Anker = de échte bankstand van vandaag. Eigen waarden (besparingen, extra omzet, financiering van de historische put)
@@ -439,7 +439,7 @@ export function CashForecastView() {
             );
             const brugDetail: Record<string, React.ReactNode> = {
               bank: <p>De som van alle eigen bankrekeningen op dit moment (excl. factorkrediet) — het anker waar elke prognose op start. Het detail per rekening staat op de <a href="/cfo/dagbrief" className="text-primary underline">dagelijkse cashpositie</a>.</p>,
-              inBest: <>{postLijst(topIn, 1)}<p className="mt-1 text-muted-foreground">De 10 grootste posten in dit venster (van de top-15 per week); bedragen = volledig open bedrag. Verwacht betaalmoment = betaalgedrag van dié klant.</p></>,
+              inBest: <>{postLijst(topIn, 1)}<p className="mt-1 text-muted-foreground">De 10 grootste posten in dit venster (van de top-15 per week); bedragen = volledig open bedrag. Verwacht betaalmoment = factuurdatum + 36 dagen (KBC-referentieprofiel).</p></>,
               inNieuw: <p>Raming, geen individuele posten: facturatie loopt door op het gemiddelde weekritme van de laatste 12 volle weken{scenario !== "zonder" ? "; bij gefactorde klanten (KBC-model) komt 90% ±1 week na uitreiking binnen, de rest op betaalgedrag" : ", geïnd op betaalgedrag"}. Dit is het ritme-deel van het model.</p>,
               adj: <div>{actieveAdjs.map((a) => <div key={a.id} className="flex justify-between gap-2"><span><b>{a.label}</b> <span className="text-muted-foreground">({a.categorie} · {a.frequentie})</span></span><span className="tabular-nums">{eurS((a.richting === "uit" ? -1 : 1) * a.bedrag)}{a.frequentie !== "eenmalig" ? ` per ${a.frequentie === "wekelijks" ? "week" : "maand"}` : ""}</span></div>)}<p className="mt-1 text-muted-foreground">Scenario-invoer uit het blok Prognose-aanpassingen — geen BC-data.</p></div>,
               uitLev: <>{postLijst(topUit, -1)}<p className="mt-1 text-muted-foreground">De 10 grootste leveranciersposten in dit venster{achterstalMode !== "alles" ? " — de apart gezette achterstal is hier al uit" : ""}. Apart-gezette posten (rode lijst Laura + akte) tellen nooit mee.</p></>,
