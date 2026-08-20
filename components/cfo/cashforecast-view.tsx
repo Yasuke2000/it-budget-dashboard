@@ -104,6 +104,8 @@ export function CashForecastView() {
   // Maand-drill (vraag David 20/08: "ze willen kunnen kijken wat erin zit"):
   // klik een maand open voor de opbouw — referentiemaanden, trendfactor, aanpassingen.
   const [openMaand, setOpenMaand] = useState<string | null>(null);
+  // Open component-rij in de rekensom-brug (klik op de balk, vraag 20/08 avond).
+  const [openBrug, setOpenBrug] = useState<string | null>(null);
   const d = fc.data;
   const vandaag = new Date().toISOString().slice(0, 10);
 
@@ -330,7 +332,7 @@ export function CashForecastView() {
             );
           })()}
           <Card title={`${scenario === "zonder" ? "Saldo bank per week — wat-als: stoppen met factoring" : "Saldo bank per week — kasrealiteit"}${achterstalMode === "oud" ? " · zonder oude achterstal (>60d)" : achterstalMode === "alle" ? " · zonder enige achterstal" : ""}`} period={`${weekRange(d.weeks[0].weekStart)} → ${weekRange(d.weeks[12].weekStart)}`}
-            hint={`Eén balk per week = verwacht banksaldo op zondag. Rood = tekort. Week 1–6 op individuele posten, week 7–13 op het bankseizoensritme.${hasAdj ? " Grijze stippellijn = het basismodel zonder de prognose-aanpassingen." : ""}`}
+            hint={`Eén balk per week = verwacht banksaldo op zondag. Rood = tekort. Week 1–6 op individuele posten, week 7–13 op het bankseizoensritme. Klik een balk: de posten van die week verschijnen in de detailtabel eronder.${hasAdj ? " Grijze stippellijn = het basismodel zonder de prognose-aanpassingen." : ""}`}
             onSource={() => setKpiSrc({ label: "Saldo bank per week", value: "", bron: "Cumulatief saldo per week: echte bankstand van vandaag + verwachte ontvangsten (bestaande posten op betaalgedrag + nieuwe facturatie op 12-wekenritme) − leveranciers − lonen/btw/leasing − nieuwe inkopen. Kasrealiteit = met factoring: 85% van bestaande factoring-posten is al binnen; nieuwe facturatie geeft wél elke week verse voorschotten." + (hasAdj ? " Plus de actieve prognose-aanpassingen (scenario-invoer)." : ""), caveat: "Kredietlijnen/straight-loanopnames zitten er bewust niet in — een rode balk betekent 'financieringsbehoefte', niet 'lege kas'. Het wat-als 'stoppen met factoring' betaalt eerst het 433-voorschot terug en ontvangt daarna 100% per factuur — daarom ligt die lijn láger: factoring is structureel cash-positief." })}>
             {(() => {
               const key = scenario === "zonder" ? "cumNoFactor" as const : "cumWithFactor" as const;
@@ -339,6 +341,7 @@ export function CashForecastView() {
               const minIdx = vals.indexOf(Math.min(...vals));
               return (
                 <EChart height={300} ariaLabel="Banksaldo per week"
+                  onSelect={(pt) => { if (typeof pt.dataIndex === "number") setOpenWeek(openWeek === pt.dataIndex ? null : pt.dataIndex); }}
                   option={{
                     tooltip: { ...echartsTooltip(pal), trigger: "axis", valueFormatter: (v) => (v == null ? "—" : eur(Number(v))),
                       formatter: (prs: unknown) => { const arr = prs as { seriesName: string; value: unknown; dataIndex: number; marker: string }[]; const w = weeksView[arr[0]?.dataIndex ?? 0]; return `<b>${w ? `${w.label} · ${weekRange(w.weekStart)}` : ""}</b><br/>${arr.filter((x) => x.value != null).map((x) => `${x.marker}${x.seriesName}: <b>${eur(Number(x.value))}</b>`).join("<br/>")}`; } },
@@ -384,16 +387,50 @@ export function CashForecastView() {
             const uitNieuw = -som((w) => w.outNew);
             const eind = weeksView[lowIdx][key];
             const recenteInhaal = som((w) => (w.outSpreadAllAP ?? 0) - (w.outOldAP ?? 0));
-            const rows: { lbl: string; v: number; type: "start" | "plus" | "min" | "eind" }[] = [
-              { lbl: "Bankstand vandaag (anker)", v: anchor, type: "start" },
-              { lbl: "Inning bestaande facturen", v: inBest, type: "plus" },
-              { lbl: "Inning nieuwe facturatie (ritme)", v: inNieuw, type: "plus" },
-              ...(adjTot !== 0 ? [{ lbl: "Prognose-aanpassingen (scenario)", v: adjTot, type: (adjTot > 0 ? "plus" : "min") as "plus" | "min" }] : []),
-              { lbl: "Leveranciersbetalingen", v: uitLev, type: "min" },
-              { lbl: "Vaste kalenderposten (btw/lonen/leasing)", v: uitVast, type: "min" },
-              { lbl: "Nieuwe inkopen (ritme)", v: uitNieuw, type: "min" },
-              { lbl: `Laagste punt (week van ${weekRange(weeksView[lowIdx].weekStart)})`, v: eind, type: "eind" },
+            const rows: { id: string; lbl: string; v: number; type: "start" | "plus" | "min" | "eind" }[] = [
+              { id: "bank", lbl: "Bankstand vandaag (anker)", v: anchor, type: "start" },
+              { id: "inBest", lbl: "Inning bestaande facturen", v: inBest, type: "plus" },
+              { id: "inNieuw", lbl: "Inning nieuwe facturatie (ritme)", v: inNieuw, type: "plus" },
+              ...(adjTot !== 0 ? [{ id: "adj", lbl: "Prognose-aanpassingen (scenario)", v: adjTot, type: (adjTot > 0 ? "plus" : "min") as "plus" | "min" }] : []),
+              { id: "uitLev", lbl: "Leveranciersbetalingen", v: uitLev, type: "min" },
+              { id: "uitVast", lbl: "Vaste kalenderposten (btw/lonen/leasing)", v: uitVast, type: "min" },
+              { id: "uitNieuw", lbl: "Nieuwe inkopen (ritme)", v: uitNieuw, type: "min" },
+              { id: "eind", lbl: `Laagste punt (week van ${weekRange(weeksView[lowIdx].weekStart)})`, v: eind, type: "eind" },
             ];
+            // Detail per component (klik op de balk): waar het cijfer van gemaakt is.
+            const weg = (r: FcDetailRow) => (achterstalMode === "oud" ? Boolean(r.oud ?? r.spread) : achterstalMode === "alle" ? r.spread : false);
+            const topIn = d.weekDetail.in.filter((r) => r.week <= lowIdx && !weg(r)).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).slice(0, 10);
+            const topUit = d.weekDetail.out.filter((r) => r.week <= lowIdx && !weg(r)).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).slice(0, 10);
+            const maandEindes = seg.filter((w) => w.weekStart.slice(8, 10) >= "24").length; // ±één maandeinde per ~4,3 wkn
+            const postLijst = (rws: typeof topIn, sign: 1 | -1) => (
+              <div className="grid gap-0.5 md:grid-cols-2">
+                {rws.map((r, i) => (
+                  <div key={`${r.co}-${r.doc}-${i}`} className="flex items-baseline justify-between gap-2 text-[11px]">
+                    <span className="min-w-0 truncate"><b>{r.party || "(zonder naam)"}</b> <span className="text-muted-foreground">· {r.co}</span>
+                      {r.doc && <a href={r.bcUrl} target="_blank" rel="noreferrer" className="ml-1 text-primary underline decoration-dotted underline-offset-2">{r.doc}↗</a>}
+                      {r.spread && <span className="ml-1 rounded bg-warning/15 px-1 text-[9px] font-semibold text-warning">gespreid</span>}
+                      {r.factored && <span className="ml-1 rounded bg-muted px-1 text-[9px] font-semibold text-muted-foreground ring-1 ring-border">factor</span>}
+                    </span>
+                    <span className="shrink-0 tabular-nums">{eurS(sign * r.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            );
+            const brugDetail: Record<string, React.ReactNode> = {
+              bank: <p>De som van alle eigen bankrekeningen op dit moment (excl. factorkrediet) — het anker waar elke prognose op start. Het detail per rekening staat op de <a href="/cfo/dagbrief" className="text-primary underline">dagelijkse cashpositie</a>.</p>,
+              inBest: <>{postLijst(topIn, 1)}<p className="mt-1 text-muted-foreground">De 10 grootste posten in dit venster (van de top-15 per week); bedragen = volledig open bedrag. Verwacht betaalmoment = betaalgedrag van dié klant.</p></>,
+              inNieuw: <p>Raming, geen individuele posten: facturatie loopt door op het gemiddelde weekritme van de laatste 12 volle weken{scenario !== "zonder" ? "; bij factoring-klanten komt 85% ±1 week na uitreiking binnen, de rest op betaalgedrag" : ", geïnd op betaalgedrag"}. Dit is het ritme-deel van het model.</p>,
+              adj: <div>{actieveAdjs.map((a) => <div key={a.id} className="flex justify-between gap-2"><span><b>{a.label}</b> <span className="text-muted-foreground">({a.categorie} · {a.frequentie})</span></span><span className="tabular-nums">{eurS((a.richting === "uit" ? -1 : 1) * a.bedrag)}{a.frequentie !== "eenmalig" ? ` per ${a.frequentie === "wekelijks" ? "week" : "maand"}` : ""}</span></div>)}<p className="mt-1 text-muted-foreground">Scenario-invoer uit het blok Prognose-aanpassingen — geen BC-data.</p></div>,
+              uitLev: <>{postLijst(topUit, -1)}<p className="mt-1 text-muted-foreground">De 10 grootste leveranciersposten in dit venster{achterstalMode !== "alles" ? " — de apart gezette achterstal is hier al uit" : ""}. Apart-gezette posten (rode lijst Laura + akte) tellen nooit mee.</p></>,
+              uitVast: <div className="space-y-0.5">
+                <div className="flex justify-between"><span>Btw-afdracht (451-saldi ≤€1M per firma, één keer op de eerstvolgende 20e)</span><span className="tabular-nums">{eurS(-d.totals.btw)}</span></div>
+                <div className="flex justify-between"><span>Lonen/RSZ (gemiddelde 3 volle maanden excl. provisies, op maandeinde × {maandEindes})</span><span className="tabular-nums">{eurS(-d.totals.payrollMonthly * maandEindes)}</span></div>
+                <div className="flex justify-between"><span>Leasing (12m-gemiddelde externe cash-out, begin maand)</span><span className="tabular-nums">≈ {eurS(-d.totals.leasingMonthly * maandEindes)}</span></div>
+                <p className="mt-1 text-muted-foreground">Kalenderregels, geen individuele facturen. Grote 451-saldi (&gt;€1M, o.a. WHS/TDR) staan bewust NIET in het profiel — timing onbekend, PRIO-vraag bij finance.</p>
+              </div>,
+              uitNieuw: <p>Raming: nieuwe inkoopfacturen op het 12-weken-ritme van de leveranciersfacturen (excl. leasing), betaald op ±30 dagen. Ritme, geen orderboek.</p>,
+              eind: <p>Startsaldo plus alle bovenstaande componenten = het laagste cumulatieve punt van het gekozen scenario. Rood betekent financieringsbehoefte in de tijd, geen verlies.</p>,
+            };
             const maxAbs = Math.max(...rows.map((r) => Math.abs(r.v)), 1);
             const modeZin = achterstalMode === "alles"
               ? `Hierin zit ook de volledige achterstal-inhaal (gespreid over week 1\u20136).`
@@ -405,13 +442,20 @@ export function CashForecastView() {
                 hint="Elke rij = een component van de prognose, opgeteld over de weken tot aan het laagste punt van het gekozen scenario. Zo zie je exact waar het saldo vandaan komt.">
                 <div className="space-y-1">
                   {rows.map((r) => (
-                    <div key={r.lbl} className="flex items-center gap-2 text-[11px]">
-                      <span className={`w-64 shrink-0 truncate ${r.type === "start" || r.type === "eind" ? "font-bold text-foreground" : "text-muted-foreground"}`}>{r.lbl}</span>
-                      <div className="relative h-4 flex-1 overflow-hidden rounded bg-muted/40">
-                        <div className={`absolute inset-y-0 rounded ${r.type === "plus" ? "bg-positive/70" : r.type === "min" ? "bg-negative/70" : r.v < 0 ? "bg-negative" : "bg-info"}`}
-                          style={{ width: `${Math.max(1.5, (Math.abs(r.v) / maxAbs) * 100)}%` }} />
+                    <div key={r.id}>
+                      <div onClick={() => setOpenBrug(openBrug === r.id ? null : r.id)}
+                        title="Klik: waar deze component van gemaakt is"
+                        className={`flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-[11px] transition hover:bg-primary/5 ${openBrug === r.id ? "bg-primary/5" : ""}`}>
+                        <span className={`w-64 shrink-0 truncate underline decoration-dotted underline-offset-2 ${r.type === "start" || r.type === "eind" ? "font-bold text-foreground" : "text-muted-foreground"}`}>{r.lbl}</span>
+                        <div className="relative h-4 flex-1 overflow-hidden rounded bg-muted/40">
+                          <div className={`absolute inset-y-0 rounded ${r.type === "plus" ? "bg-positive/70" : r.type === "min" ? "bg-negative/70" : r.v < 0 ? "bg-negative" : "bg-info"}`}
+                            style={{ width: `${Math.max(1.5, (Math.abs(r.v) / maxAbs) * 100)}%` }} />
+                        </div>
+                        <span className={`w-24 shrink-0 text-right font-semibold tabular-nums ${r.type === "min" || (r.type !== "plus" && r.v < 0) ? "text-negative" : "text-foreground"}`}>{eurS(r.v)}</span>
                       </div>
-                      <span className={`w-24 shrink-0 text-right font-semibold tabular-nums ${r.type === "min" || (r.type !== "plus" && r.v < 0) ? "text-negative" : "text-foreground"}`}>{eurS(r.v)}</span>
+                      {openBrug === r.id && (
+                        <div className="mb-1 ml-1 mt-0.5 rounded-lg bg-muted/30 p-2.5 text-[11px] leading-relaxed">{brugDetail[r.id]}</div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -458,6 +502,7 @@ export function CashForecastView() {
               return (
                 <>
                   <EChart height={360} ariaLabel="13-weken cashflowprognose"
+                    onSelect={(pt) => { if (typeof pt.dataIndex === "number") setOpenWeek(openWeek === pt.dataIndex ? null : pt.dataIndex); }}
                     option={{
                       tooltip: { ...echartsTooltip(pal), trigger: "axis", valueFormatter: (v) => (v == null ? "—" : eur(Number(v))),
                         formatter: (prs: unknown) => { const arr = prs as { seriesName: string; value: unknown; dataIndex: number; marker: string }[]; const w = weeksView[arr[0]?.dataIndex ?? 0]; return `<b>${w ? `${w.label} · ${weekRange(w.weekStart)}` : ""}</b><br/>${arr.filter((x) => x.value != null).map((x) => `${x.marker}${x.seriesName}: <b>${eur(Number(x.value))}</b>`).join("<br/>")}`; } },
