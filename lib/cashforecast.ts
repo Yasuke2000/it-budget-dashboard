@@ -25,7 +25,6 @@ import { fetchWithRetry } from "./http";
 import { getCache, setCache } from "./sync-cache";
 import { getReceivables } from "./receivables";
 import { getBank, type CfoBank } from "./bank";
-import { getMgmtPnl, type CfoMgmtPnl } from "./mgmt-pnl";
 import { isIcName } from "./cfo";
 import { vendorLedgerDocLink, custLedgerDocLink } from "./bc-links";
 import { isApUitzondering, AP_UITZONDERINGEN } from "./ap-uitzonderingen";
@@ -184,20 +183,44 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   const bank = await waitFor<CfoBank>(() => getBank(false, exclude) as Promise<CfoBank | { building: true }>);
 
   // Omzetgroeifactor (vraag David 18/08: "vergelijk met vorig jaar, volg dezelfde
-  // trends, op basis van jaaromzet"): het seizoensritme is "zelfde maand vorig
-  // jaar" uit de bankmutaties; die schalen we met de omzettrend uit de eigen
-  // Management-P&L (omzet YTD dit jaar / dezelfde maanden vorig jaar, volle
-  // maanden). Begrensd op 0,8–1,25: een groeifactor is een trend, geen hefboom.
+  // trends, op basis van jaaromzet"), LIKE-FOR-LIKE (audit 20/08): de P&L-ratio
+  // zat op het 1,25-plafond door het perimeter-effect — WHS/LMB/TDR hebben geen
+  // 2025-P&L in BC, dus "alles 2026 ÷ deels 2025" is geen groei maar perimeter.
+  // Het bankritme bevat álle firma's al; schalen op perimeter-groei zou het
+  // seizoensbeeld dubbel opblazen. Daarom per firma: omzet (klasse 70, credit-
+  // normaal) volle maanden dit jaar vs dezelfde maanden vorig jaar via
+  // trialBalances-delta's (resultaatrekeningen zijn niet jaarlijks afgesloten,
+  // dus YTD = saldo(datum) − saldo(vorige jaareinde) — geverifieerd 20/08);
+  // firma's zonder noemenswaardige omzet vorig jaar tellen niet mee.
+  // Begrensd op 0,8–1,25: een trend, geen hefboom.
   let groei = 1;
   try {
     const y = today.getUTCFullYear();
-    const pnlNow = await waitFor<CfoMgmtPnl>(() => getMgmtPnl(false, exclude, `${y}|ALL`) as Promise<CfoMgmtPnl | { building: true }>, 20);
-    const pnlPrev = await waitFor<CfoMgmtPnl>(() => getMgmtPnl(false, exclude, `${y - 1}|ALL`) as Promise<CfoMgmtPnl | { building: true }>, 20);
-    const lastFull = today.getUTCMonth(); // aantal volle maanden (0-based huidige maand)
-    const som = (p: CfoMgmtPnl) => (p.rows.find((r) => r.id === "omzet")?.monthly || []).slice(0, lastFull).reduce((a, b) => a + b, 0);
-    const nu = som(pnlNow), vorig = som(pnlPrev);
+    const lastFullEnd0 = new Date(Date.UTC(y, today.getUTCMonth(), 0)); // einde vorige maand
+    const omzet70 = async (companyId: string, code: string, dateIso: string): Promise<number> => {
+      const key = `cf-omzet70-${code}-${dateIso}`;
+      const cached = getCache<number>(key);
+      if (cached != null) return cached;
+      let s = 0;
+      for (const b of await fetchAccountBalances(companyId, dateIso, token)) {
+        if (b.no >= "700000" && b.no <= "709999") s += -b.amount; // omzet = credit-normaal
+      }
+      setCache(key, s, 720);
+      return s;
+    };
+    let nu = 0, vorig = 0;
+    for (const c of companies) {
+      const [aNu, aNuYE, aVo, aVoYE] = await Promise.all([
+        omzet70(c.id, c.code, iso(lastFullEnd0)),
+        omzet70(c.id, c.code, `${y - 1}-12-31`),
+        omzet70(c.id, c.code, iso(new Date(Date.UTC(y - 1, lastFullEnd0.getUTCMonth() + 1, 0)))),
+        omzet70(c.id, c.code, `${y - 2}-12-31`),
+      ]);
+      const omzetNu = aNu - aNuYE, omzetVorig = aVo - aVoYE;
+      if (omzetVorig > 250_000) { nu += omzetNu; vorig += omzetVorig; } // alleen like-for-like
+    }
     if (vorig > 1_000_000 && nu > 0) groei = Math.min(1.25, Math.max(0.8, nu / vorig));
-  } catch { /* P&L niet beschikbaar → groei 1 (puur vorig-jaar-ritme) */ }
+  } catch { /* trialBalances niet beschikbaar → groei 1 (puur vorig-jaar-ritme) */ }
 
   // ---- 2. Weekraster (13 weken, ma–zo; labels = échte ISO-weeknummers) ----
   const weeks: FcWeek[] = Array.from({ length: 13 }, (_, i) => ({
@@ -591,7 +614,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
         : "",
       "Kasrealiteit (met factoring) is het echte saldo-pad; het wat-als toont de kost van stoppen met factoring. Rood = financieringsbehoefte (kredietlijnen zitten er bewust niet in).",
       "Nog niet aangesloten (fase 2): E-trans opmaakdatums (moment van aanbieding aan de factor), CODA-dagreconciliatie en de factorportaal-rapporten. Tot dan is de 85/15-timing een modelaanname.",
-      "Week 1–6 = individuele posten + kalender (scherp, doorklikbaar). Week 7–13 en de maandlaag = het bankritme van dezelfde maand vorig jaar, geschaald met de omzettrend uit de Management-P&L (omzet volle maanden dit jaar ÷ zelfde maanden vorig jaar, begrensd 0,8–1,25)" + (typeof groei === "number" && groei !== 1 ? ` — groeifactor nu: ${groei.toFixed(2)}` : "") + ". Geijkt op de werkelijkheid: het pure itemmodel bleek in het verre venster te pessimistisch (september −€1,7M vs bankwerkelijkheid +€0,1M).",
+      "Week 1–6 = individuele posten + kalender (scherp, doorklikbaar). Week 7–13 en de maandlaag = het bankritme van dezelfde maand vorig jaar, geschaald met de LIKE-FOR-LIKE-omzettrend (klasse 70 per firma, volle maanden dit jaar ÷ zelfde maanden vorig jaar; alleen firma’s met omzet in beide jaren — zo telt het perimeter-effect van WHS/LMB/TDR niet als groei; begrensd 0,8–1,25)" + (typeof groei === "number" && groei !== 1 ? ` — groeifactor nu: ${groei.toFixed(2)}` : "") + ". Geijkt op de werkelijkheid: het pure itemmodel bleek in het verre venster te pessimistisch (september −€1,7M vs bankwerkelijkheid +€0,1M).",
     ] as string[]).filter(Boolean),
   };
 }
@@ -629,4 +652,4 @@ function demoCashForecast(): CfoCashForecast {
 }
 
 // v15: verleden-splitsing (achterstal apart) + ISO-weeknummers (19/08).
-export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v18", buildCashForecast, demoCashForecast);
+export const getCashForecast = makePolledGetter<CfoCashForecast>("cashfc-v19", buildCashForecast, demoCashForecast);
