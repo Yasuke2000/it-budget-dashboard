@@ -180,11 +180,11 @@ interface CompanyRcvBundle {
 }
 
 async function buildCompanyRcvBundle(
-  co: { id: string; code: string }, win: MonthWindow, today: Date
+  co: { id: string; code: string }, win: MonthWindow, today: Date, force = false
 ): Promise<CompanyRcvBundle> {
   const key = `rcv-co5-${co.code}-${win.keys[win.keys.length - 1]}`;
   const cached = getCache<CompanyRcvBundle>(key);
-  if (cached) return cached;
+  if (cached && !force) return cached; // force = Vernieuwen: verse BC-pull (fix 21/08)
 
   const token = await getBCToken();
 
@@ -1276,7 +1276,7 @@ function combineRcv(bundles: CompanyRcvBundle[], win: MonthWindow, today: Date, 
 const _gRcv = globalThis as unknown as { __inflightRcv?: Map<string, Promise<CfoReceivables>> };
 const inflight = (_gRcv.__inflightRcv ??= new Map<string, Promise<CfoReceivables>>());
 
-async function buildLive(cacheKey: string, exclude: string[]): Promise<CfoReceivables> {
+async function buildLive(cacheKey: string, exclude: string[], force = false): Promise<CfoReceivables> {
   const today = new Date();
   const win = buildWindow(today);
   const raw = await fetchBCCompanies();
@@ -1286,7 +1286,7 @@ async function buildLive(cacheKey: string, exclude: string[]): Promise<CfoReceiv
   const bundles: CompanyRcvBundle[] = [];
   // Sequentieel per 2: de klantposten-historie is de zwaarste pull van het dashboard.
   for (let i = 0; i < companies.length; i += 2) {
-    const part = await Promise.all(companies.slice(i, i + 2).map((c) => buildCompanyRcvBundle(c, win, today)));
+    const part = await Promise.all(companies.slice(i, i + 2).map((c) => buildCompanyRcvBundle(c, win, today, force)));
     bundles.push(...part);
   }
   // Financieringsrente instelbaar: de aanname is na externe review verlaagd naar 3,5%
@@ -1314,7 +1314,7 @@ export async function getReceivables(
   if (cached && !force) return cached;
 
   if (!inflight.has(cacheKey)) {
-    const p = buildLive(cacheKey, excl).finally(() => inflight.delete(cacheKey));
+    const p = buildLive(cacheKey, excl, force).finally(() => inflight.delete(cacheKey));
     inflight.set(cacheKey, p);
     p.catch((e) => console.error("receivables build failed:", e));
   }

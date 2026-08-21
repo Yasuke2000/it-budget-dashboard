@@ -177,7 +177,7 @@ async function fetchAccountBalances(companyId: string, dateIso: string, token: s
   return out;
 }
 
-async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
+async function buildCashForecast(exclude: string[], _extra?: string, force = false): Promise<CfoCashForecast> {
   const today = new Date();
   const todayIso = iso(today);
   const w0 = mondayOf(today);
@@ -188,8 +188,8 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     .filter((c) => !exclude.includes(c.code.toUpperCase()));
 
   // ---- 1. Onderliggende datasets (delen dezelfde bron van waarheid) ----
-  const rcv = await waitFor<CfoReceivables>(() => getReceivables(false, exclude) as Promise<CfoReceivables | { building: true }>);
-  const bank = await waitFor<CfoBank>(() => getBank(false, exclude) as Promise<CfoBank | { building: true }>);
+  const rcv = await waitFor<CfoReceivables>(() => getReceivables(force, exclude) as Promise<CfoReceivables | { building: true }>);
+  const bank = await waitFor<CfoBank>(() => getBank(force, exclude) as Promise<CfoBank | { building: true }>);
 
   // Omzetgroeifactor (vraag David 18/08: "vergelijk met vorig jaar, volg dezelfde
   // trends, op basis van jaaromzet"), LIKE-FOR-LIKE (audit 20/08): de P&L-ratio
@@ -209,7 +209,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
     const omzet70 = async (companyId: string, code: string, dateIso: string): Promise<number> => {
       const key = `cf-omzet70-${code}-${dateIso}`;
       const cached = getCache<number>(key);
-      if (cached != null) return cached;
+      if (cached != null && !force) return cached;
       let s = 0;
       for (const b of await fetchAccountBalances(companyId, dateIso, token)) {
         if (b.no >= "700000" && b.no <= "709999") s += -b.amount; // omzet = credit-normaal
@@ -314,7 +314,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   for (const c of companies) {
     const key = `cf-payroll2-${c.code}-${m0Iso}`;
     const cached = getCache<number>(key);
-    if (cached != null) { payroll3m += cached; continue; }
+    if (cached != null && !force) { payroll3m += cached; continue; }
     let sum = 0;
     const filt = encodeURIComponent(`Posting_Date ge ${m0Iso} and Posting_Date le ${lastFullEnd} and G_L_Account_No ge '620000' and G_L_Account_No le '629999'`);
     // Provisieboekingen (vakantiegeld/13e mnd, ±4,4% — audit 18/08) zijn geen
@@ -335,7 +335,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   for (const c of companies) {
     const key = `cf-misc4-${c.code}-${todayIso}`;
     const cached = getCache<FcCompanyMisc>(key);
-    if (cached) { perCompany.push(cached); continue; }
+    if (cached && !force) { perCompany.push(cached); continue; }
     const row: FcCompanyMisc = { company: c.code, saldo433: 0, btwSaldo: 0, unappliedPayments: 0, unappliedCount: 0, openCn: 0, saldoKrediet: 0, topUnapplied: [] };
     try {
       for (const b of await fetchAccountBalances(c.id, todayIso, token)) {
@@ -446,7 +446,7 @@ async function buildCashForecast(exclude: string[]): Promise<CfoCashForecast> {
   for (const c of companies) {
     const key = `cf-aprate1-${c.code}-${apFrom}`;
     const cached = getCache<number>(key);
-    if (cached != null) { newAp12w += cached; continue; }
+    if (cached != null && !force) { newAp12w += cached; continue; }
     let sum = 0;
     const filt = encodeURIComponent(`Posting_Date ge ${apFrom} and (Document_Type eq 'Invoice' or Document_Type eq 'Credit Memo')`);
     await pageAllOData(`${ODATA_ROOT}/ODataV4/Company('${encodeURIComponent(c.code)}')/VendorLedgerEntries?$filter=${filt}&$select=Vendor_Name,Amount_LCY`, (e) => {

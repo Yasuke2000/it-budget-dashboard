@@ -102,10 +102,10 @@ interface CoUnits {
   builtAt: string;   // wanneer deze bundel werkelijk uit BC kwam (voor een eerlijke tijdstempel)
 }
 
-async function buildCompanyUnits(co: { id: string; code: string }, months: string[], fromIso: string, toIso: string): Promise<CoUnits> {
+async function buildCompanyUnits(co: { id: string; code: string }, months: string[], fromIso: string, toIso: string, force = false): Promise<CoUnits> {
   const key = `units-co5-${co.code}-${fromIso}-${toIso}`;
   const cached = getCache<CoUnits>(key);
-  if (cached) return cached;
+  if (cached && !force) return cached; // force = Vernieuwen: verse BC-pull (fix 21/08)
   const token = await getBCToken();
   const agg: CoUnits["agg"] = {};
   const icByClass: CoUnits["icByClass"] = {};
@@ -161,7 +161,7 @@ async function buildCompanyUnits(co: { id: string; code: string }, months: strin
   return bundle;
 }
 
-async function buildUnits(exclude: string[], extra?: string): Promise<CfoUnits> {
+async function buildUnits(exclude: string[], extra?: string, force = false): Promise<CfoUnits> {
   const today = new Date();
   const todayIso = today.toISOString().slice(0, 10);
   // Venster: extra = "YYYY-MM-DD..YYYY-MM-DD" (gevalideerd in de route); default YTD.
@@ -185,7 +185,7 @@ async function buildUnits(exclude: string[], extra?: string): Promise<CfoUnits> 
   const perCompany: CompanyUnitRow[] = [];
   let sourcedAbs = 0, totalAbs = 0, dimmedAbsAll = 0, nonRecurringRev = 0, oldestBuilt = "";
   for (let i = 0; i < companies.length; i += 2) {
-    const part = await Promise.all(companies.slice(i, i + 2).map(async (c) => ({ code: c.code, b: await buildCompanyUnits(c, months, fromIso, toIso) })));
+    const part = await Promise.all(companies.slice(i, i + 2).map(async (c) => ({ code: c.code, b: await buildCompanyUnits(c, months, fromIso, toIso, force) })));
     for (const { code, b: p } of part) {
       for (const [u, v] of Object.entries(p.agg)) {
         const dst = (agg[u] = agg[u] || { rev: months.map(() => 0), cost: months.map(() => 0) });

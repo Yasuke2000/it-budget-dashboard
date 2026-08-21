@@ -54,10 +54,10 @@ function monthKeys(today: Date, n: number): string[] {
 
 interface CoBank { accounts: BankAccountRow[]; monthly: Record<string, Record<string, { in: number; out: number }>>; builtAt?: string }
 
-async function buildCompanyBank(co: { id: string; code: string }, months: string[], todayIso: string): Promise<CoBank> {
+async function buildCompanyBank(co: { id: string; code: string }, months: string[], todayIso: string, force = false): Promise<CoBank> {
   const key = `bank-co2-${co.code}-${months[months.length - 1]}`;
   const cached = getCache<CoBank>(key);
-  if (cached) return cached;
+  if (cached && !force) return cached; // force = Vernieuwen: verse BC-pull (fix 21/08)
   const token = await getBCToken();
 
   // Rekeningnamen uit api/v2.0
@@ -120,7 +120,7 @@ async function buildCompanyBank(co: { id: string; code: string }, months: string
   return bundle;
 }
 
-async function buildBank(exclude: string[]): Promise<CfoBank> {
+async function buildBank(exclude: string[], _extra?: string, force = false): Promise<CfoBank> {
   const today = new Date();
   const todayIso = today.toISOString().slice(0, 10);
   const months = monthKeys(today, 13);
@@ -129,7 +129,7 @@ async function buildBank(exclude: string[]): Promise<CfoBank> {
     .filter((c) => isOperatingCompany(c.code) && !exclude.includes(c.code));
   const cos: CoBank[] = [];
   for (let i = 0; i < companies.length; i += 3) {
-    cos.push(...await Promise.all(companies.slice(i, i + 3).map((c) => buildCompanyBank(c, months, todayIso))));
+    cos.push(...await Promise.all(companies.slice(i, i + 3).map((c) => buildCompanyBank(c, months, todayIso, force))));
   }
   const accounts = cos.flatMap((c) => c.accounts).sort((a, b) => b.balance - a.balance);
   const brands = [...new Set(accounts.map((a) => a.brand))];
