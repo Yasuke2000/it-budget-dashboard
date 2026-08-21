@@ -220,7 +220,7 @@ async function accountNames(companyId: string, code: string, token: string): Pro
   return names;
 }
 
-async function buildCompanyPnl(co: { id: string; code: string }, year: number, toIso: string, token: string): Promise<CoPnl> {
+async function buildCompanyPnl(co: { id: string; code: string }, year: number, toIso: string, token: string, force = false): Promise<CoPnl> {
   // co6: per rekening ook het maandprofiel (detail moet de gekozen periode
   // volgen, vraag David 19/08 — "detail moet overeenkomen met gekozen periode").
   // co7: meerwaarden→niet_recurrent (bucket zit in de gecachete rij gebakken).
@@ -228,7 +228,7 @@ async function buildCompanyPnl(co: { id: string; code: string }, year: number, t
   // op de kostenlijn i.p.v. Andere Opbrengsten.
   const key = `pnl-co8-${co.code}-${year}-${toIso}`;
   const cached = getCache<CoPnl>(key);
-  if (cached) return cached;
+  if (cached && !force) return cached; // force = Vernieuwen: verse BC-pull, ook intraday
   const names = await accountNames(co.id, co.code, token);
   const agg: CoPnl["agg"] = {};
   const unmapped: CoPnl["unmapped"] = {};
@@ -272,7 +272,7 @@ async function buildCompanyPnl(co: { id: string; code: string }, year: number, t
   return bundle;
 }
 
-async function buildMgmtPnl(exclude: string[], extra?: string): Promise<CfoMgmtPnl> {
+async function buildMgmtPnl(exclude: string[], extra?: string, force = false): Promise<CfoMgmtPnl> {
   const today = new Date();
   const todayIso = today.toISOString().slice(0, 10);
   const m2 = /^(\d{4})\|([A-Z]{2,5}|ALL)$/.exec(extra || "");
@@ -294,7 +294,7 @@ async function buildMgmtPnl(exclude: string[], extra?: string): Promise<CfoMgmtP
   const loonAll = new Array(12).fill(0);
   let nonRec = 0, oldest = "";
   for (let i = 0; i < companies.length; i += 2) {
-    const part = await Promise.all(companies.slice(i, i + 2).map(async (c) => ({ code: c.code, b: await buildCompanyPnl(c, year, toIso, token) })));
+    const part = await Promise.all(companies.slice(i, i + 2).map(async (c) => ({ code: c.code, b: await buildCompanyPnl(c, year, toIso, token, force) })));
     for (const { code, b } of part) {
       for (const [k, arr] of Object.entries(b.agg)) {
         const key = MERGE[k] || k;

@@ -37,7 +37,7 @@ export function makePolledGetter<T extends { refreshing?: boolean }>(
   keyPrefix: string,
   // `extra` = vrije sleutel-suffix (bv. "2026-01-01..2026-06-30" voor een datumrange,
   // vraag David 13/08/2026); getters die er niets mee doen negeren hem gewoon.
-  build: (exclude: string[], extra?: string) => Promise<T>,
+  build: (exclude: string[], extra?: string, force?: boolean) => Promise<T>,
   demo: () => T
 ): (force?: boolean, exclude?: string[], extra?: string) => Promise<T | BuildingState> {
   const inflight = new Map<string, Promise<T>>();
@@ -48,7 +48,10 @@ export function makePolledGetter<T extends { refreshing?: boolean }>(
     const cached = getCache<T>(cacheKey);
     if (cached && !force) return cached;
     if (!inflight.has(cacheKey)) {
-      const p = build(excl, extra)
+      // force wordt doorgegeven zodat builders ook hun ONDERLIGGENDE caches
+      // (per-vennootschap-pulls) kunnen overslaan — 'Vernieuwen' ververste
+      // anders alleen de bovenste laag (melding David 21/08: data niet live).
+      const p = build(excl, extra, force)
         .then((r) => { setCache(cacheKey, r, 720); return r; })
         .finally(() => inflight.delete(cacheKey));
       inflight.set(cacheKey, p);
